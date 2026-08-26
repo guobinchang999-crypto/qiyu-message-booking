@@ -1,0 +1,83 @@
+<view class="qy-page">
+  <qy-navbar title="{{dictionaries.detailTitle}}" />
+  <view wx:if="{{loading}}" class="qy-section qy-card state-card">
+    <qy-status-view type="loading" title="{{dictionaries.loadingTitle}}" description="{{dictionaries.loadingDescription}}" />
+  </view>
+  <view wx:elif="{{error}}" class="qy-section qy-card state-card">
+    <qy-status-view type="error" title="{{dictionaries.errorTitle}}" description="{{error}}" action-text="{{dictionaries.retryText}}" bind:retry="loadService" />
+  </view>
+  <block wx:elif="{{service}}">
+    <view class="service-banner">
+      <qy-image src="{{service.bannerImageUrl || service.coverImageUrl}}" label="{{placeholderLabel}}" height="320rpx" radius="0" />
+      <view class="hero-copy">
+        <text class="hero-title">{{service.name}}</text>
+        <view class="hero-tags"><text wx:for="{{service.tags}}" wx:key="*this">{{item}}</text></view>
+        <text class="hero-description">{{service.description}}</text>
+      </view>
+      <view class="hero-actions">
+        <text bindtap="toggleFavorite">{{favorite ? dictionaries.favoritedText : dictionaries.favoriteText}}</text>
+        <button class="hero-action-button" open-type="share">{{dictionaries.shareText}}</button>
+      </view>
+    </view>
+    <view class="qy-section">
+      <text class="name">{{service.name}}</text>
+      <text class="qy-muted">{{serviceMetaText}}</text>
+      <view class="tag-row">
+        <text wx:for="{{service.tags}}" wx:key="*this">{{item}}</text>
+      </view>
+      <view class="price-row">
+        <text class="price">¥{{service.memberPrice}}</text>
+        <text>{{dictionaries.memberPriceLabel}}</text>
+        <text class="normal-price">¥{{service.price}}</text>
+      </view>
+    </view>
+    <view wx:if="{{store}}" class="qy-section qy-card store-summary">
+      <view>
+        <text>{{store.name}}</text>
+        <text class="qy-muted">{{store.rating}} {{dictionaries.storeCardMeta.ratingUnit}} · {{store.distanceKm}}km · {{store.businessStatus}}</text>
+      </view>
+      <text>{{store.nextAvailableAt}}</text>
+    </view>
+    <view class="qy-section qy-card content">
+      <text class="qy-section-title">{{dictionaries.introTitle}}</text>
+      <text>{{service.description}}</text>
+      <block wx:if="{{service.processSteps.length}}">
+        <text class="sub-title">{{dictionaries.processTitle}}</text>
+        <view class="process-list">
+          <text wx:for="{{service.processSteps}}" wx:key="*this">{{item}}</text>
+        </view>
+      </block>
+      <block wx:if="{{service.suitableFor}}">
+        <text class="sub-title">{{dictionaries.suitableTitle}}</text>
+        <text>{{service.suitableFor}}</text>
+      </block>
+      <text class="sub-title">{{dictionaries.noticeTitle}}</text>
+      <text>{{dictionaries.noticeText}}</text>
+    </view>
+    <view class="qy-section qy-card content">
+      <text class="qy-section-title">{{dictionaries.recommendedTherapistTitle}}</text>
+      <view class="therapist-row" wx:for="{{therapists}}" wx:key="id">
+        <text>{{item.name}}</text>
+        <text class="qy-muted">{{item.level}} · {{item.rating}} {{dictionaries.storeCardMeta.ratingUnit}} · {{dictionaries.nextAvailablePrefix}} {{item.nextAvailableAt}}</text>
+      </view>
+    </view>
+    <view class="qy-section qy-card review-summary">
+      <text>{{dictionaries.reviewTitle}}</text>
+      <text class="qy-muted">{{service.salesCount}} {{dictionaries.reviewSummarySuffix}}</text>
+      <view wx:if="{{reviews.length}}" class="review-list">
+        <view wx:for="{{reviews}}" wx:key="id" class="review-item">
+          <view>
+            <text>{{item.userName}}</text>
+            <text class="qy-muted">{{item.createdAt}} · {{item.rating}} {{dictionaries.storeCardMeta.ratingUnit}}</text>
+          </view>
+          <text>{{item.content}}</text>
+          <view wx:if="{{item.tags.length}}" class="review-tags">
+            <text wx:for="{{item.tags}}" wx:key="*this">{{item}}</text>
+          </view>
+        </view>
+      </view>
+      <button wx:if="{{reviewHasMore}}" class="review-more" loading="{{reviewLoadingMore}}" disabled="{{reviewLoadingMore}}" bindtap="loadMoreReviews">{{dictionaries.loadMoreText}}</button>
+    </view>
+  </block>
+  <qy-bottom-action primary-text="{{dictionaries.primaryButtonText}}" disabled="{{loading || !!error || !service}}" bind:primary="goTherapist" />
+</view>

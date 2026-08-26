@@ -1,0 +1,23 @@
+page {
+  --qy-color-brand: #3B533E;
+  --qy-color-brand-pressed: #304535;
+  --qy-color-brand-light: #E7ECE5;
+  --qy-color-page: #F4F0EC;
+  --qy-color-surface: #FBF8F5;
+  --qy-color-elevated: #FFFFFF;
+  --qy-color-text-primary: #20231F;
+  --qy-color-text-secondary: #666A66;
+  --qy-color-text-placeholder: #9A9B97;
+  --qy-color-border: #D7D0C8;
+  --qy-color-divider: #E6DFD7;
+  --qy-color-gold: #B28A57;
+  --qy-color-gold-light: #F2E9DD;
+  --qy-color-success: #3F6B4F;
+  --qy-color-warning: #B7793E;
+  --qy-color-error: #C25B52;
+  --qy-color-disabled: #C9C7C2;
+  --qy-color-disabled-bg: #EEECE8;
+  --qy-radius-sm: 12rpx;
+  --qy-radius-md: 16rpx;
+  --qy-radius-lg: 24rpx;
+}

@@ -1,0 +1,86 @@
+<view class="qy-page">
+  <qy-navbar title="{{store.name || dictionaries.errorTitle}}" />
+  <view wx:if="{{loading}}" class="qy-section qy-card state-card">
+    <qy-status-view type="loading" title="{{dictionaries.loadingTitle}}" description="{{dictionaries.loadingDescription}}" />
+  </view>
+  <view wx:elif="{{error}}" class="qy-section qy-card state-card">
+    <qy-status-view type="error" title="{{dictionaries.errorTitle}}" description="{{error}}" action-text="{{dictionaries.retryText}}" bind:retry="loadStore" />
+  </view>
+  <block wx:elif="{{store}}">
+    <view class="gallery">
+      <swiper class="gallery-swiper" current="{{galleryIndex - 1}}" circular="{{galleryImages.length > 1}}" bindchange="onGalleryChange">
+        <swiper-item wx:for="{{galleryImages}}" wx:key="*this">
+          <qy-image src="{{item}}" label="{{placeholderLabel}}" height="300rpx" radius="0" />
+        </swiper-item>
+      </swiper>
+      <view class="gallery-page">{{galleryIndex}}/{{galleryTotal}}</view>
+      <view wx:if="{{store.highlights.length}}" class="gallery-highlights">
+        <text wx:for="{{store.highlights}}" wx:key="*this">{{item}}</text>
+      </view>
+    </view>
+    <view class="qy-section">
+      <view class="store-summary">
+        <text class="store-name">{{store.name}}</text>
+        <text class="qy-muted">{{store.rating}} {{dictionaries.storeCardMeta.ratingUnit}} · {{store.distanceKm}}km · {{store.businessStatus}}</text>
+        <text>{{store.address}}</text>
+        <view class="summary-actions">
+          <text wx:for="{{dictionaries.actions}}" wx:key="key" data-key="{{item.key}}" bindtap="onAction">{{item.key === 'favorite' && favorite ? dictionaries.favoriteActiveText : item.label}}</text>
+        </view>
+      </view>
+    </view>
+    <view wx:if="{{store.memberBenefitText}}" class="qy-section benefit">{{store.memberBenefitText}}</view>
+    <view class="qy-section qy-card expand-list">
+      <view data-key="facilities" bindtap="togglePanel">
+        <text>{{dictionaries.panels.facilities}}</text>
+        <text>{{expandedPanels.facilities ? dictionaries.collapseText : dictionaries.expandText}}</text>
+      </view>
+      <view wx:if="{{expandedPanels.facilities}}" class="expand-content">
+        <text wx:for="{{store.facilities}}" wx:key="*this">{{item}}</text>
+      </view>
+      <view data-key="businessHours" bindtap="togglePanel">
+        <text>{{dictionaries.panels.businessHours}}</text>
+        <text>{{expandedPanels.businessHours ? dictionaries.collapseText : dictionaries.expandText}}</text>
+      </view>
+      <text wx:if="{{expandedPanels.businessHours}}" class="expand-text">{{dictionaries.businessHoursText}}</text>
+      <view data-key="notice" bindtap="togglePanel">
+        <text>{{dictionaries.panels.notice}}</text>
+        <text>{{expandedPanels.notice ? dictionaries.collapseText : dictionaries.expandText}}</text>
+      </view>
+      <text wx:if="{{expandedPanels.notice}}" class="expand-text">{{dictionaries.noticeText}}</text>
+    </view>
+    <view class="qy-section tabs">
+      <text wx:for="{{dictionaries.tabs}}" wx:key="key" class="{{activeTab === item.key ? 'active' : ''}}" data-tab="{{item.key}}" bindtap="chooseTab">{{item.label}}</text>
+    </view>
+    <view wx:if="{{activeTab === 'services'}}" class="qy-section">
+      <view class="qy-section-title">
+        <text>{{dictionaries.recommendedServiceTitle}}</text>
+        <text class="more" bindtap="goService">{{dictionaries.allServiceText}}</text>
+      </view>
+      <qy-service-card wx:for="{{services}}" wx:key="id" service="{{item}}" variant="compact" meta-copy="{{dictionaries.serviceCardMeta}}" bind:select="goService" />
+    </view>
+    <view wx:elif="{{activeTab === 'therapists'}}" class="qy-section qy-card therapist-list">
+      <view wx:for="{{therapists}}" wx:key="id">
+        <text>{{item.name}}</text>
+        <text class="qy-muted">{{item.level}} · {{item.rating}} {{dictionaries.storeCardMeta.ratingUnit}} · {{item.nextAvailableAt}}</text>
+      </view>
+    </view>
+    <view wx:else class="qy-section qy-card review-panel">
+      <text>{{dictionaries.reviewTitle}}</text>
+      <text class="qy-muted">{{store.rating}} {{dictionaries.reviewSummarySuffix}}</text>
+      <view wx:if="{{reviews.length}}" class="review-list">
+        <view wx:for="{{reviews}}" wx:key="id" class="review-item">
+          <view>
+            <text>{{item.userName}}</text>
+            <text class="qy-muted">{{item.createdAt}} · {{item.rating}} {{dictionaries.storeCardMeta.ratingUnit}}</text>
+          </view>
+          <text>{{item.content}}</text>
+          <view wx:if="{{item.tags.length}}" class="review-tags">
+            <text wx:for="{{item.tags}}" wx:key="*this">{{item}}</text>
+          </view>
+        </view>
+      </view>
+      <button wx:if="{{reviewHasMore}}" class="review-more" loading="{{reviewLoadingMore}}" disabled="{{reviewLoadingMore}}" bindtap="loadMoreReviews">{{dictionaries.loadMoreText}}</button>
+    </view>
+  </block>
+  <qy-bottom-action primary-text="{{dictionaries.primaryButtonText}}" disabled="{{loading || !!error || !store}}" bind:primary="goService" />
+</view>

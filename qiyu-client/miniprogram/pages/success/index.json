@@ -1,0 +1,5 @@
+{
+  "usingComponents": {
+    "qy-status-view": "../../components/qy-status-view/index"
+  }
+}

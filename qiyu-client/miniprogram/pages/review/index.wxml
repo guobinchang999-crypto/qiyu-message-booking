@@ -1,0 +1,51 @@
+<view class="qy-page">
+  <qy-navbar title="{{dictionaries.pageTitle}}" />
+  <view wx:if="{{loading}}" class="qy-section qy-card state-card"><qy-status-view type="loading" title="{{stateCopy.loadingTitle}}" description="{{stateCopy.loadingDescription}}" /></view>
+  <view wx:elif="{{error && !booking}}" class="qy-section qy-card state-card"><qy-status-view type="error" title="{{stateCopy.errorTitle}}" description="{{error}}" action-text="{{stateCopy.retryText}}" bind:retry="loadReviewData" /></view>
+  <block wx:elif="{{booking}}">
+  <view wx:if="{{error}}" class="qy-section qy-card state-card"><qy-status-view type="error" title="{{stateCopy.submitErrorTitle}}" description="{{error}}" /></view>
+  <view wx:if="{{validationError}}" class="qy-section validation-error">{{validationError}}</view>
+  <view class="review-summary">
+    <text class="qy-muted">{{booking.service.name}} · {{booking.therapist.name}}</text>
+  </view>
+  <view class="qy-section qy-card booking-summary">
+    <text>{{booking.store.name}}</text>
+    <text class="qy-muted">{{booking.scheduledAt}} · {{booking.code}}</text>
+  </view>
+  <view class="qy-section qy-card rating-panel">
+    <view><text>{{dictionaries.ratingFields.therapist}}</text><t-rate value="{{therapistRating}}" disabled="{{submitting || submitted}}" data-key="therapistRating" bind:change="setRating" /></view>
+    <view><text>{{dictionaries.ratingFields.environment}}</text><t-rate value="{{environmentRating}}" disabled="{{submitting || submitted}}" data-key="environmentRating" bind:change="setRating" /></view>
+    <view><text>{{dictionaries.ratingFields.service}}</text><t-rate value="{{serviceRating}}" disabled="{{submitting || submitted}}" data-key="serviceRating" bind:change="setRating" /></view>
+  </view>
+  <view class="qy-section qy-card">
+    <view class="tag-list">
+      <text wx:for="{{tags}}" wx:key="*this" data-tag="{{item}}" class="{{selectedTags.indexOf(item) >= 0 ? 'selected' : ''}} {{submitting || submitted ? 'disabled' : ''}}" bindtap="toggleTag">{{item}}</text>
+    </view>
+    <textarea maxlength="300" value="{{content}}" disabled="{{submitting || submitted}}" placeholder="{{dictionaries.contentPlaceholder}}" bindinput="onContent" />
+    <text class="count">{{content.length}}/300</text>
+  </view>
+  <view class="qy-section qy-card image-panel">
+    <view class="image-panel-head">
+      <text>{{dictionaries.imageSectionTitle}}</text>
+      <text class="qy-muted">{{dictionaries.imageHintText}}</text>
+    </view>
+    <view class="image-grid">
+      <view class="image-item" wx:for="{{images}}" wx:key="id">
+        <image src="{{item.tempFilePath}}" mode="aspectFill" data-src="{{item.tempFilePath}}" bindtap="previewImage" />
+        <view wx:if="{{item.status === 'uploading'}}" class="image-mask">{{dictionaries.uploadingImageText}}</view>
+        <view wx:if="{{item.status === 'failed'}}" class="image-mask failed" data-id="{{item.id}}" bindtap="retryImageUpload">{{dictionaries.uploadFailedText}} · {{dictionaries.retryUploadText}}</view>
+        <text wx:if="{{!submitting && !submitted}}" class="remove-image" data-id="{{item.id}}" catchtap="removeImage">×</text>
+      </view>
+      <view wx:if="{{images.length < 3 && !submitting && !submitted}}" class="add-image" bindtap="chooseImages">
+        <text>+</text>
+        <text>{{dictionaries.addImageText}}</text>
+      </view>
+    </view>
+  </view>
+  <view class="qy-section options">
+    <text class="{{submitting || submitted ? 'disabled' : ''}}" bindtap="toggleAnonymous">{{anonymous ? '✓' : '○'}} {{dictionaries.anonymousText}}</text>
+    <text class="{{submitting || submitted ? 'disabled' : ''}}" bindtap="toggleAgreed">{{agreed ? '✓' : '○'}} {{dictionaries.agreementText}}</text>
+  </view>
+  <qy-bottom-action primary-text="{{submitted ? dictionaries.submittedButtonText : dictionaries.submitButtonText}}" loading="{{submitting}}" disabled="{{submitting || submitted || !agreed}}" bind:primary="submit" />
+  </block>
+</view>

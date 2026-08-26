@@ -1,0 +1,14 @@
+.DS_Store
+.idea/
+
+node_modules/
+dist/
+
+qiyu-admin/.umi/
+qiyu-admin/src/.umi-production/
+qiyu-admin/typings.d.ts
+
+qiyu-client/miniprogram/miniprogram_npm/
+
+qiyu-server/target/
+*.log

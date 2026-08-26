@@ -1,0 +1,6 @@
+<view class="image-box" style="height: {{height}}; border-radius: {{radius}};">
+  <image wx:if="{{src && !failed}}" src="{{src}}" mode="aspectFill" lazy-load binderror="onError" />
+  <view wx:else class="image-placeholder">
+    <text>{{label}}</text>
+  </view>
+</view>

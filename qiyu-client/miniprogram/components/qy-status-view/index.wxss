@@ -1,0 +1,6 @@
+.status-view{display:flex;flex-direction:column;align-items:center;gap:16rpx;padding:56rpx 32rpx;text-align:center;color:var(--qy-color-text-secondary)}
+.status-icon{display:flex;align-items:center;justify-content:center;width:96rpx;height:96rpx;border-radius:999rpx;background:var(--qy-color-brand-light);color:var(--qy-color-brand);font-family:"Songti SC","STSong",serif;font-size:40rpx}
+.status-view--error .status-icon{background:#F7E7E5;color:var(--qy-color-error);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+.status-title{font-size:30rpx;font-weight:500;color:var(--qy-color-text-primary)}
+.status-description{max-width:560rpx;font-size:24rpx;line-height:36rpx}
+.status-action{margin-top:8rpx;min-width:180rpx;height:72rpx;padding:0 28rpx;border:1px solid var(--qy-color-brand);border-radius:16rpx;background:var(--qy-color-surface);color:var(--qy-color-brand);font-size:26rpx;line-height:72rpx}

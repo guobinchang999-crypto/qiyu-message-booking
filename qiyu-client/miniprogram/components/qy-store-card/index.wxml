@@ -1,0 +1,21 @@
+<view wx:if="{{store.id}}" class="store-card store-card--{{variant}}" bindtap="onSelect">
+  <view wx:if="{{variant === 'nearby'}}" class="nearby-icon">{{placeholderLabel}}</view>
+  <view wx:else class="store-cover">
+    <qy-image src="{{store.coverImageUrl}}" label="{{placeholderLabel}}" height="132rpx" radius="{{variant === 'frequent' ? '12rpx' : '16rpx'}}" />
+  </view>
+  <view class="store-info">
+    <view wx:if="{{variant === 'list'}}" class="store-title">
+      <text>{{store.name}}</text>
+      <text class="qy-status qy-status--upcoming">{{store.businessStatus}}</text>
+    </view>
+    <text wx:else class="store-name">{{store.name}}</text>
+    <text class="qy-muted">{{variant === 'nearby' ? store.address + ' · ' + store.distanceKm + 'km' : store.rating + ' ' + metaCopy.ratingUnit + ' · ' + store.distanceKm + 'km · ' + store.businessStatus}}</text>
+    <text wx:if="{{variant === 'frequent'}}" class="next">{{metaCopy.nextAvailablePrefix}} {{store.nextAvailableAt}}</text>
+    <text wx:if="{{variant === 'list'}}" class="address">{{store.address}}</text>
+    <view wx:if="{{variant === 'list'}}" class="tags">
+      <text wx:for="{{store.facilities}}" wx:key="*this">{{item}}</text>
+    </view>
+  </view>
+  <text wx:if="{{variant === 'nearby'}}" class="status">{{store.businessStatus}}</text>
+  <text wx:else class="arrow">›</text>
+</view>

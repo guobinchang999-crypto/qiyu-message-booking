@@ -1,0 +1,23 @@
+<view class="qy-page">
+  <view class="services-header">
+    <text>{{pageTitle}}</text>
+    <text class="store-switch" bindtap="goStores">{{storeSwitchLabel}}</text>
+  </view>
+  <view class="search-bar">
+    <input placeholder="{{searchPlaceholder}}" value="{{keyword}}" bindinput="onSearch" />
+    <text wx:if="{{keyword}}" class="clear-search" bindtap="clearSearch">{{clearSearchText}}</text>
+  </view>
+  <scroll-view class="category-tabs" scroll-x>
+    <text wx:for="{{categories}}" wx:key="*this" data-category="{{item}}" class="{{category === item ? 'active' : ''}}" bindtap="chooseCategory">{{item}}</text>
+  </scroll-view>
+  <view class="sort-tabs">
+    <text wx:for="{{sortOptions}}" wx:key="key" data-key="{{item.key}}" class="{{sortKey === item.key ? 'active' : ''}}" bindtap="chooseSort">{{item.label}}</text>
+  </view>
+  <view class="service-banner">{{bannerText}}</view>
+  <view wx:if="{{loading}}" class="qy-section qy-card"><qy-status-view type="loading" title="{{stateCopy.loadingTitle}}" description="{{stateCopy.loadingDescription}}" /></view>
+  <view wx:elif="{{error}}" class="qy-section qy-card"><qy-status-view type="error" title="{{stateCopy.errorTitle}}" description="{{error}}" action-text="{{stateCopy.retryText}}" bind:retry="loadServices" /></view>
+  <view wx:elif="{{visibleServices.length === 0}}" class="qy-section qy-card"><qy-status-view type="empty" title="{{stateCopy.emptyTitle}}" description="{{stateCopy.emptyDescription}}" /></view>
+  <view wx:else class="qy-section service-list">
+    <qy-service-card wx:for="{{visibleServices}}" wx:key="id" service="{{item}}" meta-copy="{{serviceCardMeta}}" bind:select="goService" />
+  </view>
+</view>

@@ -1,0 +1,17 @@
+@import "../../styles/utilities.wxss";
+.service-card{display:flex;gap:20rpx;box-sizing:border-box;background:var(--qy-color-surface);border:1px solid var(--qy-color-border)}
+.service-card--list{margin-bottom:24rpx;padding:24rpx;border-radius:var(--qy-radius-md)}
+.service-card--compact{align-items:center;padding:22rpx 0;border-width:0 0 1px;border-radius:0;background:transparent}
+.service-card--featured{display:block;flex:0 0 210rpx;border:0;background:transparent}
+.service-cover{width:156rpx;height:132rpx;flex-shrink:0}
+.service-card--compact .service-cover{width:130rpx;height:100rpx}
+.service-card--featured .service-cover{width:210rpx;height:150rpx;margin-bottom:16rpx}
+.service-info{flex:1;display:flex;flex-direction:column;gap:8rpx;min-width:0}
+.service-name{font-size:30rpx;font-weight:500;color:var(--qy-color-text)}
+.desc{color:var(--qy-color-text-secondary);font-size:24rpx;line-height:34rpx}
+.tags{display:flex;flex-wrap:wrap;gap:8rpx}
+.tags text{padding:5rpx 10rpx;border-radius:8rpx;background:var(--qy-color-brand-light);color:var(--qy-color-brand);font-size:22rpx}
+.price{color:var(--qy-color-accent);font-size:30rpx}
+.service-card--featured .price{display:block;margin-top:8rpx}
+.price text{margin-left:10rpx;color:var(--qy-color-text-tertiary);font-size:24rpx;text-decoration:line-through}
+.arrow{align-self:center;color:var(--qy-color-text-tertiary);font-size:40rpx}

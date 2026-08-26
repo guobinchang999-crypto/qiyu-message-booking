@@ -1,0 +1,6 @@
+@import "../styles/tokens.wxss";
+.tabbar{position:fixed;z-index:200;left:0;right:0;bottom:0;display:flex;box-sizing:border-box;min-height:104rpx;padding-bottom:env(safe-area-inset-bottom);background:var(--qy-color-surface);border-top:1px solid var(--qy-color-divider)}
+.tabbar-item{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:104rpx;color:var(--qy-color-text-secondary);font-size:22rpx;line-height:1.2}
+.tabbar-item.active{color:var(--qy-color-brand);font-weight:500}
+.tabbar-icon{font-size:40rpx;line-height:42rpx}
+.tabbar-text{margin-top:6rpx}

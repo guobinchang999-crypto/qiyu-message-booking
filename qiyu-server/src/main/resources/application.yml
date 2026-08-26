@@ -1,0 +1,10 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: qiyu-server
+
+springdoc:
+  swagger-ui:
+    path: /doc.html

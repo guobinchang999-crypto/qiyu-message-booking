@@ -1,0 +1,4 @@
+<view class="bottom-action">
+  <button wx:if="{{secondaryText}}" class="secondary-button" disabled="{{disabled || loading}}" bindtap="onSecondary">{{secondaryText}}</button>
+  <button class="primary-button" loading="{{loading}}" disabled="{{disabled || loading}}" bindtap="onPrimary">{{primaryText}}</button>
+</view>

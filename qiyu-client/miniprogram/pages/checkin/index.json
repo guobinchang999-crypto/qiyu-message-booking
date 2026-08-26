@@ -1,0 +1,6 @@
+{
+  "usingComponents": {
+    "qy-navbar": "../../components/qy-navbar/index",
+    "qy-status-view": "../../components/qy-status-view/index"
+  }
+}

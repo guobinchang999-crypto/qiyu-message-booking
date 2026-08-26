@@ -1,0 +1,27 @@
+{
+  "name": "qiyu-admin",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "umi dev --port 8000",
+    "build": "umi build",
+    "typecheck": "tsc --noEmit",
+    "smoke:auth-guard": "node scripts/smoke-auth-guard.mjs",
+    "smoke:fulfillment": "node scripts/smoke-fulfillment.mjs",
+    "smoke:remote-contract": "node scripts/smoke-remote-contract.mjs"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.5.0",
+    "@ant-design/pro-components": "^2.8.6",
+    "@umijs/max": "^4.4.0",
+    "antd": "^5.22.0",
+    "dayjs": "^1.11.13",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.6.3"
+  }
+}

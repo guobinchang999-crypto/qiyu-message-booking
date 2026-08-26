@@ -1,0 +1,305 @@
+package com.qiyu.application.booking;
+
+import com.qiyu.domain.booking.Booking;
+import com.qiyu.domain.booking.BookingStatus;
+import com.qiyu.domain.booking.gateway.BookingGateway;
+import com.qiyu.domain.schedule.ScheduleConflictChecker;
+import com.qiyu.infrastructure.mock.MockCatalogProvider;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
+@Service
+public class BookingAppService {
+    private final BookingGateway bookingGateway;
+    private final MockCatalogProvider catalogProvider;
+    private final ScheduleConflictChecker conflictChecker = new ScheduleConflictChecker();
+    private final AtomicInteger sequence = new AtomicInteger(1003);
+
+    public BookingAppService(BookingGateway bookingGateway, MockCatalogProvider catalogProvider) {
+        this.bookingGateway = bookingGateway;
+        this.catalogProvider = catalogProvider;
+        seedBookings();
+    }
+
+    public synchronized Map<String, Object> create(BookingCreateCommand command) {
+        Map<String, Object> service = catalogProvider.findService(command.serviceId());
+        catalogProvider.findStore(command.storeId());
+        Map<String, Object> therapist = catalogProvider.findTherapist(command.therapistId());
+        if (!command.storeId().equals(therapist.get("storeId"))) {
+            throw new IllegalArgumentException("所选技师不属于当前门店");
+        }
+        String roomId = command.roomId() == null || command.roomId().isBlank() ? "room-jingan-01" : command.roomId();
+        Booking booking = new Booking("BK-202608-" + sequence.getAndIncrement(), command.storeId(), command.serviceId(),
+                command.therapistId(), roomId, command.customerName(), command.mobile(), LocalDate.parse(command.date()),
+                LocalTime.parse(command.startTime()), (Integer) service.get("durationMinutes"), BookingStatus.BOOKED);
+        conflictChecker.ensureAvailable(booking, bookingGateway.findAll());
+        return toView(bookingGateway.save(booking));
+    }
+
+    public Map<String, Object> confirmation(String storeId, String serviceId, String therapistId, String date,
+                                            String startTime, Integer guestCount, String couponId) {
+        Map<String, Object> store = catalogProvider.findStore(storeId);
+        Map<String, Object> service = catalogProvider.findService(serviceId);
+        Map<String, Object> therapist = therapistId == null || therapistId.isBlank() ? null : catalogProvider.findTherapist(therapistId);
+        int safeGuestCount = guestCount == null || guestCount < 1 ? 1 : guestCount;
+        int itemAmount = numberValue(service, "memberPrice") * safeGuestCount;
+        int therapistFee = (therapist == null ? 0 : numberValue(therapist, "extraFee")) * safeGuestCount;
+        int discountAmount = couponId == null || couponId.isBlank() ? 0 : 20;
+        int totalAmount = Math.max(0, itemAmount + therapistFee - discountAmount);
+        int depositDue = Math.min(totalAmount, 50 * safeGuestCount);
+
+        Map<String, Object> payment = new LinkedHashMap<>();
+        payment.put("itemAmount", itemAmount);
+        payment.put("therapistFee", therapistFee);
+        payment.put("discountAmount", discountAmount);
+        payment.put("balanceDeduction", 0);
+        payment.put("depositDue", depositDue);
+        payment.put("paidAmount", depositDue);
+
+        Map<String, Object> formCopy = new LinkedHashMap<>();
+        formCopy.put("guestCountLabel", "服务人数");
+        formCopy.put("contactLabel", "预约人");
+        formCopy.put("contactPlaceholder", "请输入姓名");
+        formCopy.put("remarkLabel", "备注");
+        formCopy.put("remarkPlaceholder", "选填");
+        formCopy.put("contactRequiredMessage", "请填写预约人姓名");
+        formCopy.put("submitFallbackText", "确认预约");
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("pageTitle", "确认预约");
+        result.put("editActions", Map.of(
+                "store", "修改门店",
+                "service", "修改项目",
+                "therapist", "修改技师",
+                "time", "修改时间"
+        ));
+        result.put("cardMeta", Map.of("durationUnit", "分钟", "servedPrefix", "已服务", "servedSuffix", "次"));
+        result.put("store", store);
+        result.put("service", service);
+        result.put("therapist", therapist);
+        result.put("therapistDisplayName", therapist == null ? "系统自动分配技师" : therapist.get("name"));
+        result.put("scheduledAt", date + " " + startTime);
+        result.put("payment", payment);
+        result.put("formCopy", formCopy);
+        result.put("benefitTitle", "会员权益 · 全门店通用");
+        result.put("benefitSelectionText", (couponId == null || couponId.isBlank() ? "不使用优惠" : couponId) + " ›");
+        result.put("paymentTitle", "费用明细");
+        result.put("paymentLines", List.of(
+                Map.of("key", "item", "label", "服务项目", "amountText", "¥" + itemAmount),
+                Map.of("key", "therapist", "label", "指定技师", "amountText", "¥" + therapistFee),
+                Map.of("key", "discount", "label", "优惠", "amountText", "-¥" + discountAmount, "tone", "discount")
+        ));
+        result.put("totalLabel", "应付订金");
+        result.put("agreementText", "我已阅读并同意取消预约规则");
+        result.put("agreementRequiredMessage", "请先阅读并同意取消预约规则");
+        result.put("depositButtonText", "确认并支付订金 ¥" + depositDue);
+        result.put("guestCount", safeGuestCount);
+        return result;
+    }
+
+    public Map<String, Object> detail(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        return toView(booking);
+    }
+
+    public Map<String, Object> success(String bookingId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("booking", detail(bookingId));
+        result.put("copy", catalogProvider.successCopy());
+        return result;
+    }
+
+    public Map<String, Object> rebookDraft(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Map<String, Object> draft = new LinkedHashMap<>();
+        draft.put("storeId", booking.storeId());
+        draft.put("serviceId", booking.serviceId());
+        draft.put("therapistMode", "auto");
+        draft.put("therapistId", null);
+        draft.put("slotId", null);
+        draft.put("guestCount", 1);
+        draft.put("contact", booking.customerName());
+        draft.put("remark", "");
+        draft.put("benefitSelection", "");
+        draft.put("flow", "create");
+        draft.put("sourceBookingId", null);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("sourceBookingId", booking.id());
+        result.put("draft", draft);
+        return result;
+    }
+
+    public Map<String, Object> rescheduleDraft(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        if (booking.status() != BookingStatus.BOOKED) {
+            throw new IllegalArgumentException("当前预约状态不可改期");
+        }
+        Map<String, Object> draft = new LinkedHashMap<>();
+        draft.put("storeId", booking.storeId());
+        draft.put("serviceId", booking.serviceId());
+        draft.put("therapistMode", "specified");
+        draft.put("therapistId", booking.therapistId());
+        draft.put("slotId", null);
+        draft.put("guestCount", 1);
+        draft.put("contact", booking.customerName());
+        draft.put("remark", "");
+        draft.put("benefitSelection", "");
+        draft.put("flow", "reschedule");
+        draft.put("sourceBookingId", booking.id());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("sourceBookingId", booking.id());
+        result.put("draft", draft);
+        return result;
+    }
+
+    public Map<String, Object> checkIn(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        booking.checkIn();
+        return toView(booking);
+    }
+
+    public Map<String, Object> refreshVerificationCode(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        booking.refreshVerificationCode();
+        return toView(booking);
+    }
+
+    public Map<String, Object> cancel(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        booking.cancel();
+        return toView(booking);
+    }
+
+    public Map<String, Object> preparePayment(String bookingId, String requestId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Map<String, Object> service = catalogProvider.findService(booking.serviceId());
+        String paymentNo = "PAY-" + booking.id() + "-" + (requestId == null || requestId.isBlank() ? "mock" : requestId);
+
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("timeStamp", String.valueOf(System.currentTimeMillis() / 1000));
+        parameters.put("nonceStr", "mock-" + booking.id());
+        parameters.put("package", "prepay_id=mock-" + booking.id());
+        parameters.put("signType", "RSA");
+        parameters.put("paySign", "mock-signature");
+        parameters.put("mockPayment", true);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("bookingId", booking.id());
+        result.put("amount", service.get("memberPrice"));
+        result.put("paymentNo", paymentNo);
+        result.put("parameters", parameters);
+        return result;
+    }
+
+    public Map<String, Object> payDeposit(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        booking.payDeposit();
+        return toView(booking);
+    }
+
+    public Map<String, Object> startService(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        booking.startService();
+        return toView(booking);
+    }
+
+    public Map<String, Object> finishService(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        booking.finishService();
+        return toView(booking);
+    }
+
+    public Map<String, Object> completeSettlement(String bookingId) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        booking.completeSettlement();
+        return toView(booking);
+    }
+
+    public synchronized Map<String, Object> reschedule(String bookingId, String date, String startTime) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Map<String, Object> service = catalogProvider.findService(booking.serviceId());
+        Booking candidate = new Booking(booking.id(), booking.storeId(), booking.serviceId(), booking.therapistId(), booking.roomId(),
+                booking.customerName(), booking.mobile(), LocalDate.parse(date), LocalTime.parse(startTime),
+                numberValue(service, "durationMinutes"), booking.status());
+        conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
+                .filter(existing -> !existing.id().equals(booking.id()))
+                .toList());
+        booking.reschedule(LocalDate.parse(date), LocalTime.parse(startTime), numberValue(service, "durationMinutes"));
+        return toView(booking);
+    }
+
+    public List<Map<String, Object>> list(String status) {
+        return bookingGateway.findAll().stream()
+                .filter(booking -> status == null || status.isBlank() || booking.status().name().equals(status))
+                .map(this::toView)
+                .toList();
+    }
+
+    private Map<String, Object> toView(Booking booking) {
+        Map<String, Object> service = catalogProvider.findService(booking.serviceId());
+        Map<String, Object> store = catalogProvider.findStore(booking.storeId());
+        Map<String, Object> therapist = catalogProvider.findTherapist(booking.therapistId());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", booking.id());
+        result.put("status", booking.status().name());
+        result.put("statusLabel", booking.status().label());
+        result.put("store", store);
+        result.put("service", service);
+        result.put("therapist", therapist);
+        result.put("roomId", booking.roomId());
+        result.put("customerName", booking.customerName());
+        result.put("mobile", maskMobile(booking.mobile()));
+        result.put("appointmentDate", booking.timeRange().serviceFrom().toLocalDate().toString());
+        result.put("startTime", booking.timeRange().serviceFrom().toLocalTime().toString());
+        result.put("endTime", booking.timeRange().serviceTo().toLocalTime().toString());
+        result.put("amount", service.get("memberPrice"));
+        result.put("memberBenefit", "会员权益全门店通用");
+        result.put("verificationCode", booking.verificationCode());
+        result.put("verificationQrImageUrl", "https://mock-cdn.qiyu.local/checkin/" + booking.verificationCode() + ".png");
+        return result;
+    }
+
+    private void seedBookings() {
+        Booking booked = new Booking("BK-202608-1000", "store-jingan", "service-neck", "therapist-anran", "room-jingan-02",
+                "林女士", "13800001234", LocalDate.of(2026, 8, 8), LocalTime.of(10, 0), 60, BookingStatus.BOOKED);
+        bookingGateway.save(booked);
+        Booking pendingPayment = new Booking("BK-202608-1001", "store-jingan", "service-spa", "therapist-anran", "room-jingan-01",
+                "林女士", "13800001234", LocalDate.of(2026, 8, 9), LocalTime.of(19, 0), 90, BookingStatus.PENDING_PAYMENT);
+        bookingGateway.save(pendingPayment);
+        Booking reschedulable = new Booking("BK-202608-1002", "store-jingan", "service-neck", "therapist-anran", "room-jingan-01",
+                "林女士", "13800001234", LocalDate.of(2026, 8, 11), LocalTime.of(10, 0), 60, BookingStatus.BOOKED);
+        bookingGateway.save(reschedulable);
+    }
+
+    private static String maskMobile(String mobile) {
+        return mobile.length() < 7 ? mobile : mobile.substring(0, 3) + "****" + mobile.substring(mobile.length() - 4);
+    }
+
+    private static int numberValue(Map<String, Object> item, String key) {
+        Object value = item.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return Integer.parseInt(String.valueOf(value));
+    }
+}

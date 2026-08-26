@@ -1,0 +1,36 @@
+{
+  "name": "qiyu-client",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:miniprogram-js": "tsc --noEmit false",
+    "validate:miniprogram": "node scripts/validate-miniprogram.mjs",
+    "smoke:page-acceptance": "node scripts/smoke-page-acceptance.mjs",
+    "smoke:api-mode": "node scripts/smoke-api-mode.mjs",
+    "smoke:product-boundary": "node scripts/smoke-product-boundary.mjs",
+    "smoke:login-form": "node scripts/smoke-login-form.mjs",
+    "smoke:home-order": "node scripts/smoke-home-order.mjs",
+    "smoke:store-location-actions": "node scripts/smoke-store-location-actions.mjs",
+    "smoke:pull-refresh": "node scripts/smoke-pull-refresh.mjs",
+    "smoke:profile": "node scripts/smoke-profile.mjs",
+    "smoke:order-status": "node scripts/smoke-order-status.mjs",
+    "smoke:booking-store": "node scripts/smoke-booking-store.mjs",
+    "smoke:time-slot": "node scripts/smoke-time-slot.mjs",
+    "smoke:booking-draft-flow": "node scripts/smoke-booking-draft-flow.mjs",
+    "smoke:confirm-submit": "node scripts/smoke-confirm-submit.mjs",
+    "smoke:booking-actions": "node scripts/smoke-booking-actions.mjs",
+    "smoke:review-flow": "node scripts/smoke-review-flow.mjs",
+    "smoke:review-upload": "node scripts/smoke-review-upload.mjs",
+    "smoke:payment": "node scripts/smoke-payment.mjs",
+    "verify": "npm run typecheck && npm run build:miniprogram-js && npm run validate:miniprogram && npm run smoke:api-mode && npm run smoke:page-acceptance && npm run smoke:product-boundary && npm run smoke:login-form && npm run smoke:home-order && npm run smoke:store-location-actions && npm run smoke:pull-refresh && npm run smoke:profile && npm run smoke:order-status && npm run smoke:booking-store && npm run smoke:time-slot && npm run smoke:booking-draft-flow && npm run smoke:confirm-submit && npm run smoke:booking-actions && npm run smoke:review-flow && npm run smoke:review-upload && npm run smoke:payment",
+    "lint": "echo 'Use WeChat DevTools lint for WXML/WXSS and ESLint when configured'"
+  },
+  "dependencies": {
+    "tdesign-miniprogram": "^1.15.0"
+  },
+  "devDependencies": {
+    "miniprogram-api-typings": "^4.0.0",
+    "typescript": "^5.6.3"
+  }
+}

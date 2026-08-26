@@ -1,0 +1,7 @@
+{
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "qy-status-view": "../../components/qy-status-view/index",
+    "qy-service-card": "../../components/qy-service-card/index"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "usingComponents": {
+    "t-rate": "tdesign-miniprogram/rate/rate",
+    "qy-navbar": "../../components/qy-navbar/index",
+    "qy-bottom-action": "../../components/qy-bottom-action/index",
+    "qy-status-view": "../../components/qy-status-view/index"
+  }
+}

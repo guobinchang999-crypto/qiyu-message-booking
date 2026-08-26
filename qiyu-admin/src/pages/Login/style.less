@@ -1,0 +1,8 @@
+.login-page { min-height: 100vh; display: grid; grid-template-columns: 1.2fr .8fr; background: #f6f7f5; }
+.login-intro { padding: 13vw 12vw; background: linear-gradient(135deg, #e9f0e9 0%, #f8f5ee 100%); }
+.login-brand-mark { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 16px; background: #5d806d; color: white; font-weight: 700; font-size: 24px; margin-bottom: 32px; }
+.login-intro h1 { color: #26332c; margin-bottom: 12px; }
+.login-intro p { color: #66736b; font-size: 16px; }
+.login-intro-card { margin-top: 72px; max-width: 380px; padding: 22px; color: #4f6155; background: rgba(255,255,255,.64); border: 1px solid rgba(255,255,255,.7); border-radius: 14px; line-height: 1.8; }
+.login-card { align-self: center; justify-self: center; width: min(420px, calc(100% - 48px)); border-radius: 16px; box-shadow: 0 16px 50px rgba(42, 62, 47, .10); }
+@media (max-width: 800px) { .login-page { grid-template-columns: 1fr; } .login-intro { display: none; } .login-card { margin-top: 15vh; } }

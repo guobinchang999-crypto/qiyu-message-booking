@@ -1,0 +1,7 @@
+<view class="navbar" style="padding-top: {{statusBarHeight}}px;">
+  <view class="navbar-content" style="height: {{navHeight}}px;">
+    <view class="back-hit" wx:if="{{showBack}}" bindtap="back">‹</view>
+    <text class="navbar-title">{{title}}</text>
+    <view class="right-spacer"></view>
+  </view>
+</view>

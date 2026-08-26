@@ -1,0 +1,10 @@
+<view class="status-view status-view--{{type}}">
+  <view class="status-icon">
+    <text wx:if="{{type === 'loading'}}">...</text>
+    <text wx:elif="{{type === 'error'}}">!</text>
+    <text wx:else>{{placeholderLabel}}</text>
+  </view>
+  <text class="status-title">{{title}}</text>
+  <text wx:if="{{description}}" class="status-description">{{description}}</text>
+  <button wx:if="{{actionText}}" class="status-action" bindtap="onAction">{{actionText}}</button>
+</view>

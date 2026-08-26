@@ -1,0 +1,17 @@
+<view wx:if="{{booking.id}}" class="order-card" bindtap="onSelect">
+  <view class="order-top">
+    <text>{{booking.store.name}}</text>
+    <text class="qy-status qy-status--upcoming">{{dictionaries.statusLabel[booking.status]}}</text>
+  </view>
+  <view class="order-info">
+    <view class="order-thumb"><qy-image src="{{booking.service.coverImageUrl}}" label="{{placeholderLabel}}" height="96rpx" radius="12rpx" /></view>
+    <view class="order-main">
+      <text class="store-name">{{booking.service.name}}</text>
+      <text class="qy-muted">{{booking.therapist.name}} · {{booking.scheduledAt}}</text>
+      <text class="price">{{metaCopy.paidPrefix}} ¥{{booking.payment.paidAmount}}</text>
+    </view>
+  </view>
+  <view class="order-actions">
+    <text wx:for="{{booking.availableActions}}" wx:key="*this" catchtap="onAction" data-action="{{item}}">{{dictionaries.actionLabel[item]}}</text>
+  </view>
+</view>

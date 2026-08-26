@@ -1,0 +1,15 @@
+<view wx:if="{{service.id}}" class="service-card service-card--{{variant}}" bindtap="onSelect">
+  <view class="service-cover">
+    <qy-image src="{{service.coverImageUrl}}" label="{{placeholderLabel}}" height="{{variant === 'featured' ? '150rpx' : variant === 'compact' ? '100rpx' : '132rpx'}}" radius="{{variant === 'featured' ? '16rpx' : '14rpx'}}" />
+  </view>
+  <view class="service-info">
+    <text class="service-name">{{service.name}}</text>
+    <text class="qy-muted">{{service.durationMinutes}}{{metaCopy.durationUnit}}{{variant === 'compact' ? ' · ' + service.tags[0] : variant === 'featured' ? '' : ' · ' + metaCopy.servedPrefix + service.salesCount + metaCopy.servedSuffix}}</text>
+    <text wx:if="{{variant === 'list'}}" class="desc">{{service.description}}</text>
+    <view wx:if="{{variant === 'list'}}" class="tags">
+      <text wx:for="{{service.tags}}" wx:key="*this">{{item}}</text>
+    </view>
+    <text class="price">¥{{service.memberPrice}} <text wx:if="{{variant !== 'featured'}}">¥{{service.price}}</text></text>
+  </view>
+  <text wx:if="{{variant !== 'featured'}}" class="arrow">›</text>
+</view>

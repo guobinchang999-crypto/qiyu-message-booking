@@ -1,0 +1,5 @@
+@import "styles/tokens.wxss";
+@import "styles/utilities.wxss";
+
+page { background: var(--qy-color-page); color: var(--qy-color-text-primary); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif; }
+button { margin: 0; }

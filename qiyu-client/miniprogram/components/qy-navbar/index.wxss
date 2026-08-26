@@ -1,0 +1,5 @@
+.navbar{position:relative;z-index:100;background:var(--qy-color-page)}
+.navbar-content{display:flex;align-items:center;justify-content:space-between;padding:0 32rpx}
+.back-hit,.right-spacer{display:flex;align-items:center;justify-content:flex-start;width:88rpx;height:88rpx;color:var(--qy-color-brand);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;font-size:56rpx;line-height:88rpx}
+.right-spacer{visibility:hidden}
+.navbar-title{flex:1;overflow:hidden;text-align:center;text-overflow:ellipsis;white-space:nowrap;font-family:"Songti SC","STSong",serif;font-size:34rpx;font-weight:500;color:var(--qy-color-text-primary)}

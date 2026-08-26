@@ -1,0 +1,43 @@
+{
+  "pages": [
+    "pages/login/index",
+    "pages/home/index",
+    "pages/stores/index",
+    "pages/store-detail/index",
+    "pages/services/index",
+    "pages/service-detail/index",
+    "pages/therapist/index",
+    "pages/time/index",
+    "pages/confirm/index",
+    "pages/success/index",
+    "pages/orders/index",
+    "pages/booking-detail/index",
+    "pages/checkin/index",
+    "pages/review/index",
+    "pages/profile/index"
+  ],
+  "window": {
+    "navigationStyle": "custom",
+    "backgroundColor": "#F4F0EC",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#666A66",
+    "selectedColor": "#3B533E",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "首页" },
+      { "pagePath": "pages/services/index", "text": "预约" },
+      { "pagePath": "pages/orders/index", "text": "订单" },
+      { "pagePath": "pages/profile/index", "text": "我的" }
+    ]
+  },
+  "usingComponents": {
+    "t-button": "tdesign-miniprogram/button/button",
+    "t-tag": "tdesign-miniprogram/tag/tag",
+    "t-input": "tdesign-miniprogram/input/input",
+    "t-search": "tdesign-miniprogram/search/search",
+    "t-rate": "tdesign-miniprogram/rate/rate",
+    "t-toast": "tdesign-miniprogram/toast/toast"
+  }
+}
