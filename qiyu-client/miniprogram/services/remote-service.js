@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.remoteService = void 0;
 const mock_service_1 = require("./mock-service");
 const http_1 = require("./http");
-const selectedDate = '2026-08-08';
 let clientCatalogCache = null;
 const idAlias = {
     jingan: 'store-jingan',
@@ -326,7 +325,7 @@ const mapBooking = (value) => {
         store: mapStore(record.store),
         service: mapService(record.service),
         therapist: mapTherapist(record.therapist),
-        scheduledAt: formatScheduledAt(asString(record, 'appointmentDate', selectedDate), asString(record, 'startTime', '10:00')),
+        scheduledAt: formatScheduledAt(asString(record, 'appointmentDate'), asString(record, 'startTime', '10:00')),
         contact: `${asString(record, 'customerName', '顾客')} ${asString(record, 'mobile', '')}`.trim(),
         payment: mapPayment(record),
         availableActions: actionsByStatus(status)
@@ -435,6 +434,7 @@ const mapBookingDraft = (value, fallback) => {
         contact: asString(record, 'contact', fallback.contact),
         remark: asString(record, 'remark', fallback.remark),
         benefitSelection: asString(record, 'benefitSelection', fallback.benefitSelection),
+        appointmentDate: asString(record, 'appointmentDate', fallback.appointmentDate),
         flow: asString(record, 'flow', fallback.flow || 'create') === 'reschedule' ? 'reschedule' : 'create',
         sourceBookingId: asString(record, 'sourceBookingId', fallback.sourceBookingId || '') || undefined
     };
@@ -518,7 +518,7 @@ exports.remoteService = {
                 storeId: toRemoteId(draft?.storeId, 'store-jingan'),
                 serviceId: toRemoteId(draft?.serviceId, 'service-neck'),
                 therapistId: toRemoteId(draft?.therapistId, 'therapist-anran'),
-                date: selectedDate
+                date: draft?.appointmentDate
             }
         });
         return data.map(mapTimeSlot);
@@ -533,7 +533,7 @@ exports.remoteService = {
                     storeId: toRemoteId(draft.storeId, 'store-jingan'),
                     serviceId: toRemoteId(draft.serviceId, 'service-neck'),
                     therapistId: draft.therapistMode === 'auto' ? undefined : toRemoteId(draft.therapistId, 'therapist-anran'),
-                    date: selectedDate,
+                    date: draft.appointmentDate,
                     startTime,
                     guestCount: draft.guestCount,
                     customerName: draft.contact,
@@ -553,10 +553,10 @@ exports.remoteService = {
     getSuccessCopy: () => withMockFallback(mapSuccessCopy, () => mock_service_1.mockService.getSuccessCopy()),
     getLoginCopy: () => withMockFallback(mapLoginCopy, () => mock_service_1.mockService.getLoginCopy()),
     async sendLoginCode(mobile) {
-        return (0, http_1.request)('/auth/send-code', { method: 'POST', data: { mobile } });
+        return (0, http_1.request)('/auth/send-code', { method: 'POST', data: { clientType: 'MINI_PROGRAM', mobile } });
     },
     async login(mobile, code) {
-        return (0, http_1.request)('/auth/login', { method: 'POST', data: { mobile, code } });
+        return (0, http_1.request)('/auth/login', { method: 'POST', data: { clientType: 'MINI_PROGRAM', grantType: 'SMS_CODE', identifier: mobile, credential: code } });
     },
     async getBookingSuccess(id) {
         const fallback = await mock_service_1.mockService.getBookingSuccess(id);
@@ -582,7 +582,7 @@ exports.remoteService = {
                 storeId: toRemoteId(draft.storeId, 'store-jingan'),
                 serviceId: toRemoteId(draft.serviceId, 'service-neck'),
                 therapistId: toRemoteId(draft.therapistId, 'therapist-anran'),
-                date: selectedDate,
+                date: draft.appointmentDate,
                 startTime,
                 customerName: draft.contact,
                 mobile: '13800001288',
@@ -598,7 +598,7 @@ exports.remoteService = {
         const booking = await (0, http_1.request)(`/bookings/${bookingId}/reschedule`, {
             method: 'POST',
             data: {
-                date: selectedDate,
+                date: draft.appointmentDate,
                 startTime,
                 therapistId: draft.therapistMode === 'auto' ? undefined : toRemoteId(draft.therapistId, 'therapist-anran'),
                 requestId
@@ -620,35 +620,28 @@ exports.remoteService = {
         const data = await (0, http_1.request)(`/reviews?${filterQuery}&page=${page}&pageSize=${pageSize}`);
         return mapReviewPage(data, page, pageSize);
     },
-    async checkinBooking(id) {
-        return mapBooking(await (0, http_1.request)(`/bookings/${id}/checkin`, { method: 'POST' }));
+    async checkinBooking(id, requestId) {
+        return mapBooking(await (0, http_1.request)(`/bookings/${id}/checkin`, { method: 'POST', data: { requestId } }));
     },
-    async refreshBookingCode(id) {
-        return mapBooking(await (0, http_1.request)(`/bookings/${id}/verification-code/refresh`, { method: 'POST' }));
+    async refreshBookingCode(id, requestId) {
+        return mapBooking(await (0, http_1.request)(`/bookings/${id}/verification-code/refresh`, { method: 'POST', data: { requestId } }));
     },
-    async cancelBooking(id) {
-        return mapBooking(await (0, http_1.request)(`/bookings/${id}/cancel`, { method: 'POST' }));
+    async cancelBooking(id, requestId) {
+        return mapBooking(await (0, http_1.request)(`/bookings/${id}/cancel`, { method: 'POST', data: { requestId } }));
     },
     async prepareBookingPayment(id, requestId) {
         return mapPaymentPayload(await (0, http_1.request)(`/bookings/${id}/payment`, { method: 'POST', data: { requestId } }), id);
     },
-    async payBooking(id) {
-        return mapBooking(await (0, http_1.request)(`/bookings/${id}/pay`, { method: 'POST' }));
+    async payBooking(id, requestId) {
+        return mapBooking(await (0, http_1.request)(`/bookings/${id}/pay`, { method: 'POST', data: { requestId } }));
     },
     async uploadReviewImage(tempFilePath, requestId) {
         const fileName = tempFilePath.split('/').pop() || `review-${Date.now()}.jpg`;
-        const data = await (0, http_1.request)('/reviews/images', {
-            method: 'POST',
-            data: {
-                fileName,
-                tempFilePath,
-                requestId
-            }
-        });
+        const data = await (0, http_1.upload)('/reviews/images', tempFilePath, { fileName, requestId });
         const record = asRecord(data);
         return { imageUrl: asString(record, 'imageUrl', tempFilePath) };
     },
-    async submitReview(review) {
+    async submitReview(review, requestId) {
         await (0, http_1.request)('/reviews', {
             method: 'POST',
             data: {
@@ -659,7 +652,8 @@ exports.remoteService = {
                 tags: review.tags,
                 content: review.content,
                 anonymous: review.anonymous,
-                imageUrls: review.imageUrls
+                imageUrls: review.imageUrls,
+                requestId
             }
         });
         return this.getBooking(review.bookingId);

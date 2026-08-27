@@ -10,7 +10,7 @@ export interface ServiceItem { id:string; name:string; category:string; duration
 export interface Therapist { id:string; name:string; level:string; experienceYears:number; skills:string[]; rating:number; serviceCount:number; specifyFee:number; nextAvailableAt:string; availability:'available'|'busy'; avatarUrl?:string; }
 export interface TimeSlot { id:string; startAt:string; period:TimePeriodCode; status:TimeSlotStatus; }
 export interface PaymentSummary { itemAmount:number; therapistFee:number; discountAmount:number; balanceDeduction:number; depositDue:number; paidAmount:number; }
-export interface BookingDraft { storeId:string; serviceId:string; therapistMode:TherapistMode; therapistId?:string; slotId?:string; guestCount:number; contact:string; remark:string; benefitSelection:string; flow?:BookingDraftFlow; sourceBookingId?:string; }
+export interface BookingDraft { storeId:string; serviceId:string; appointmentDate:string; therapistMode:TherapistMode; therapistId?:string; slotId?:string; guestCount:number; contact:string; remark:string; benefitSelection:string; flow?:BookingDraftFlow; sourceBookingId?:string; }
 export interface Booking { id:string; code:string; qrImageUrl?:string; status:BookingStatus; store:Store; service:ServiceItem; therapist:Therapist; scheduledAt:string; contact:string; payment:PaymentSummary; availableActions:OrderAction[]; }
 export interface StoreReview { id:string; storeId:string; serviceId:string; userName:string; rating:number; content:string; tags:string[]; createdAt:string; }
 export interface ReviewSubmitRequest { bookingId:string; therapistRating:number; environmentRating:number; serviceRating:number; tags:string[]; content:string; anonymous:boolean; imageUrls:string[]; }

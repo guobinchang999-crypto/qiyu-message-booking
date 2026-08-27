@@ -1,5 +1,6 @@
 package com.qiyu.adapter.booking;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.booking.BookingAppService;
 import com.qiyu.application.booking.BookingCreateCommand;
@@ -17,6 +18,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/bookings")
+@SaCheckLogin
 public class BookingController {
     private final BookingAppService bookingAppService;
 

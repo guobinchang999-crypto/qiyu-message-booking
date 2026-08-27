@@ -24,6 +24,12 @@ export default defineConfig({
         { path: '/members', component: 'Members' },
         { path: '/coupons', component: 'Coupons' },
         { path: '/reports', component: 'Reports' },
+        { path: '/system/organizations', component: 'System/Organizations' },
+        { path: '/system/users', component: 'System/Users' },
+        { path: '/system/roles', component: 'System/Roles' },
+        { path: '/system/menus', component: 'System/Menus' },
+        { path: '/system/dictionaries', component: 'System/Dictionaries' },
+        { path: '/system/audit-logs', component: 'System/AuditLogs' },
         { path: '/resources', redirect: '/schedule' }
       ]
     }

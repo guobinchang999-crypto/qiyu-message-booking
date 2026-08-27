@@ -3,12 +3,12 @@ import { pageRoutes } from '../../constants/navigation';
 import { ActionFeedbackDictionaryPayload, TherapistDictionaryPayload, TherapistStateCopy } from '../../services/contracts';
 import { bookingStore } from '../../store/booking';
 import { Therapist } from '../../types/domain';
-import { imagePlaceholderLabels } from '../../constants/ui';
+import { defaultPageStateCopy, imagePlaceholderLabels, resolvePageError } from '../../constants/ui';
 
 type TherapistView = Therapist & { metaText:string; skillText:string; nextText:string; availabilityText:string };
 const emptyDictionaries: TherapistDictionaryPayload = { pageTitle:'', modes:[], autoHint:'', nextAvailablePrefix:'', specifyFeePrefix:'', availableText:'', unavailableText:'', metaCopy:{ experiencePrefix:'', experienceSuffix:'', ratingUnit:'', serviceCountPrefix:'', serviceCountSuffix:'' } };
 const emptyFeedback = {} as ActionFeedbackDictionaryPayload;
-const emptyState: TherapistStateCopy = { loadingTitle:'', loadingDescription:'', errorTitle:'', errorMessage:'', retryText:'', unavailableFilterText:'', availableOnlyFilterText:'', emptySummaryText:'', selectedSummaryTitle:'', autoSummaryTitle:'', nextButtonText:'', emptyTitle:'', emptyDescription:'' };
+const emptyState: TherapistStateCopy = { ...defaultPageStateCopy, unavailableFilterText:'', availableOnlyFilterText:'', emptySummaryText:'', selectedSummaryTitle:'', autoSummaryTitle:'', nextButtonText:'' };
 
 Page({
   data:{ therapists:[] as TherapistView[], visibleTherapists:[] as TherapistView[], dictionaries:emptyDictionaries, feedback:emptyFeedback, stateCopy:emptyState, mode:'specified', selectedId:'', showUnavailable:true, selectedSummary:'', placeholderLabel:imagePlaceholderLabels.therapist, loading:true, error:'' },
@@ -46,7 +46,7 @@ Page({
         loading:false
       });
     } catch (error) {
-      this.setData({ loading:false, error:this.data.stateCopy.errorMessage });
+      this.setData({ loading:false, error:resolvePageError(error, this.data.stateCopy.errorMessage) });
     }
   },
   filterVisible(therapists: TherapistView[], showUnavailable: boolean) {

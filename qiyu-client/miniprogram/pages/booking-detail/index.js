@@ -5,9 +5,10 @@ const navigation_1 = require("../../constants/navigation");
 const booking_1 = require("../../store/booking");
 const payment_1 = require("../../utils/payment");
 const store_actions_1 = require("../../utils/store-actions");
+const ui_1 = require("../../constants/ui");
 const emptyDictionaries = { pageTitle: '', detailTitle: '', statusLabel: {}, actionLabel: {}, tabs: [], detailSteps: [], codeTitle: '', codeHint: '', codeExtraHint: '', detailFields: { service: '', therapist: '', scheduledAt: '', contact: '' }, paymentTitle: '', paymentFields: { item: '', therapist: '', discount: '', paid: '' }, actionSectionTitle: '', checkinButtonText: '', cancelModalTitle: '', cancelModalContent: '', cancelModalConfirmText: '', cancelSuccessToastText: '', paySuccessToastText: '', payFailureToastText: '', cardMeta: { paidPrefix: '' }, serviceCardMeta: { durationUnit: '', servedPrefix: '', servedSuffix: '' }, storeCardMeta: { ratingUnit: '', nextAvailablePrefix: '' } };
 const emptyFeedback = {};
-const emptyState = { loadingTitle: '', loadingDescription: '', errorTitle: '', errorMessage: '', retryText: '' };
+const emptyState = { ...ui_1.defaultPageStateCopy };
 const formatCode = (code) => {
     if (code.length <= 6)
         return code;
@@ -86,7 +87,7 @@ Page({
             });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.stateCopy.errorMessage) });
         }
     },
     checkin() {

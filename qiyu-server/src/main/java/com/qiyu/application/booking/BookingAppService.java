@@ -3,6 +3,11 @@ package com.qiyu.application.booking;
 import com.qiyu.domain.booking.Booking;
 import com.qiyu.domain.booking.BookingStatus;
 import com.qiyu.domain.booking.gateway.BookingGateway;
+import com.qiyu.application.auth.AuthPrincipal;
+import com.qiyu.application.auth.AuthAppService;
+import com.qiyu.application.auth.AuditLogService;
+import com.qiyu.application.auth.DataPermissionService;
+import com.qiyu.application.auth.AuthContext;
 import com.qiyu.domain.schedule.ScheduleConflictChecker;
 import com.qiyu.infrastructure.mock.MockCatalogProvider;
 import org.springframework.stereotype.Service;
@@ -18,16 +23,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BookingAppService {
     private final BookingGateway bookingGateway;
     private final MockCatalogProvider catalogProvider;
+    private final AuthAppService authAppService;
+    private final DataPermissionService dataPermissionService;
+    private final AuditLogService auditLogService;
     private final ScheduleConflictChecker conflictChecker = new ScheduleConflictChecker();
     private final AtomicInteger sequence = new AtomicInteger(1003);
 
-    public BookingAppService(BookingGateway bookingGateway, MockCatalogProvider catalogProvider) {
+    public BookingAppService(BookingGateway bookingGateway, MockCatalogProvider catalogProvider, AuthAppService authAppService,
+                             DataPermissionService dataPermissionService, AuditLogService auditLogService) {
         this.bookingGateway = bookingGateway;
         this.catalogProvider = catalogProvider;
+        this.authAppService = authAppService;
+        this.dataPermissionService = dataPermissionService;
+        this.auditLogService = auditLogService;
         seedBookings();
     }
 
     public synchronized Map<String, Object> create(BookingCreateCommand command) {
+        AuthPrincipal principal = authAppService.requireCustomer();
         Map<String, Object> service = catalogProvider.findService(command.serviceId());
         catalogProvider.findStore(command.storeId());
         Map<String, Object> therapist = catalogProvider.findTherapist(command.therapistId());
@@ -36,7 +49,7 @@ public class BookingAppService {
         }
         String roomId = command.roomId() == null || command.roomId().isBlank() ? "room-jingan-01" : command.roomId();
         Booking booking = new Booking("BK-202608-" + sequence.getAndIncrement(), command.storeId(), command.serviceId(),
-                command.therapistId(), roomId, command.customerName(), command.mobile(), LocalDate.parse(command.date()),
+                command.therapistId(), roomId, command.customerName(), command.mobile(), principal.customerId(), LocalDate.parse(command.date()),
                 LocalTime.parse(command.startTime()), (Integer) service.get("durationMinutes"), BookingStatus.BOOKED);
         conflictChecker.ensureAvailable(booking, bookingGateway.findAll());
         return toView(bookingGateway.save(booking));
@@ -44,6 +57,7 @@ public class BookingAppService {
 
     public Map<String, Object> confirmation(String storeId, String serviceId, String therapistId, String date,
                                             String startTime, Integer guestCount, String couponId) {
+        authAppService.requireCustomer();
         Map<String, Object> store = catalogProvider.findStore(storeId);
         Map<String, Object> service = catalogProvider.findService(serviceId);
         Map<String, Object> therapist = therapistId == null || therapistId.isBlank() ? null : catalogProvider.findTherapist(therapistId);
@@ -104,8 +118,7 @@ public class BookingAppService {
     }
 
     public Map<String, Object> detail(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorized(bookingId, "booking:read", "READ");
         return toView(booking);
     }
 
@@ -117,8 +130,7 @@ public class BookingAppService {
     }
 
     public Map<String, Object> rebookDraft(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorized(bookingId, "booking:read", "READ");
         Map<String, Object> draft = new LinkedHashMap<>();
         draft.put("storeId", booking.storeId());
         draft.put("serviceId", booking.serviceId());
@@ -139,8 +151,7 @@ public class BookingAppService {
     }
 
     public Map<String, Object> rescheduleDraft(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorized(bookingId, "booking:update", "UPDATE");
         if (booking.status() != BookingStatus.BOOKED) {
             throw new IllegalArgumentException("当前预约状态不可改期");
         }
@@ -164,29 +175,31 @@ public class BookingAppService {
     }
 
     public Map<String, Object> checkIn(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorized(bookingId, "booking:checkin", "CHECKIN");
+        String beforeStatus = booking.status().name();
         booking.checkIn();
+        auditLogService.record("booking:checkin", "booking", booking.id(), booking.storeId(),
+                Map.of("status", beforeStatus), Map.of("status", booking.status().name()));
         return toView(booking);
     }
 
     public Map<String, Object> refreshVerificationCode(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorized(bookingId, "booking:read", "READ");
         booking.refreshVerificationCode();
         return toView(booking);
     }
 
     public Map<String, Object> cancel(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorized(bookingId, "booking:cancel", "CANCEL");
+        String beforeStatus = booking.status().name();
         booking.cancel();
+        auditLogService.record("booking:cancel", "booking", booking.id(), booking.storeId(),
+                Map.of("status", beforeStatus), Map.of("status", booking.status().name()));
         return toView(booking);
     }
 
     public Map<String, Object> preparePayment(String bookingId, String requestId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorized(bookingId, "booking:read", "READ");
         Map<String, Object> service = catalogProvider.findService(booking.serviceId());
         String paymentNo = "PAY-" + booking.id() + "-" + (requestId == null || requestId.isBlank() ? "mock" : requestId);
 
@@ -207,49 +220,49 @@ public class BookingAppService {
     }
 
     public Map<String, Object> payDeposit(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorized(bookingId, "booking:update", "UPDATE");
         booking.payDeposit();
         return toView(booking);
     }
 
     public Map<String, Object> startService(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
         booking.startService();
         return toView(booking);
     }
 
     public Map<String, Object> finishService(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
         booking.finishService();
         return toView(booking);
     }
 
     public Map<String, Object> completeSettlement(String bookingId) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
         booking.completeSettlement();
         return toView(booking);
     }
 
     public synchronized Map<String, Object> reschedule(String bookingId, String date, String startTime) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        Booking booking = authorized(bookingId, "booking:update", "UPDATE");
+        String beforeScheduledAt = booking.timeRange().serviceFrom().toString();
         Map<String, Object> service = catalogProvider.findService(booking.serviceId());
         Booking candidate = new Booking(booking.id(), booking.storeId(), booking.serviceId(), booking.therapistId(), booking.roomId(),
-                booking.customerName(), booking.mobile(), LocalDate.parse(date), LocalTime.parse(startTime),
+                booking.customerName(), booking.mobile(), booking.customerId(), LocalDate.parse(date), LocalTime.parse(startTime),
                 numberValue(service, "durationMinutes"), booking.status());
         conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
                 .filter(existing -> !existing.id().equals(booking.id()))
                 .toList());
         booking.reschedule(LocalDate.parse(date), LocalTime.parse(startTime), numberValue(service, "durationMinutes"));
+        auditLogService.record("booking:update", "booking", booking.id(), booking.storeId(),
+                Map.of("scheduledAt", beforeScheduledAt), Map.of("scheduledAt", booking.timeRange().serviceFrom().toString()));
         return toView(booking);
     }
 
     public List<Map<String, Object>> list(String status) {
+        AuthPrincipal principal = dataPermissionService.requirePermission("booking:read");
         return bookingGateway.findAll().stream()
+                .filter(booking -> dataPermissionService.canAccessBooking(principal, booking, "READ"))
                 .filter(booking -> status == null || status.isBlank() || booking.status().name().equals(status))
                 .map(this::toView)
                 .toList();
@@ -268,7 +281,9 @@ public class BookingAppService {
         result.put("therapist", therapist);
         result.put("roomId", booking.roomId());
         result.put("customerName", booking.customerName());
-        result.put("mobile", maskMobile(booking.mobile()));
+        boolean revealPhone = dataPermissionService.canRevealCustomerPhone(AuthContext.current(), booking);
+        result.put("mobile", revealPhone ? booking.mobile() : maskMobile(booking.mobile()));
+        result.put("customerId", booking.customerId());
         result.put("appointmentDate", booking.timeRange().serviceFrom().toLocalDate().toString());
         result.put("startTime", booking.timeRange().serviceFrom().toLocalTime().toString());
         result.put("endTime", booking.timeRange().serviceTo().toLocalTime().toString());
@@ -276,6 +291,9 @@ public class BookingAppService {
         result.put("memberBenefit", "会员权益全门店通用");
         result.put("verificationCode", booking.verificationCode());
         result.put("verificationQrImageUrl", "https://mock-cdn.qiyu.local/checkin/" + booking.verificationCode() + ".png");
+        if (revealPhone && AuthContext.current().userType() != com.qiyu.domain.auth.UserType.CUSTOMER) {
+            auditLogService.record("customer:reveal_phone", "booking", booking.id(), booking.storeId(), Map.of(), Map.of("field", "mobile"));
+        }
         return result;
     }
 
@@ -289,6 +307,24 @@ public class BookingAppService {
         Booking reschedulable = new Booking("BK-202608-1002", "store-jingan", "service-neck", "therapist-anran", "room-jingan-01",
                 "林女士", "13800001234", LocalDate.of(2026, 8, 11), LocalTime.of(10, 0), 60, BookingStatus.BOOKED);
         bookingGateway.save(reschedulable);
+        Booking otherStore = new Booking("BK-202608-1999", "store-xujiahui", "service-tui-na", "therapist-yuanyuan", "room-xujiahui-01",
+                "周女士", "13900005678", "customer-other", LocalDate.of(2026, 8, 12), LocalTime.of(15, 0), 90, BookingStatus.BOOKED);
+        bookingGateway.save(otherStore);
+    }
+
+    private Booking authorized(String bookingId, String permissionCode, String actionCode) {
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        dataPermissionService.requireBooking(AuthContext.current(), booking, permissionCode, actionCode);
+        return booking;
+    }
+
+    private Booking authorizedStaff(String bookingId, String permissionCode, String actionCode) {
+        AuthPrincipal principal = authAppService.requireAdmin();
+        Booking booking = bookingGateway.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        dataPermissionService.requireBooking(principal, booking, permissionCode, actionCode);
+        return booking;
     }
 
     private static String maskMobile(String mobile) {

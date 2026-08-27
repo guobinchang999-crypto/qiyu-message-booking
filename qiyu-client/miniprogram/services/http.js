@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.request = void 0;
+exports.upload = exports.request = void 0;
 const config_1 = require("./config");
 const buildUrl = (path, query) => {
     const url = `${config_1.apiConfig.baseUrl}${path}`;
@@ -10,15 +10,18 @@ const buildUrl = (path, query) => {
     const search = entries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`).join('&');
     return `${url}?${search}`;
 };
+const authHeader = () => {
+    const token = typeof wx !== 'undefined' && typeof wx.getStorageSync === 'function' ? wx.getStorageSync(config_1.AUTH_TOKEN_STORAGE_KEY) : '';
+    return token ? { Authorization: `Bearer ${token}` } : {};
+};
 const request = (path, options = {}) => {
     return new Promise((resolve, reject) => {
-        const token = typeof wx !== 'undefined' && typeof wx.getStorageSync === 'function' ? wx.getStorageSync(config_1.AUTH_TOKEN_STORAGE_KEY) : '';
         wx.request({
             url: buildUrl(path, options.query),
             method: options.method || 'GET',
             data: options.data,
             timeout: config_1.apiConfig.timeout,
-            header: token ? { Authorization: `Bearer ${token}` } : undefined,
+            header: authHeader(),
             success: (response) => {
                 const body = response.data;
                 if (response.statusCode >= 200 && response.statusCode < 300 && body.code === 0) {
@@ -32,3 +35,30 @@ const request = (path, options = {}) => {
     });
 };
 exports.request = request;
+const upload = (path, filePath, formData) => {
+    return new Promise((resolve, reject) => {
+        wx.uploadFile({
+            url: buildUrl(path),
+            filePath,
+            name: 'file',
+            formData,
+            timeout: config_1.apiConfig.timeout,
+            header: authHeader(),
+            success: (response) => {
+                try {
+                    const body = JSON.parse(response.data);
+                    if (response.statusCode >= 200 && response.statusCode < 300 && body.code === 0) {
+                        resolve(body.data);
+                        return;
+                    }
+                    reject(new Error(body.message || `上传失败 ${response.statusCode}`));
+                }
+                catch (error) {
+                    reject(new Error('上传响应格式异常'));
+                }
+            },
+            fail: reject
+        });
+    });
+};
+exports.upload = upload;

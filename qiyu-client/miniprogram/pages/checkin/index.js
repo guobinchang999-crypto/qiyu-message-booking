@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const booking_service_1 = require("../../services/booking-service");
 const store_actions_1 = require("../../utils/store-actions");
+const ui_1 = require("../../constants/ui");
 const formatCode = (code) => {
     if (code.length <= 6)
         return code;
@@ -9,7 +10,7 @@ const formatCode = (code) => {
 };
 const emptyDictionaries = { title: '', qrTitle: '', refreshText: '', steps: [], pendingButtonText: '', checkingButtonText: '', checkedButtonText: '', successToastText: '', failureToastText: '', bottomActions: [] };
 const emptyFeedback = {};
-const emptyState = { loadingTitle: '', loadingDescription: '', errorTitle: '', errorMessage: '', retryText: '', submitErrorTitle: '', submitErrorMessage: '', refreshCodeText: '' };
+const emptyState = { ...ui_1.defaultPageStateCopy, submitErrorTitle: ui_1.defaultActionStateCopy.checkinErrorTitle, submitErrorMessage: ui_1.defaultActionStateCopy.checkinErrorMessage, refreshCodeText: ui_1.defaultActionStateCopy.refreshCodeText };
 const buildProgress = (steps, checked) => steps.map((label, index) => {
     if (index === 0)
         return { label, state: 'done' };
@@ -71,7 +72,7 @@ Page({
             });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.stateCopy.errorMessage) });
         }
     },
     async checkin() {

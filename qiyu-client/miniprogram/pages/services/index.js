@@ -3,7 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const booking_service_1 = require("../../services/booking-service");
 const navigation_1 = require("../../constants/navigation");
 const booking_1 = require("../../store/booking");
-const emptyState = {};
+const ui_1 = require("../../constants/ui");
+const emptyState = { ...ui_1.defaultPageStateCopy };
 const sortServices = (services, sortKey) => {
     return [...services].sort((left, right) => {
         if (sortKey === 'sales')
@@ -65,7 +66,7 @@ Page({
             this.setData({ services, pageTitle: dictionaries.pageTitle, categories: dictionaries.categories, allCategory: dictionaries.allCategory, storeSwitchLabel: dictionaries.storeSwitchLabel, searchPlaceholder: dictionaries.searchPlaceholder, clearSearchText: dictionaries.clearSearchText, sortOptions: dictionaries.sortOptions, bannerText: dictionaries.bannerText, serviceCardMeta: dictionaries.cardMeta, stateCopy: pageStates.services, category, visibleServices: filterServices(services, this.data.keyword, category, dictionaries.allCategory, this.data.sortKey), loading: false });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.stateCopy.errorMessage) });
         }
     },
     onSearch(event) {

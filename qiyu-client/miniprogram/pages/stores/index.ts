@@ -3,12 +3,13 @@ import { pageUrls } from '../../constants/navigation';
 import { ActionFeedbackDictionaryPayload, SortOption, StoreListStateCopy } from '../../services/contracts';
 import { bookingStore } from '../../store/booking';
 import { Store } from '../../types/domain';
+import { defaultPageStateCopy, resolvePageError } from '../../constants/ui';
 
 type SortKey = 'frequent' | 'distance' | 'rating';
 type LocationStatus = 'ready' | 'denied' | 'failed';
 
 const emptyFeedback = {} as ActionFeedbackDictionaryPayload;
-const emptyState = {} as StoreListStateCopy;
+const emptyState = { ...defaultPageStateCopy, pageTitle:'', searchPlaceholder:'', businessOnlyText:'', sortOptions:[], cardMeta:{ ratingUnit:'', nextAvailablePrefix:'' }, mapEntryText:'', locationReadyText:'', locateActionText:'', locationDeniedWarning:'', locationFailedWarning:'' } as StoreListStateCopy;
 const earthRadiusKm = 6371;
 
 const toRadians = (degree: number): number => degree * Math.PI / 180;
@@ -82,7 +83,7 @@ Page({
       ]);
       this.setData({ stores, feedback, stateCopy: pageStates.stores, sortOptions: pageStates.stores.sortOptions, storeCardMeta: pageStates.stores.cardMeta, visibleStores: filterStores(stores, this.data.keyword, this.data.businessOnly, this.data.sortKey), loading: false });
     } catch (error) {
-      this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+      this.setData({ loading: false, error: resolvePageError(error, this.data.stateCopy.errorMessage) });
     }
   },
   onSearch(event: WechatMiniprogram.Input) {

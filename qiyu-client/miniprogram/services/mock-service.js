@@ -52,7 +52,7 @@ const buildConfirmation = (draft) => {
         service,
         therapist,
         therapistDisplayName: therapist?.name || '系统自动分配技师',
-        scheduledAt: `2026年8月1日 ${slot.startAt}`,
+        scheduledAt: `${draft.appointmentDate} ${slot.startAt}`,
         payment,
         formCopy: {
             guestCountLabel: '服务人数',
@@ -82,6 +82,7 @@ const buildRebookDraft = (booking) => ({
     draft: {
         storeId: booking.store.id,
         serviceId: booking.service.id,
+        appointmentDate: booking.scheduledAt.slice(0, 10),
         therapistMode: 'auto',
         therapistId: undefined,
         slotId: undefined,
@@ -105,6 +106,7 @@ const buildRescheduleDraft = (booking) => ({
     draft: {
         storeId: booking.store.id,
         serviceId: booking.service.id,
+        appointmentDate: booking.scheduledAt.slice(0, 10),
         therapistMode: booking.therapist.specifyFee > 0 ? 'specified' : 'auto',
         therapistId: booking.therapist.specifyFee > 0 ? booking.therapist.id : undefined,
         slotId: undefined,
@@ -331,8 +333,15 @@ const storeDetailDictionaries = {
         servedSuffix: '次'
     }
 };
+const buildDateLabels = () => Array.from({ length: 4 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() + index + 1);
+    const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()];
+    const prefix = index === 0 ? '明天' : weekday;
+    return `${prefix}\n${date.getMonth() + 1}月${date.getDate()}日`;
+});
 const timeDictionaries = {
-    dates: ['今天\n8月1日', '周六\n8月2日', '周日\n8月3日', '周一\n8月4日'],
+    dates: buildDateLabels(),
     periods: [{ key: 'MORNING', label: '上午' }, { key: 'AFTERNOON', label: '下午' }, { key: 'EVENING', label: '晚上' }],
     defaultPeriod: 'AFTERNOON',
     statusLabel: {
@@ -604,12 +613,12 @@ exports.mockService = {
     getReviewDictionaries: () => delay(reviewDictionaries),
     getServiceDictionaries: () => delay(serviceDictionaries),
     getStoreDetailDictionaries: () => delay(storeDetailDictionaries),
-    getTimeDictionaries: () => delay(timeDictionaries),
+    getTimeDictionaries: () => delay({ ...timeDictionaries, dates: buildDateLabels() }),
     getTherapistDictionaries: () => delay(therapistDictionaries),
     getSuccessCopy: () => delay(successCopy),
     getLoginCopy: () => delay(loginCopy),
     sendLoginCode: (mobile) => delay({ mobile, requestId: `LOGIN-${Date.now()}`, expiresIn: 60, verificationCode: loginCopy.demoCode }),
-    login: (mobile, code) => code === loginCopy.demoCode ? delay({ token: `mock-token-${Date.now()}`, expiresIn: 7200, user: { mobile, name: '林知夏', avatarText: '林' } }) : Promise.reject(new Error('验证码不正确')),
+    login: (mobile, code) => code === loginCopy.demoCode ? delay({ accessToken: `mock-token-${Date.now()}`, tokenType: 'Bearer', expiresIn: 7200, principal: { userId: 'mock-customer-1', userType: 'CUSTOMER', displayName: '林知夏', avatarText: '林', roles: ['CUSTOMER'], permissions: ['booking:read', 'booking:create', 'booking:update', 'review:create'], storeScopes: [{ scopeType: 'SELF', storeIds: [] }] } }) : Promise.reject(new Error('验证码不正确')),
     getBookingSuccess: (id) => delay({ booking: bookings.find((booking) => booking.id === id) || bookings[0], copy: successCopy }),
     getBookingRebookDraft: (id) => delay(buildRebookDraft(bookings.find((booking) => booking.id === id) || bookings[0])),
     getBookingRescheduleDraft: (id) => delay(buildRescheduleDraft(bookings.find((booking) => booking.id === id) || bookings[0])),

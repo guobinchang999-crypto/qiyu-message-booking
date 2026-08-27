@@ -5,9 +5,10 @@ const navigation_1 = require("../../constants/navigation");
 const booking_1 = require("../../store/booking");
 const payment_1 = require("../../utils/payment");
 const store_actions_1 = require("../../utils/store-actions");
+const ui_1 = require("../../constants/ui");
 const emptyDictionaries = { pageTitle: '', detailTitle: '', statusLabel: {}, actionLabel: {}, tabs: [], detailSteps: [], codeTitle: '', codeHint: '', codeExtraHint: '', detailFields: { service: '', therapist: '', scheduledAt: '', contact: '' }, paymentTitle: '', paymentFields: { item: '', therapist: '', discount: '', paid: '' }, actionSectionTitle: '', checkinButtonText: '', cancelModalTitle: '', cancelModalContent: '', cancelModalConfirmText: '', cancelSuccessToastText: '', paySuccessToastText: '', payFailureToastText: '', cardMeta: { paidPrefix: '' }, serviceCardMeta: { durationUnit: '', servedPrefix: '', servedSuffix: '' }, storeCardMeta: { ratingUnit: '', nextAvailablePrefix: '' } };
 const emptyFeedback = {};
-const emptyState = {};
+const emptyState = { ...ui_1.defaultPageStateCopy };
 const filterByTab = (bookings, tab, tabs) => {
     const tabConfig = tabs.find((item) => item.key === tab);
     if (!tabConfig?.statuses?.length)
@@ -29,7 +30,7 @@ Page({
         this.setData({ bookings, dictionaries, feedback, stateCopy: pageStates.orders, tabs: dictionaries.tabs, tab, visibleBookings: filterByTab(bookings, tab, dictionaries.tabs), loading: false });
     }
     catch (error) {
-        this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+        this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.stateCopy.errorMessage) });
     } },
     detail(event) { wx.navigateTo({ url: navigation_1.pageUrls.bookingDetail(event.detail.id || '') }); },
     chooseTab(event) { const tab = String(event.currentTarget.dataset.tab || ''); this.setData({ tab, visibleBookings: filterByTab(this.data.bookings, tab, this.data.tabs), error: '' }); },

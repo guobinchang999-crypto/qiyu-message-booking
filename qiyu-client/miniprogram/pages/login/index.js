@@ -91,7 +91,8 @@ Page({
         this.setData({ submitting: true });
         try {
             const result = await booking_service_1.bookingService.login(this.data.phone, this.data.code);
-            wx.setStorageSync(config_1.AUTH_TOKEN_STORAGE_KEY, result.token);
+            wx.setStorageSync(config_1.AUTH_TOKEN_STORAGE_KEY, result.accessToken);
+            wx.setStorageSync(config_1.AUTH_SESSION_STORAGE_KEY, { ...result, expiresAt: Date.now() + result.expiresIn * 1000 });
             wx.reLaunch({ url: navigation_1.pageRoutes.home });
         }
         catch (error) {

@@ -90,11 +90,13 @@
 - Spring Boot 3
 - Spring Web
 - Spring Validation
-- MyBatis-Plus
+- Spring JDBC
+- Flyway
 - MySQL 8
 - Redis
 - Sa-Token
-- Knife4j
+- Springdoc OpenAPI
+- MinIO Java SDK
 - Maven
 
 ### 管理后台 `qiyu-admin`
@@ -103,7 +105,7 @@
 - TypeScript
 - Ant Design Pro
 - Ant Design 5
-- Axios
+- Fetch API
 - Umi 或 Vite 方案预留
 
 ### 客户端 `qiyu-client`
@@ -126,9 +128,9 @@ qiyu-massage-booking/
 │   ├── CODEX-UI-DEVELOPMENT-PROMPT.md
 │   ├── UI-ACCEPTANCE-CHECKLIST.md
 │   └── client-*-v2.png
-├── qiyu-server/      # Spring Boot 后端 Mock API
-├── qiyu-admin/       # Ant Design Pro / Umi 管理后台 MVP
-└── qiyu-client/      # 微信小程序客户端 MVP
+├── qiyu-server/      # Spring Boot 后端 API、Flyway 与资源种子
+├── qiyu-admin/       # Ant Design Pro / Umi 管理后台
+└── qiyu-client/      # 微信小程序客户端
 ```
 
 ## 设计资料
@@ -148,15 +150,31 @@ qiyu-massage-booking/
 
 ## 开发入口
 
-当前 MVP 已创建三个源码模块，默认全部使用 Mock 数据。
+三个模块均保留显式 Mock 模式；本地管理后台默认连接真实后端，小程序可通过环境配置切换 `mock`、`dev` 和 `prod`。
 
 ```bash
-# 后端接口
+# 后端接口：先在 shell 或 IDE 中加载 local 环境变量
 cd qiyu-server
-mvn spring-boot:run
+cp .env.local.example .env.local
+# 将密码写入未纳入版本控制的 .env.local，再导入当前 shell
+set -a; source .env.local; set +a
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-后端默认端口为 `8080`，OpenAPI 页面为 `http://localhost:8080/swagger-ui.html`。
+后端默认端口为 `8080`，OpenAPI 页面为 `http://localhost:8080/swagger-ui.html`。`local` profile 会连接 MySQL、执行 Flyway，并启用数据库认证和数据权限上下文。
+
+### MinIO 资源种子
+
+门店、服务项目和技师图片位于 `qiyu-server/src/main/resources/media-seed/`。配置 MinIO 密码后，首次执行以下命令会创建桶、上传固定对象并回写业务表资源 URL：
+
+```bash
+export QIYU_LOCAL_MINIO_ENABLED=true
+export QIYU_LOCAL_MINIO_SEED_ENABLED=true
+export QIYU_LOCAL_MINIO_SECRET_KEY='从目标环境安全获取的密码'
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+资源种子使用固定对象名，可重复执行。日常启动可将 `QIYU_LOCAL_MINIO_SEED_ENABLED` 设为 `false`；用户评价图片仍通过 `/api/v1/reviews/images` 上传到 MinIO。
 
 后端启动后，可以在仓库根目录执行接口联通 smoke。该脚本会覆盖客户端远程联调的主要契约，包括 catalog、门店/服务/技师/时间槽、预约创建/详情/成功页、支付参数准备与确认、预约码刷新、改期、取消、评价图片上传、评价提交回流和会员资料：
 
@@ -199,7 +217,8 @@ npm install
 
 ## 当前阶段
 
-- 已完成客户端 15 张 UI 效果图归档。
-- 已完成客户端 UI 设计规范、开发提示词和验收清单。
-- 已明确测试环境未就绪阶段采用 Mock 数据推进开发。
-- 已完成三模块 MVP：后端 Mock API、管理后台 Mock 页面、微信小程序核心预约闭环。
+- 客户端 15 个页面和预约、履约、评价闭环已完成，并保留 Mock/真实接口双模式。
+- 管理后台运营页面及组织、用户、角色、菜单、字典、审计页面已完成。
+- 统一认证、角色权限、数据范围、Flyway 基线和系统基础数据已接入 MySQL 8.0。
+- 后端正在按 `DEVELOPMENT-PLAN.md` 第 13 节逐步将剩余内存业务查询迁移到 MySQL。
+- MinIO SDK、资源种子与上传接口已完成；目标环境需提供凭据后执行实际上传验收。

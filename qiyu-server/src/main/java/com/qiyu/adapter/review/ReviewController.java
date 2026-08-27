@@ -1,7 +1,9 @@
 package com.qiyu.adapter.review;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.booking.BookingAppService;
+import com.qiyu.application.media.MediaAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.MediaType;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -18,8 +22,10 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/reviews")
+@SaCheckLogin
 public class ReviewController {
     private final BookingAppService bookingAppService;
+    private final MediaAppService mediaAppService;
     private final List<Map<String, Object>> reviews = new ArrayList<>(List.of(
             Map.of("id", "review-jingan-1", "storeId", "store-jingan", "serviceId", "service-neck", "userName", "林女士", "rating", 5,
                     "content", "环境安静，技师会提前确认肩颈重点，结束后放松感很明显。", "tags", List.of("环境安静", "手法专业"), "createdAt", "2026-08-01"),
@@ -37,8 +43,9 @@ public class ReviewController {
                     "content", "位置方便，午休时间过来做肩颈很合适。", "tags", List.of("位置方便", "肩颈舒缓"), "createdAt", "2026-07-22")
     ));
 
-    public ReviewController(BookingAppService bookingAppService) {
+    public ReviewController(BookingAppService bookingAppService, MediaAppService mediaAppService) {
         this.bookingAppService = bookingAppService;
+        this.mediaAppService = mediaAppService;
     }
 
     @GetMapping
@@ -84,13 +91,16 @@ public class ReviewController {
         return ApiResponse.success(Map.of("bookingId", request.bookingId(), "reviewed", true, "review", review));
     }
 
-    @PostMapping("/images")
-    public ApiResponse<Map<String, Object>> uploadImage(@Valid @RequestBody ReviewImageUploadRequest request) {
+    @PostMapping(value = "/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Map<String, Object>> uploadImage(@RequestParam("file") MultipartFile file) throws java.io.IOException {
+        String imageUrl = mediaAppService.uploadImage("reviews", file.getOriginalFilename(), file.getContentType(), file.getInputStream(), file.getSize());
+        return ApiResponse.success(Map.of("imageUrl", imageUrl, "fileName", file.getOriginalFilename() == null ? "image" : file.getOriginalFilename()));
+    }
+
+    @PostMapping(value = "/images", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<Map<String, Object>> uploadImageMetadata(@Valid @RequestBody ReviewImageUploadRequest request) {
         String safeFileName = request.fileName().replaceAll("[^a-zA-Z0-9._-]", "-");
-        return ApiResponse.success(Map.of(
-                "imageUrl", "https://mock-cdn.qiyu.local/reviews/" + safeFileName,
-                "fileName", safeFileName
-        ));
+        return ApiResponse.success(Map.of("imageUrl", "https://mock-cdn.qiyu.local/reviews/" + safeFileName, "fileName", safeFileName));
     }
 
     @SuppressWarnings("unchecked")

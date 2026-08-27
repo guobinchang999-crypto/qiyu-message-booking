@@ -3,7 +3,7 @@ import { pageRoutes, pageUrls } from '../../constants/navigation';
 import { ActionFeedbackDictionaryPayload, ServiceDictionaryPayload } from '../../services/contracts';
 import { bookingStore } from '../../store/booking';
 import { ServiceItem, Store, StoreReview, Therapist } from '../../types/domain';
-import { imagePlaceholderLabels } from '../../constants/ui';
+import { imagePlaceholderLabels, resolvePageError } from '../../constants/ui';
 const emptyFeedback = {} as ActionFeedbackDictionaryPayload;
 const reviewPageSize = 2;
 const emptyDictionaries: ServiceDictionaryPayload = {
@@ -93,7 +93,7 @@ Page({
         loading: false
       });
     } catch (error) {
-      this.setData({ loading: false, error: this.data.dictionaries.errorMessage });
+      this.setData({ loading: false, error: resolvePageError(error, this.data.dictionaries.errorMessage) });
     }
   },
   goTherapist() {

@@ -2,7 +2,8 @@ import { bookingService } from '../../services/booking-service';
 import { pageRoutes, pageUrls } from '../../constants/navigation';
 import { PageStateCopy, ProfilePayload } from '../../services/contracts';
 import { Booking } from '../../types/domain';
-import { AUTH_TOKEN_STORAGE_KEY } from '../../services/config';
+import { AUTH_SESSION_STORAGE_KEY, AUTH_TOKEN_STORAGE_KEY } from '../../services/config';
+import { defaultPageStateCopy, resolvePageError } from '../../constants/ui';
 
 const emptyProfile: ProfilePayload = {
   user: { name:'', phone:'', avatarText:'', level:'', balanceText:'', couponCount:0, packageCount:0 },
@@ -21,7 +22,7 @@ const emptyProfile: ProfilePayload = {
   logoutConfirmText:'',
   logoutCancelText:''
 };
-const emptyState: PageStateCopy = { loadingTitle:'', loadingDescription:'', errorTitle:'', errorMessage:'', retryText:'' };
+const emptyState: PageStateCopy = { ...defaultPageStateCopy };
 
 Page({
   data:{ profile:emptyProfile, recentBooking:null as Booking | null, stateCopy:emptyState, loading:true, error:'' },
@@ -33,7 +34,7 @@ Page({
       const [profile, bookings, pageStates] = await Promise.all([bookingService.getProfile(), bookingService.getBookings(), bookingService.getPageStateDictionaries()]);
       this.setData({ profile, recentBooking:bookings[0] || null, stateCopy:pageStates.profile, loading:false });
     } catch (error) {
-      this.setData({ loading:false, error:this.data.stateCopy.errorMessage });
+      this.setData({ loading:false, error:resolvePageError(error, this.data.stateCopy.errorMessage) });
     }
   },
   onShortcut(event:WechatMiniprogram.TouchEvent){
@@ -57,6 +58,7 @@ Page({
       success:(result) => {
         if (result.confirm) {
           wx.removeStorageSync(AUTH_TOKEN_STORAGE_KEY);
+          wx.removeStorageSync(AUTH_SESSION_STORAGE_KEY);
           wx.reLaunch({ url:pageRoutes.login });
         }
       }

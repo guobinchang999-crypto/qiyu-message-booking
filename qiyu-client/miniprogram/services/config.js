@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.apiConfig = exports.apiMode = exports.apiConfigs = exports.AUTH_TOKEN_STORAGE_KEY = exports.API_MODE_STORAGE_KEY = void 0;
+exports.apiConfig = exports.apiMode = exports.apiConfigs = exports.AUTH_SESSION_STORAGE_KEY = exports.AUTH_TOKEN_STORAGE_KEY = exports.API_MODE_STORAGE_KEY = void 0;
 exports.API_MODE_STORAGE_KEY = 'qiyu-api-mode';
 exports.AUTH_TOKEN_STORAGE_KEY = 'qiyu-auth-token';
+exports.AUTH_SESSION_STORAGE_KEY = 'qiyu-auth-session';
 exports.apiConfigs = {
     mock: { mode: 'mock', baseUrl: '', timeout: 8000 },
     dev: { mode: 'dev', baseUrl: 'http://localhost:8080/api/v1', timeout: 8000 },

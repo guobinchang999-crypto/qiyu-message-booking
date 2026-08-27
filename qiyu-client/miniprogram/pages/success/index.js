@@ -3,9 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const booking_service_1 = require("../../services/booking-service");
 const navigation_1 = require("../../constants/navigation");
 const store_actions_1 = require("../../utils/store-actions");
+const ui_1 = require("../../constants/ui");
 const emptySuccessCopy = { title: '', subtitle: '', bookingCodePrefix: '', codeHint: '', navigationActionText: '', contactActionText: '', reminderText: '', detailButtonText: '', homeButtonText: '' };
 const emptyFeedback = {};
-const emptyState = { loadingTitle: '', loadingDescription: '', errorTitle: '', errorMessage: '', retryText: '' };
+const emptyState = { ...ui_1.defaultPageStateCopy };
 Page({
     data: {
         booking: null,
@@ -37,7 +38,7 @@ Page({
             });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.stateCopy.errorMessage) });
         }
     },
     detail() {

@@ -8,4 +8,4 @@ const configs: Record<AdminApiMode, { mode: AdminApiMode; baseUrl: string }> = {
 };
 const isMode = (value: unknown): value is AdminApiMode => value === 'mock' || value === 'dev' || value === 'prod';
 const storedMode = typeof localStorage === 'undefined' ? '' : localStorage.getItem(ADMIN_API_MODE_STORAGE_KEY);
-export const adminApiConfig = configs[isMode(storedMode) ? storedMode : 'mock'];
+export const adminApiConfig = configs[isMode(storedMode) ? storedMode : 'dev'];

@@ -2,11 +2,12 @@ import { bookingService } from '../../services/booking-service';
 import { pageRoutes } from '../../constants/navigation';
 import { ReviewDictionaryPayload, ReviewStateCopy } from '../../services/contracts';
 import { Booking } from '../../types/domain';
+import { defaultActionStateCopy, defaultPageStateCopy, resolvePageError } from '../../constants/ui';
 
 const MAX_TAG_COUNT = 3;
 const MIN_CONTENT_LENGTH = 5;
 const MAX_IMAGE_COUNT = 3;
-const emptyState: ReviewStateCopy = { loadingTitle:'', loadingDescription:'', errorTitle:'', errorMessage:'', retryText:'', submitErrorTitle:'', submitErrorMessage:'' };
+const emptyState: ReviewStateCopy = { ...defaultPageStateCopy, submitErrorTitle:defaultActionStateCopy.submitErrorTitle, submitErrorMessage:defaultActionStateCopy.reviewSubmitErrorMessage };
 const emptyDictionaries: ReviewDictionaryPayload = { tags:[], pageTitle:'', ratingFields:{ therapist:'', environment:'', service:'' }, contentPlaceholder:'', imageSectionTitle:'', imageHintText:'', addImageText:'', uploadingImageText:'', uploadFailedText:'', retryUploadText:'', anonymousText:'', agreementText:'', submitButtonText:'', submittedButtonText:'', submittingToastText:'', submittedToastText:'', maxTagValidationText:'', maxTagToastText:'', agreementRequiredMessage:'', contentMinLengthMessage:'' };
 type ReviewImageStatus = 'uploading' | 'success' | 'failed';
 type ReviewImage = { id:string; tempFilePath:string; uploadUrl:string; status:ReviewImageStatus };
@@ -44,7 +45,7 @@ Page({
       ]);
       this.setData({ booking, tags: dictionaries.tags, dictionaries, stateCopy: pageStates.review, loading: false });
     } catch (error) {
-      this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+      this.setData({ loading: false, error: resolvePageError(error, this.data.stateCopy.errorMessage) });
     }
   },
   setRating(event: WechatMiniprogram.CustomEvent) {

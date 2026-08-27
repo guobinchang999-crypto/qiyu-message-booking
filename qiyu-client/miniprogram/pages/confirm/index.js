@@ -3,10 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const booking_service_1 = require("../../services/booking-service");
 const navigation_1 = require("../../constants/navigation");
 const booking_1 = require("../../store/booking");
+const ui_1 = require("../../constants/ui");
 const MIN_GUEST_COUNT = 1;
 const MAX_GUEST_COUNT = 4;
 const emptyFeedback = {};
-const emptyState = { loadingTitle: '', loadingDescription: '', errorTitle: '', errorMessage: '', retryText: '', submitErrorTitle: '', submitErrorMessage: '', paymentRefreshErrorMessage: '' };
+const emptyState = { ...ui_1.defaultPageStateCopy, submitErrorTitle: ui_1.defaultActionStateCopy.submitErrorTitle, submitErrorMessage: ui_1.defaultActionStateCopy.bookingSubmitErrorMessage, paymentRefreshErrorMessage: ui_1.defaultActionStateCopy.paymentRefreshErrorMessage };
 Page({
     data: {
         draft: booking_1.bookingStore.get(),
@@ -35,7 +36,7 @@ Page({
             this.setData({ confirmation, feedback, stateCopy: pageStates.confirm, loading: false });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.stateCopy.errorMessage) });
         }
     },
     async changeGuestCount(event) {

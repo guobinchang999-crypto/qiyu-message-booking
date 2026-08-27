@@ -5,10 +5,11 @@ import { bookingStore } from '../../store/booking';
 import { Booking, BookingStatus, OrderAction } from '../../types/domain';
 import { payBookingDeposit } from '../../utils/payment';
 import { callStore } from '../../utils/store-actions';
+import { defaultPageStateCopy, resolvePageError } from '../../constants/ui';
 
 const emptyDictionaries: OrderDictionaryPayload = { pageTitle:'', detailTitle:'', statusLabel: {}, actionLabel: {}, tabs: [], detailSteps: [], codeTitle: '', codeHint: '', codeExtraHint:'', detailFields: { service:'', therapist:'', scheduledAt:'', contact:'' }, paymentTitle:'', paymentFields:{ item:'', therapist:'', discount:'', paid:'' }, actionSectionTitle:'', checkinButtonText: '', cancelModalTitle:'', cancelModalContent:'', cancelModalConfirmText:'', cancelSuccessToastText:'', paySuccessToastText:'', payFailureToastText:'', cardMeta:{ paidPrefix:'' }, serviceCardMeta:{ durationUnit:'', servedPrefix:'', servedSuffix:'' }, storeCardMeta:{ ratingUnit:'', nextAvailablePrefix:'' } };
 const emptyFeedback = {} as ActionFeedbackDictionaryPayload;
-const emptyState: PageStateCopy = { loadingTitle:'', loadingDescription:'', errorTitle:'', errorMessage:'', retryText:'' };
+const emptyState: PageStateCopy = { ...defaultPageStateCopy };
 type DetailStep = { label: string; state: 'done' | 'active' | '' };
 type DetailRow = { key: string; label: string; value: string };
 type PaymentRow = { key: string; label: string; value: string; tone?: 'discount' };
@@ -92,7 +93,7 @@ Page({
         loading: false
       });
     } catch (error) {
-      this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+      this.setData({ loading: false, error: resolvePageError(error, this.data.stateCopy.errorMessage) });
     }
   },
   checkin() {

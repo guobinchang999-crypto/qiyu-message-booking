@@ -1,5 +1,7 @@
 package com.qiyu.application.member;
 
+import com.qiyu.application.auth.AuthContext;
+import com.qiyu.application.auth.AuthPrincipal;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -8,10 +10,11 @@ import java.util.Map;
 @Service
 public class MemberProfileService {
     public Map<String, Object> currentProfile() {
+        AuthPrincipal principal = AuthContext.current();
         return Map.ofEntries(
                 Map.entry("user", Map.of(
-                        "name", "林知夏",
-                        "phone", "138****1288",
+                        "name", principal.displayName(),
+                        "phone", maskMobile(principal.mobile()),
                         "avatarText", "林",
                         "level", "栖愈银卡会员",
                         "balanceText", "680.00",
@@ -43,5 +46,10 @@ public class MemberProfileService {
                 Map.entry("logoutConfirmText", "退出"),
                 Map.entry("logoutCancelText", "取消")
         );
+    }
+
+    private static String maskMobile(String mobile) {
+        if (mobile == null || mobile.length() < 7) return "";
+        return mobile.substring(0, 3) + "****" + mobile.substring(mobile.length() - 4);
     }
 }

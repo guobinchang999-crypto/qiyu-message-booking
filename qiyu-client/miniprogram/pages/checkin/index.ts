@@ -2,6 +2,7 @@ import { bookingService } from '../../services/booking-service';
 import { ActionFeedbackDictionaryPayload, CheckinDictionaryPayload, CheckinStateCopy } from '../../services/contracts';
 import { Booking } from '../../types/domain';
 import { callStore, navigateToStore } from '../../utils/store-actions';
+import { defaultActionStateCopy, defaultPageStateCopy, resolvePageError } from '../../constants/ui';
 
 const formatCode = (code: string): string => {
   if (code.length <= 6) return code;
@@ -11,7 +12,7 @@ const formatCode = (code: string): string => {
 type ProgressStep = { label: string; state: 'done' | 'current' | '' };
 const emptyDictionaries: CheckinDictionaryPayload = { title:'', qrTitle:'', refreshText:'', steps:[], pendingButtonText:'', checkingButtonText:'', checkedButtonText:'', successToastText:'', failureToastText:'', bottomActions:[] };
 const emptyFeedback = {} as ActionFeedbackDictionaryPayload;
-const emptyState: CheckinStateCopy = { loadingTitle:'', loadingDescription:'', errorTitle:'', errorMessage:'', retryText:'', submitErrorTitle:'', submitErrorMessage:'', refreshCodeText:'' };
+const emptyState: CheckinStateCopy = { ...defaultPageStateCopy, submitErrorTitle:defaultActionStateCopy.checkinErrorTitle, submitErrorMessage:defaultActionStateCopy.checkinErrorMessage, refreshCodeText:defaultActionStateCopy.refreshCodeText };
 
 const buildProgress = (steps: string[], checked: boolean): ProgressStep[] => steps.map((label, index) => {
   if (index === 0) return { label, state:'done' };
@@ -70,7 +71,7 @@ Page({
         loading: false
       });
     } catch (error) {
-      this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+      this.setData({ loading: false, error: resolvePageError(error, this.data.stateCopy.errorMessage) });
     }
   },
   async checkin() {

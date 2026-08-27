@@ -8,6 +8,7 @@ export interface ApiConfig {
 
 export const API_MODE_STORAGE_KEY = 'qiyu-api-mode';
 export const AUTH_TOKEN_STORAGE_KEY = 'qiyu-auth-token';
+export const AUTH_SESSION_STORAGE_KEY = 'qiyu-auth-session';
 
 export const apiConfigs: Record<ApiMode, ApiConfig> = {
   mock: { mode: 'mock', baseUrl: '', timeout: 8000 },

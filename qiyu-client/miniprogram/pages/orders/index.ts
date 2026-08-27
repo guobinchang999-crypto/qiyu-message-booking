@@ -5,10 +5,11 @@ import { bookingStore } from '../../store/booking';
 import { Booking, OrderAction } from '../../types/domain';
 import { payBookingDeposit } from '../../utils/payment';
 import { callStore } from '../../utils/store-actions';
+import { defaultPageStateCopy, resolvePageError } from '../../constants/ui';
 
 const emptyDictionaries: OrderDictionaryPayload = { pageTitle:'', detailTitle:'', statusLabel: {}, actionLabel: {}, tabs: [], detailSteps: [], codeTitle: '', codeHint: '', codeExtraHint:'', detailFields: { service:'', therapist:'', scheduledAt:'', contact:'' }, paymentTitle:'', paymentFields:{ item:'', therapist:'', discount:'', paid:'' }, actionSectionTitle:'', checkinButtonText: '', cancelModalTitle:'', cancelModalContent:'', cancelModalConfirmText:'', cancelSuccessToastText:'', paySuccessToastText:'', payFailureToastText:'', cardMeta:{ paidPrefix:'' }, serviceCardMeta:{ durationUnit:'', servedPrefix:'', servedSuffix:'' }, storeCardMeta:{ ratingUnit:'', nextAvailablePrefix:'' } };
 const emptyFeedback = {} as ActionFeedbackDictionaryPayload;
-const emptyState = {} as PageStateCopy;
+const emptyState = { ...defaultPageStateCopy } as PageStateCopy;
 const filterByTab = (bookings: Booking[], tab: string, tabs: OrderTabItem[]): Booking[] => {
   const tabConfig = tabs.find((item) => item.key === tab);
   if (!tabConfig?.statuses?.length) return bookings;
@@ -19,7 +20,7 @@ Page({
   data:{ bookings:[] as Booking[], visibleBookings:[] as Booking[], dictionaries:emptyDictionaries, feedback:emptyFeedback, stateCopy:emptyState, tabs:[] as OrderTabItem[], tab:'', actingBookingId:'', loading:true, error:'' },
   async onShow(){ await this.loadOrders(); },
   async onPullDownRefresh(){ try { await this.loadOrders(); } finally { wx.stopPullDownRefresh(); } },
-  async loadOrders(){ this.setData({ loading:true, error:'' }); try { const [bookings, dictionaries, feedback, pageStates] = await Promise.all([bookingService.getBookings(), bookingService.getOrderDictionaries(), bookingService.getActionFeedbackDictionaries(), bookingService.getPageStateDictionaries()]); const tab = this.data.tab || dictionaries.tabs[0]?.key || ''; this.setData({ bookings, dictionaries, feedback, stateCopy:pageStates.orders, tabs:dictionaries.tabs, tab, visibleBookings:filterByTab(bookings, tab, dictionaries.tabs), loading:false }); } catch (error) { this.setData({ loading:false, error:this.data.stateCopy.errorMessage }); } },
+  async loadOrders(){ this.setData({ loading:true, error:'' }); try { const [bookings, dictionaries, feedback, pageStates] = await Promise.all([bookingService.getBookings(), bookingService.getOrderDictionaries(), bookingService.getActionFeedbackDictionaries(), bookingService.getPageStateDictionaries()]); const tab = this.data.tab || dictionaries.tabs[0]?.key || ''; this.setData({ bookings, dictionaries, feedback, stateCopy:pageStates.orders, tabs:dictionaries.tabs, tab, visibleBookings:filterByTab(bookings, tab, dictionaries.tabs), loading:false }); } catch (error) { this.setData({ loading:false, error:resolvePageError(error, this.data.stateCopy.errorMessage) }); } },
   detail(event:WechatMiniprogram.CustomEvent<{ id?: string }>){ wx.navigateTo({ url:pageUrls.bookingDetail(event.detail.id || '') }); },
   chooseTab(event:WechatMiniprogram.TouchEvent){ const tab = String(event.currentTarget.dataset.tab || ''); this.setData({ tab, visibleBookings:filterByTab(this.data.bookings, tab, this.data.tabs), error:'' }); },
   handleAction(event:WechatMiniprogram.CustomEvent<{ id?: string; action?: OrderAction }>){

@@ -18,6 +18,7 @@ The current MVP uses local mock data and does not require backend services.
 - `npm run validate:miniprogram`: checks page registration and `pageRoutes` both ways, page/component/custom TabBar JavaScript output freshness, local component completeness, custom TabBar files, TDesign 1.15.x npm build output, custom/TDesign component declarations, TabBar route consistency, page/component copy placement, literal page route usage, route API compatibility, and fixed bottom action spacing before opening WeChat DevTools.
 - `npm run smoke:page-acceptance`: checks all 15 design pages, four TabBar entries, and the key booking, location, fulfillment, review, and profile interaction entry points before opening WeChat DevTools.
 - `npm run smoke:api-mode`: checks the `mock/dev/prod` runtime mode selector and Mock fallback.
+- `npm run smoke:remote-contract`: checks dynamic appointment dates, date-driven slot reload, write idempotency keys, and multipart review-image upload.
 - `npm run smoke:product-boundary`: checks the client does not expose store type, multi-operator, tenant, merchant, franchise, or independent membership concepts.
 - `npm run smoke:login-form`: checks login copy, phone/code validation, agreement guard, SMS countdown, and submit navigation locks.
 - `npm run smoke:home-order`: checks frequent store data and home section order before nearby stores.

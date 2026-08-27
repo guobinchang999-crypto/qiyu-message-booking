@@ -1,7 +1,19 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bookingStore = void 0;
-const defaultDraft = { storeId: 'jingan', serviceId: 'neck', therapistMode: 'specified', therapistId: 'zhang', slotId: '1400', guestCount: 1, contact: '林知夏', remark: '希望安静一些', benefitSelection: '新人体验券 ¥20' };
+const toDateText = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+const defaultAppointmentDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    return toDateText(date);
+};
+const createDefaultDraft = () => ({ storeId: 'jingan', serviceId: 'neck', appointmentDate: defaultAppointmentDate(), therapistMode: 'specified', therapistId: 'zhang', slotId: '1400', guestCount: 1, contact: '林知夏', remark: '希望安静一些', benefitSelection: '新人体验券 ¥20' });
+const defaultDraft = createDefaultDraft();
 let currentDraft = { ...defaultDraft };
 const listeners = [];
 const notify = () => listeners.forEach((listener) => listener({ ...currentDraft }));
@@ -24,7 +36,7 @@ exports.bookingStore = {
         notify();
     },
     reset: () => {
-        currentDraft = { ...defaultDraft };
+        currentDraft = createDefaultDraft();
         notify();
     },
     subscribe: (listener) => {

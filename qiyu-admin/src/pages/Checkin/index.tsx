@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import BookingStatusTag from '@/components/BookingStatusTag';
 import ManagementTablePage from '@/components/ManagementTablePage';
 import { adminMockApi } from '@/services/mock';
+import { can, canAccessStore, readAdminSession } from '@/services/admin-auth';
 import type { CheckinTask } from '@/types';
 
 export default function CheckinPage() {
+  const session = readAdminSession();
   const [data, setData] = useState<CheckinTask[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const reload = async () => setData(await adminMockApi.getCheckinTasks());
+  const reload = async () => setData((await adminMockApi.getCheckinTasks()).filter((item) => canAccessStore(session, 'booking', 'CHECKIN', item.store)));
   useEffect(() => { reload(); }, []);
   const checkIn = async (record: CheckinTask) => {
     await adminMockApi.checkInAppointment(record.id);
@@ -34,13 +36,13 @@ export default function CheckinPage() {
     { title: '服务项目', dataIndex: 'service' },
     { title: '预约时间', dataIndex: 'scheduledAt' },
     { title: '状态', dataIndex: 'status', render: (status) => <BookingStatusTag status={status} /> },
-    { title: '核销', key: 'checkin', render: (_, record) => <Space><Button size="small" type="primary" disabled={record.status !== 'BOOKED'} onClick={() => checkIn(record)}>确认签到</Button><Button size="small" disabled={record.status !== 'CHECKED_IN'} onClick={() => markWaiting(record)}>安排待服务</Button></Space> }
+    { title: '核销', key: 'checkin', render: (_, record) => <Space>{can(session, 'booking:checkin') && <Button size="small" type="primary" disabled={record.status !== 'BOOKED'} onClick={() => checkIn(record)}>确认签到</Button>}{can(session, 'booking:update') && <Button size="small" disabled={record.status !== 'CHECKED_IN'} onClick={() => markWaiting(record)}>安排待服务</Button>}</Space> }
   ];
   return <ManagementTablePage<CheckinTask>
     title="到店核销"
     description="前台按核销码确认客户到店，签到后进入待服务履约流程。"
     dataSource={data}
-    toolbar={<Button type="primary" disabled={!selectedRowKeys.length} onClick={batchCheckIn}>批量签到</Button>}
+    toolbar={can(session, 'booking:checkin') ? <Button type="primary" disabled={!selectedRowKeys.length} onClick={batchCheckIn}>批量签到</Button> : undefined}
     rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys, getCheckboxProps: (record) => ({ disabled: record.status !== 'BOOKED' }) }}
     columns={columns}
     searchKeys={['code', 'customerName', 'store', 'service']}

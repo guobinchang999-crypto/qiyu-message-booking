@@ -1,5 +1,17 @@
 import { BookingDraft } from '../types/domain';
-const defaultDraft: BookingDraft = { storeId:'jingan', serviceId:'neck', therapistMode:'specified', therapistId:'zhang', slotId:'1400', guestCount:1, contact:'林知夏', remark:'希望安静一些', benefitSelection:'新人体验券 ¥20' };
+const toDateText = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const defaultAppointmentDate = (): string => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return toDateText(date);
+};
+const createDefaultDraft = (): BookingDraft => ({ storeId:'jingan', serviceId:'neck', appointmentDate:defaultAppointmentDate(), therapistMode:'specified', therapistId:'zhang', slotId:'1400', guestCount:1, contact:'林知夏', remark:'希望安静一些', benefitSelection:'新人体验券 ¥20' });
+const defaultDraft: BookingDraft = createDefaultDraft();
 let currentDraft: BookingDraft = { ...defaultDraft };
 const listeners: Array<(draft: BookingDraft) => void> = [];
 const notify = () => listeners.forEach((listener) => listener({ ...currentDraft }));
@@ -20,7 +32,7 @@ export const bookingStore = {
     notify();
   },
   reset: () => {
-    currentDraft = { ...defaultDraft };
+    currentDraft = createDefaultDraft();
     notify();
   },
   subscribe: (listener: (draft: BookingDraft) => void) => {

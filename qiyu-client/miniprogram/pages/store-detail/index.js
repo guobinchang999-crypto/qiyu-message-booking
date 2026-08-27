@@ -78,7 +78,7 @@ Page({
             this.setData({ store, services: home.featuredServices, therapists, reviews: reviewPage.items, reviewPage: reviewPage.page, reviewHasMore: reviewPage.hasMore, galleryImages, galleryIndex: 1, galleryTotal: galleryImages.length, loading: false });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.dictionaries.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.dictionaries.errorMessage) });
         }
     },
     goService(event) {

@@ -2,11 +2,12 @@ import { ActionFeedbackDictionaryPayload, BookingConfirmationPayload, ConfirmSta
 import { bookingService } from '../../services/booking-service';
 import { pageRoutes, pageUrls } from '../../constants/navigation';
 import { bookingStore } from '../../store/booking';
+import { defaultActionStateCopy, defaultPageStateCopy, resolvePageError } from '../../constants/ui';
 
 const MIN_GUEST_COUNT = 1;
 const MAX_GUEST_COUNT = 4;
 const emptyFeedback = {} as ActionFeedbackDictionaryPayload;
-const emptyState: ConfirmStateCopy = { loadingTitle:'', loadingDescription:'', errorTitle:'', errorMessage:'', retryText:'', submitErrorTitle:'', submitErrorMessage:'', paymentRefreshErrorMessage:'' };
+const emptyState: ConfirmStateCopy = { ...defaultPageStateCopy, submitErrorTitle:defaultActionStateCopy.submitErrorTitle, submitErrorMessage:defaultActionStateCopy.bookingSubmitErrorMessage, paymentRefreshErrorMessage:defaultActionStateCopy.paymentRefreshErrorMessage };
 
 Page({
   data: {
@@ -35,7 +36,7 @@ Page({
       ]);
       this.setData({ confirmation, feedback, stateCopy: pageStates.confirm, loading: false });
     } catch (error) {
-      this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+      this.setData({ loading: false, error: resolvePageError(error, this.data.stateCopy.errorMessage) });
     }
   },
   async changeGuestCount(event: WechatMiniprogram.TouchEvent) {

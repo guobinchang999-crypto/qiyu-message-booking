@@ -3,8 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const booking_service_1 = require("../../services/booking-service");
 const navigation_1 = require("../../constants/navigation");
 const booking_1 = require("../../store/booking");
+const ui_1 = require("../../constants/ui");
 const emptyFeedback = {};
-const emptyState = {};
+const emptyState = { ...ui_1.defaultPageStateCopy, pageTitle: '', searchPlaceholder: '', businessOnlyText: '', sortOptions: [], cardMeta: { ratingUnit: '', nextAvailablePrefix: '' }, mapEntryText: '', locationReadyText: '', locateActionText: '', locationDeniedWarning: '', locationFailedWarning: '' };
 const earthRadiusKm = 6371;
 const toRadians = (degree) => degree * Math.PI / 180;
 const distanceBetween = (fromLatitude, fromLongitude, toLatitude, toLongitude) => {
@@ -81,7 +82,7 @@ Page({
             this.setData({ stores, feedback, stateCopy: pageStates.stores, sortOptions: pageStates.stores.sortOptions, storeCardMeta: pageStates.stores.cardMeta, visibleStores: filterStores(stores, this.data.keyword, this.data.businessOnly, this.data.sortKey), loading: false });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.stateCopy.errorMessage) });
         }
     },
     onSearch(event) {

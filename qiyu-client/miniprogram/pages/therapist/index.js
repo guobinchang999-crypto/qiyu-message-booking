@@ -6,7 +6,7 @@ const booking_1 = require("../../store/booking");
 const ui_1 = require("../../constants/ui");
 const emptyDictionaries = { pageTitle: '', modes: [], autoHint: '', nextAvailablePrefix: '', specifyFeePrefix: '', availableText: '', unavailableText: '', metaCopy: { experiencePrefix: '', experienceSuffix: '', ratingUnit: '', serviceCountPrefix: '', serviceCountSuffix: '' } };
 const emptyFeedback = {};
-const emptyState = { loadingTitle: '', loadingDescription: '', errorTitle: '', errorMessage: '', retryText: '', unavailableFilterText: '', availableOnlyFilterText: '', emptySummaryText: '', selectedSummaryTitle: '', autoSummaryTitle: '', nextButtonText: '', emptyTitle: '', emptyDescription: '' };
+const emptyState = { ...ui_1.defaultPageStateCopy, unavailableFilterText: '', availableOnlyFilterText: '', emptySummaryText: '', selectedSummaryTitle: '', autoSummaryTitle: '', nextButtonText: '' };
 Page({
     data: { therapists: [], visibleTherapists: [], dictionaries: emptyDictionaries, feedback: emptyFeedback, stateCopy: emptyState, mode: 'specified', selectedId: '', showUnavailable: true, selectedSummary: '', placeholderLabel: ui_1.imagePlaceholderLabels.therapist, loading: true, error: '' },
     async onLoad() { await this.loadTherapists(); },
@@ -44,7 +44,7 @@ Page({
             });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.stateCopy.errorMessage) });
         }
     },
     filterVisible(therapists, showUnavailable) {

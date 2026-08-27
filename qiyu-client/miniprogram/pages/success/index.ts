@@ -3,9 +3,10 @@ import { pageRoutes, pageUrls } from '../../constants/navigation';
 import { ActionFeedbackDictionaryPayload, PageStateCopy, SuccessCopy } from '../../services/contracts';
 import { Booking } from '../../types/domain';
 import { callStore, navigateToStore } from '../../utils/store-actions';
+import { defaultPageStateCopy, resolvePageError } from '../../constants/ui';
 const emptySuccessCopy: SuccessCopy = { title:'', subtitle:'', bookingCodePrefix:'', codeHint:'', navigationActionText:'', contactActionText:'', reminderText:'', detailButtonText:'', homeButtonText:'' };
 const emptyFeedback = {} as ActionFeedbackDictionaryPayload;
-const emptyState: PageStateCopy = { loadingTitle:'', loadingDescription:'', errorTitle:'', errorMessage:'', retryText:'' };
+const emptyState: PageStateCopy = { ...defaultPageStateCopy };
 
 Page({
   data: {
@@ -37,7 +38,7 @@ Page({
         loading: false
       });
     } catch (error) {
-      this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+      this.setData({ loading: false, error: resolvePageError(error, this.data.stateCopy.errorMessage) });
     }
   },
   detail() {

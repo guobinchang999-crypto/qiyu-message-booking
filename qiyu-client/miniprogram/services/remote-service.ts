@@ -40,7 +40,7 @@ import {
   TimeDictionaryPayload
 } from './contracts';
 import { mockService } from './mock-service';
-import { request } from './http';
+import { request, upload } from './http';
 
 type RemoteRecord = Record<string, unknown>;
 type ClientCatalog = {
@@ -59,7 +59,6 @@ type ClientCatalog = {
   pageStateDictionaries?: unknown;
 };
 
-const selectedDate = '2026-08-08';
 let clientCatalogCache: ClientCatalog | null = null;
 
 const idAlias: Record<string, string> = {
@@ -404,7 +403,7 @@ const mapBooking = (value: unknown): Booking => {
     store: mapStore(record.store),
     service: mapService(record.service),
     therapist: mapTherapist(record.therapist),
-    scheduledAt: formatScheduledAt(asString(record, 'appointmentDate', selectedDate), asString(record, 'startTime', '10:00')),
+    scheduledAt: formatScheduledAt(asString(record, 'appointmentDate'), asString(record, 'startTime', '10:00')),
     contact: `${asString(record, 'customerName', '顾客')} ${asString(record, 'mobile', '')}`.trim(),
     payment: mapPayment(record),
     availableActions: actionsByStatus(status)
@@ -525,6 +524,7 @@ const mapBookingDraft = (value: unknown, fallback: BookingDraft): BookingDraft =
     contact: asString(record, 'contact', fallback.contact),
     remark: asString(record, 'remark', fallback.remark),
     benefitSelection: asString(record, 'benefitSelection', fallback.benefitSelection),
+    appointmentDate: asString(record, 'appointmentDate', fallback.appointmentDate),
     flow: asString(record, 'flow', fallback.flow || 'create') === 'reschedule' ? 'reschedule' : 'create',
     sourceBookingId: asString(record, 'sourceBookingId', fallback.sourceBookingId || '') || undefined
   };
@@ -615,7 +615,7 @@ export const remoteService: BookingService = {
         storeId: toRemoteId(draft?.storeId, 'store-jingan'),
         serviceId: toRemoteId(draft?.serviceId, 'service-neck'),
         therapistId: toRemoteId(draft?.therapistId, 'therapist-anran'),
-        date: selectedDate
+        date: draft?.appointmentDate
       }
     });
     return data.map(mapTimeSlot);
@@ -630,7 +630,7 @@ export const remoteService: BookingService = {
           storeId: toRemoteId(draft.storeId, 'store-jingan'),
           serviceId: toRemoteId(draft.serviceId, 'service-neck'),
           therapistId: draft.therapistMode === 'auto' ? undefined : toRemoteId(draft.therapistId, 'therapist-anran'),
-          date: selectedDate,
+          date: draft.appointmentDate,
           startTime,
           guestCount: draft.guestCount,
           customerName: draft.contact,
@@ -650,10 +650,10 @@ export const remoteService: BookingService = {
   getSuccessCopy: (): Promise<SuccessCopy> => withMockFallback(mapSuccessCopy, () => mockService.getSuccessCopy()),
   getLoginCopy: (): Promise<LoginCopyPayload> => withMockFallback(mapLoginCopy, () => mockService.getLoginCopy()),
   async sendLoginCode(mobile: string): Promise<LoginCodePayload> {
-    return request<LoginCodePayload>('/auth/send-code', { method:'POST', data:{ mobile } });
+    return request<LoginCodePayload>('/auth/send-code', { method:'POST', data:{ clientType:'MINI_PROGRAM', mobile } });
   },
   async login(mobile: string, code: string): Promise<LoginPayload> {
-    return request<LoginPayload>('/auth/login', { method:'POST', data:{ mobile, code } });
+    return request<LoginPayload>('/auth/login', { method:'POST', data:{ clientType:'MINI_PROGRAM', grantType:'SMS_CODE', identifier:mobile, credential:code } });
   },
   async getBookingSuccess(id: string): Promise<BookingSuccessPayload> {
     const fallback = await mockService.getBookingSuccess(id);
@@ -679,7 +679,7 @@ export const remoteService: BookingService = {
         storeId: toRemoteId(draft.storeId, 'store-jingan'),
         serviceId: toRemoteId(draft.serviceId, 'service-neck'),
         therapistId: toRemoteId(draft.therapistId, 'therapist-anran'),
-        date: selectedDate,
+        date: draft.appointmentDate,
         startTime,
         customerName: draft.contact,
         mobile: '13800001288',
@@ -695,7 +695,7 @@ export const remoteService: BookingService = {
     const booking = await request<unknown>(`/bookings/${bookingId}/reschedule`, {
       method: 'POST',
       data: {
-        date: selectedDate,
+        date: draft.appointmentDate,
         startTime,
         therapistId: draft.therapistMode === 'auto' ? undefined : toRemoteId(draft.therapistId, 'therapist-anran'),
         requestId
@@ -717,35 +717,28 @@ export const remoteService: BookingService = {
     const data = await request<unknown>(`/reviews?${filterQuery}&page=${page}&pageSize=${pageSize}`);
     return mapReviewPage(data, page, pageSize);
   },
-  async checkinBooking(id: string): Promise<Booking> {
-    return mapBooking(await request<unknown>(`/bookings/${id}/checkin`, { method: 'POST' }));
+  async checkinBooking(id: string, requestId: string): Promise<Booking> {
+    return mapBooking(await request<unknown>(`/bookings/${id}/checkin`, { method: 'POST', data: { requestId } }));
   },
-  async refreshBookingCode(id: string): Promise<Booking> {
-    return mapBooking(await request<unknown>(`/bookings/${id}/verification-code/refresh`, { method: 'POST' }));
+  async refreshBookingCode(id: string, requestId: string): Promise<Booking> {
+    return mapBooking(await request<unknown>(`/bookings/${id}/verification-code/refresh`, { method: 'POST', data: { requestId } }));
   },
-  async cancelBooking(id: string): Promise<Booking> {
-    return mapBooking(await request<unknown>(`/bookings/${id}/cancel`, { method: 'POST' }));
+  async cancelBooking(id: string, requestId: string): Promise<Booking> {
+    return mapBooking(await request<unknown>(`/bookings/${id}/cancel`, { method: 'POST', data: { requestId } }));
   },
   async prepareBookingPayment(id: string, requestId: string): Promise<BookingPaymentPayload> {
     return mapPaymentPayload(await request<unknown>(`/bookings/${id}/payment`, { method:'POST', data:{ requestId } }), id);
   },
-  async payBooking(id: string): Promise<Booking> {
-    return mapBooking(await request<unknown>(`/bookings/${id}/pay`, { method: 'POST' }));
+  async payBooking(id: string, requestId: string): Promise<Booking> {
+    return mapBooking(await request<unknown>(`/bookings/${id}/pay`, { method: 'POST', data: { requestId } }));
   },
   async uploadReviewImage(tempFilePath: string, requestId: string): Promise<ReviewImageUploadPayload> {
     const fileName = tempFilePath.split('/').pop() || `review-${Date.now()}.jpg`;
-    const data = await request<unknown>('/reviews/images', {
-      method: 'POST',
-      data: {
-        fileName,
-        tempFilePath,
-        requestId
-      }
-    });
+    const data = await upload<unknown>('/reviews/images', tempFilePath, { fileName, requestId });
     const record = asRecord(data);
     return { imageUrl: asString(record, 'imageUrl', tempFilePath) };
   },
-  async submitReview(review: ReviewSubmitRequest): Promise<Booking> {
+  async submitReview(review: ReviewSubmitRequest, requestId: string): Promise<Booking> {
     await request<unknown>('/reviews', {
       method: 'POST',
       data: {
@@ -756,7 +749,8 @@ export const remoteService: BookingService = {
         tags: review.tags,
         content: review.content,
         anonymous: review.anonymous,
-        imageUrls: review.imageUrls
+        imageUrls: review.imageUrls,
+        requestId
       }
     });
     return this.getBooking(review.bookingId);

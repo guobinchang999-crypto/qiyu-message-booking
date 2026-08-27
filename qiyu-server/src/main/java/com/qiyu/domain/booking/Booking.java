@@ -15,6 +15,7 @@ public final class Booking {
     private final String roomId;
     private final String customerName;
     private final String mobile;
+    private final String customerId;
     private String verificationCode;
     private BookingTimeRange timeRange;
     private BookingStatus status;
@@ -22,6 +23,12 @@ public final class Booking {
     public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
                    String customerName, String mobile, LocalDate date, LocalTime startTime, int durationMinutes,
                    BookingStatus status) {
+        this(id, storeId, serviceId, therapistId, roomId, customerName, mobile, "customer-demo", date, startTime, durationMinutes, status);
+    }
+
+    public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
+                   String customerName, String mobile, String customerId, LocalDate date, LocalTime startTime,
+                   int durationMinutes, BookingStatus status) {
         this.id = id;
         this.storeId = storeId;
         this.serviceId = serviceId;
@@ -29,6 +36,7 @@ public final class Booking {
         this.roomId = roomId;
         this.customerName = customerName;
         this.mobile = mobile;
+        this.customerId = customerId;
         this.verificationCode = generateVerificationCode();
         this.timeRange = BookingTimeRange.of(date, startTime, durationMinutes, 10, 10);
         this.status = status;
@@ -101,6 +109,7 @@ public final class Booking {
     public String roomId() { return roomId; }
     public String customerName() { return customerName; }
     public String mobile() { return mobile; }
+    public String customerId() { return customerId; }
     public String verificationCode() { return verificationCode; }
     public BookingTimeRange timeRange() { return timeRange; }
     public BookingStatus status() { return status; }

@@ -1,5 +1,6 @@
 package com.qiyu.adapter.admin;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.admin.AdminQueryService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,9 +9,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/admin")
+@SaCheckLogin
 public class AdminController {
     private final AdminQueryService adminQueryService;
 
@@ -28,4 +31,7 @@ public class AdminController {
 
     @GetMapping("/schedule-resources")
     public ApiResponse<Map<String, Object>> scheduleResources() { return ApiResponse.success(adminQueryService.scheduleResources()); }
+
+    @GetMapping("/accessible-stores")
+    public ApiResponse<List<Map<String, Object>>> accessibleStores() { return ApiResponse.success(adminQueryService.accessibleStores()); }
 }

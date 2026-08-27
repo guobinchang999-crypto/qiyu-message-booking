@@ -93,7 +93,7 @@ Page({
             });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.dictionaries.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.dictionaries.errorMessage) });
         }
     },
     goTherapist() {

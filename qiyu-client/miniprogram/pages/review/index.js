@@ -2,10 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const booking_service_1 = require("../../services/booking-service");
 const navigation_1 = require("../../constants/navigation");
+const ui_1 = require("../../constants/ui");
 const MAX_TAG_COUNT = 3;
 const MIN_CONTENT_LENGTH = 5;
 const MAX_IMAGE_COUNT = 3;
-const emptyState = { loadingTitle: '', loadingDescription: '', errorTitle: '', errorMessage: '', retryText: '', submitErrorTitle: '', submitErrorMessage: '' };
+const emptyState = { ...ui_1.defaultPageStateCopy, submitErrorTitle: ui_1.defaultActionStateCopy.submitErrorTitle, submitErrorMessage: ui_1.defaultActionStateCopy.reviewSubmitErrorMessage };
 const emptyDictionaries = { tags: [], pageTitle: '', ratingFields: { therapist: '', environment: '', service: '' }, contentPlaceholder: '', imageSectionTitle: '', imageHintText: '', addImageText: '', uploadingImageText: '', uploadFailedText: '', retryUploadText: '', anonymousText: '', agreementText: '', submitButtonText: '', submittedButtonText: '', submittingToastText: '', submittedToastText: '', maxTagValidationText: '', maxTagToastText: '', agreementRequiredMessage: '', contentMinLengthMessage: '' };
 Page({
     data: {
@@ -41,7 +42,7 @@ Page({
             this.setData({ booking, tags: dictionaries.tags, dictionaries, stateCopy: pageStates.review, loading: false });
         }
         catch (error) {
-            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.stateCopy.errorMessage) });
         }
     },
     setRating(event) {

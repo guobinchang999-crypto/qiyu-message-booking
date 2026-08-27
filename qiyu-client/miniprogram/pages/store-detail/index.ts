@@ -3,7 +3,7 @@ import { pageUrls } from '../../constants/navigation';
 import { ActionFeedbackDictionaryPayload, StoreDetailDictionaryPayload } from '../../services/contracts';
 import { bookingStore } from '../../store/booking';
 import { ServiceItem, Store, StoreReview, Therapist } from '../../types/domain';
-import { imagePlaceholderLabels } from '../../constants/ui';
+import { imagePlaceholderLabels, resolvePageError } from '../../constants/ui';
 import { callStore, navigateToStore } from '../../utils/store-actions';
 
 const emptyDictionaries: StoreDetailDictionaryPayload = {
@@ -80,7 +80,7 @@ Page({
       const galleryImages = store.galleryImageUrls?.length ? store.galleryImageUrls : [store.galleryImageUrl || store.coverImageUrl || ''];
       this.setData({ store, services: home.featuredServices, therapists, reviews: reviewPage.items, reviewPage: reviewPage.page, reviewHasMore: reviewPage.hasMore, galleryImages, galleryIndex: 1, galleryTotal: galleryImages.length, loading: false });
     } catch (error) {
-      this.setData({ loading: false, error: this.data.dictionaries.errorMessage });
+      this.setData({ loading: false, error: resolvePageError(error, this.data.dictionaries.errorMessage) });
     }
   },
   goService(event?: WechatMiniprogram.CustomEvent<{ id?: string }>) {

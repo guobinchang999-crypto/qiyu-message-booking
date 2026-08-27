@@ -3,10 +3,11 @@ import { pageRoutes, pageUrls } from '../../constants/navigation';
 import { PageStateCopy, SortOption } from '../../services/contracts';
 import { ServiceItem } from '../../types/domain';
 import { bookingStore } from '../../store/booking';
+import { defaultPageStateCopy, resolvePageError } from '../../constants/ui';
 
 type SortKey = 'recommended' | 'sales' | 'price';
 
-const emptyState = {} as PageStateCopy;
+const emptyState = { ...defaultPageStateCopy } as PageStateCopy;
 
 const sortServices = (services: ServiceItem[], sortKey: SortKey): ServiceItem[] => {
   return [...services].sort((left, right) => {
@@ -63,7 +64,7 @@ Page({
       const category = this.data.category || dictionaries.allCategory;
       this.setData({ services, pageTitle: dictionaries.pageTitle, categories: dictionaries.categories, allCategory: dictionaries.allCategory, storeSwitchLabel: dictionaries.storeSwitchLabel, searchPlaceholder: dictionaries.searchPlaceholder, clearSearchText: dictionaries.clearSearchText, sortOptions: dictionaries.sortOptions, bannerText: dictionaries.bannerText, serviceCardMeta: dictionaries.cardMeta, stateCopy: pageStates.services, category, visibleServices: filterServices(services, this.data.keyword, category, dictionaries.allCategory, this.data.sortKey), loading: false });
     } catch (error) {
-      this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+      this.setData({ loading: false, error: resolvePageError(error, this.data.stateCopy.errorMessage) });
     }
   },
   onSearch(event: WechatMiniprogram.Input) {
