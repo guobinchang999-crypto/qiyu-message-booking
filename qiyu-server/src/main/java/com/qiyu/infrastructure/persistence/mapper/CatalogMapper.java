@@ -6,7 +6,6 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
-import java.util.Map;
 
 /** Database read model for customer and administration catalog resources. */
 public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
@@ -32,7 +31,7 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
             WHERE s.enabled=1 AND s.deleted=0
             ORDER BY s.sort_order, s.id
             """)
-    List<Map<String, Object>> stores();
+    List<StoreCatalogRow> stores();
 
     @Select("""
             SELECT CONCAT('service-', CASE si.service_code
@@ -52,7 +51,7 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
             GROUP BY si.id, sc.category_name
             ORDER BY si.sort_order, si.id
             """)
-    List<Map<String, Object>> services();
+    List<ServiceCatalogRow> services();
 
     @Select("""
             <script>
@@ -89,7 +88,7 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
             ORDER BY t.sort_order, t.id
             </script>
             """)
-    List<Map<String, Object>> therapists(@Param("storeId") String storeId, @Param("serviceId") String serviceId);
+    List<TherapistCatalogRow> therapists(@Param("storeId") String storeId, @Param("serviceId") String serviceId);
 
     @Select("""
             <script>
@@ -111,5 +110,20 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
             ORDER BY s.sort_order, r.sort_order, r.id
             </script>
             """)
-    List<Map<String, Object>> rooms(@Param("storeId") String storeId, @Param("status") String status);
+    List<RoomCatalogRow> rooms(@Param("storeId") String storeId, @Param("status") String status);
+
+    @Select("""
+            SELECT config_code AS configCode, CAST(config_json AS CHAR) AS configJson
+            FROM client_catalog_config
+            WHERE enabled = 1 AND deleted = 0
+            ORDER BY sort_order, id
+            """)
+    List<ClientCatalogConfigRow> clientCatalogConfigurations();
+
+    @Select("""
+            SELECT category_name FROM service_category
+            WHERE enabled = 1 AND deleted = 0
+            ORDER BY sort_order, id
+            """)
+    List<String> serviceCategories();
 }

@@ -877,7 +877,7 @@ CREATE TABLE payment_order (
   service_order_id BIGINT UNSIGNED NULL COMMENT '服务订单编号',
   customer_id BIGINT UNSIGNED NOT NULL COMMENT '客户编号',
   payment_purpose VARCHAR(32) NOT NULL COMMENT '订金/余额/退款',
-  payment_channel VARCHAR(32) NOT NULL DEFAULT 'MOCK' COMMENT '支付渠道',
+  payment_channel VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '支付渠道',
   payment_status VARCHAR(32) NOT NULL COMMENT '支付状态',
   payable_amount DECIMAL(10, 2) NOT NULL COMMENT '应付金额',
   paid_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00 COMMENT '已支付金额',
@@ -909,7 +909,7 @@ CREATE TABLE refund_order (
   booking_id BIGINT UNSIGNED NULL COMMENT '预约编号',
   service_order_id BIGINT UNSIGNED NULL COMMENT '服务订单编号',
   customer_id BIGINT UNSIGNED NOT NULL COMMENT '客户编号',
-  refund_channel VARCHAR(32) NOT NULL DEFAULT 'MOCK' COMMENT '退款渠道',
+  refund_channel VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '退款渠道',
   refund_status VARCHAR(32) NOT NULL DEFAULT 'REFUNDING' COMMENT '退款中/已退款/失败/已关闭',
   refund_reason VARCHAR(255) NULL COMMENT '退款原因',
   refund_amount DECIMAL(10, 2) NOT NULL COMMENT '退款金额',
@@ -1224,5 +1224,4 @@ CREATE TABLE review_image (
   PRIMARY KEY (id),
   KEY idx_qy_review_image_review (review_id, sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='评价图片';
-
 

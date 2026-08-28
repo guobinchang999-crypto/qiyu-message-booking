@@ -121,7 +121,13 @@ public class ReviewController {
     private static ReviewResponseModels.Review review(Map<String, Object> value) {
         return new ReviewResponseModels.Review(String.valueOf(value.get("id")), String.valueOf(value.get("storeId")), String.valueOf(value.get("serviceId")),
                 String.valueOf(value.get("userName")), ((Number) value.get("rating")).doubleValue(), String.valueOf(value.get("content")),
-                (List<String>) value.get("tags"), List.of(), String.valueOf(value.get("createdAt")));
+                stringList(value.get("tags")), stringList(value.get("imageUrls")), String.valueOf(value.get("createdAt")));
+    }
+
+    /** Converts the in-memory Mock representation without dropping persisted image URLs. */
+    private static List<String> stringList(Object value) {
+        if (!(value instanceof List<?> items)) return List.of();
+        return items.stream().filter(String.class::isInstance).map(String.class::cast).toList();
     }
 
 }

@@ -6,13 +6,15 @@ import com.qiyu.domain.catalog.ServiceItem;
 import com.qiyu.domain.catalog.Store;
 import com.qiyu.domain.catalog.Therapist;
 import com.qiyu.infrastructure.persistence.mapper.CatalogMapper;
+import com.qiyu.infrastructure.persistence.mapper.RoomCatalogRow;
+import com.qiyu.infrastructure.persistence.mapper.ServiceCatalogRow;
+import com.qiyu.infrastructure.persistence.mapper.StoreCatalogRow;
+import com.qiyu.infrastructure.persistence.mapper.TherapistCatalogRow;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /** Converts database catalog rows into the stable resource contract consumed by both frontends. */
 @Repository
@@ -35,26 +37,17 @@ public class MybatisPlusCatalogGateway implements CatalogGateway {
     @Override public List<Therapist> therapists(String storeId, String serviceId) { return mapper.therapists(storeId, serviceId).stream().map(MybatisPlusCatalogGateway::therapist).toList(); }
     @Override public List<Room> rooms(String storeId, String status) { return mapper.rooms(storeId, status).stream().map(MybatisPlusCatalogGateway::room).toList(); }
 
-    private static Store store(Map<String, Object> row) { return new Store(text(row,"id"), text(row,"name"), text(row,"address"), text(row,"phone"), decimal(row,"latitude"), decimal(row,"longitude"), text(row,"distance"), decimal(row,"rating"), text(row,"businessStatusCode"), text(row,"businessStatusLabel"), text(row,"nextAvailableAt"), text(row,"businessHours"), booleanValue(row.get("frequent")), text(row,"coverImageUrl")); }
-    private static ServiceItem service(Map<String, Object> row) { return new ServiceItem(text(row,"id"), text(row,"name"), integer(row,"durationMinutes"), integer(row,"preparationMinutes"), integer(row,"cleanupMinutes"), number(row,"price"), number(row,"memberPrice"), text(row,"category"), integer(row,"salesCount"), split(row.get("tags")), text(row,"description"), split(row.get("processSteps")), text(row,"suitableFor"), text(row,"notices"), text(row,"coverImageUrl"), text(row,"bannerImageUrl"), text(row,"id")); }
-    private static Therapist therapist(Map<String, Object> row) { return new Therapist(text(row,"id"), text(row,"name"), text(row,"storeId"), text(row,"level"), decimal(row,"rating"), integer(row,"experienceYears"), split(row.get("skills")), number(row,"extraFee"), text(row,"nextAvailable"), text(row,"status"), text(row,"statusLabel"), text(row,"avatarUrl"), text(row,"portraitUrl"), text(row,"introduction")); }
-    private static Room room(Map<String, Object> row) { return new Room(text(row,"id"), text(row,"name"), text(row,"storeId"), text(row,"status"), text(row,"statusLabel"), text(row,"type"), text(row,"note"), integer(row,"capacity"), text(row,"roomKind")); }
+    private static Store store(StoreCatalogRow row) { return new Store(row.id(), row.name(), row.address(), row.phone(), row.latitude(), row.longitude(), row.distance(), row.rating(), row.businessStatusCode(), row.businessStatusLabel(), row.nextAvailableAt(), row.businessHours(), row.frequent(), row.coverImageUrl()); }
+    private static ServiceItem service(ServiceCatalogRow row) { return new ServiceItem(row.id(), row.name(), row.durationMinutes(), row.preparationMinutes(), row.cleanupMinutes(), row.price(), row.memberPrice(), row.category(), row.salesCount(), split(row.tags()), row.description(), split(row.processSteps()), row.suitableFor(), row.notices(), row.coverImageUrl(), row.bannerImageUrl(), row.id()); }
+    private static Therapist therapist(TherapistCatalogRow row) { return new Therapist(row.id(), row.name(), row.storeId(), row.level(), row.rating(), row.experienceYears(), split(row.skills()), row.extraFee(), row.nextAvailable(), row.status(), row.statusLabel(), row.avatarUrl(), row.portraitUrl(), row.introduction()); }
+    private static Room room(RoomCatalogRow row) { return new Room(row.id(), row.name(), row.storeId(), row.status(), row.statusLabel(), row.type(), row.note(), row.capacity(), row.roomKind()); }
 
-    private static boolean booleanValue(Object value) {
-        return value instanceof Boolean bool ? bool : value instanceof Number number && number.intValue() != 0;
-    }
-
-    private static List<String> split(Object value) {
-        if (value == null || String.valueOf(value).isBlank()) return List.of();
+    private static List<String> split(String value) {
+        if (value == null || value.isBlank()) return List.of();
         List<String> result = new ArrayList<>();
-        for (String item : String.valueOf(value).split("[,，、\\n]")) {
+        for (String item : value.split("[,，、\\n]")) {
             if (!item.isBlank()) result.add(item.trim());
         }
         return List.copyOf(result);
     }
-
-    private static String text(Map<String,Object> row, String key) { Object value=row.get(key); return value == null ? null : String.valueOf(value); }
-    private static Integer integer(Map<String,Object> row, String key) { Object value=row.get(key); return value instanceof Number n ? n.intValue() : null; }
-    private static Number number(Map<String,Object> row, String key) { Object value=row.get(key); return value instanceof Number n ? n : null; }
-    private static Double decimal(Map<String,Object> row, String key) { Number value=number(row,key); return value == null ? null : value.doubleValue(); }
 }

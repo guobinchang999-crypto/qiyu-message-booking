@@ -1,61 +1,80 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.remoteService = void 0;
-const mock_service_1 = require("./mock-service");
 const http_1 = require("./http");
 const config_1 = require("./config");
 let clientCatalogCache = null;
-const idAlias = {
-    jingan: 'store-jingan',
-    xujiahui: 'store-xujiahui',
-    lujiazui: 'store-lujiazui',
-    neck: 'service-neck',
-    chinese: 'service-tui-na',
-    spa: 'service-spa',
-    zhang: 'therapist-anran',
-    lin: 'therapist-ziwei',
-    zhou: 'therapist-yuanyuan'
-};
-const toRemoteId = (id, fallback) => {
-    if (!id)
-        return fallback;
-    return idAlias[id] || id;
-};
+/** Identifies backend payload violations without replacing them with stale local fixtures. */
+class RemoteContractError extends Error {
+    constructor(message) {
+        super(`后端响应不完整：${message}`);
+        this.name = 'RemoteContractError';
+    }
+}
 const asRecord = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const asArray = (value) => Array.isArray(value) ? value : [];
-const asString = (record, key, fallback = '') => {
-    const value = record[key];
-    return typeof value === 'string' ? value : fallback;
+const requireRecord = (value, path) => {
+    const record = asRecord(value);
+    if (!Object.keys(record).length)
+        throw new RemoteContractError(`${path} 必须是对象`);
+    return record;
 };
-const asNumber = (record, key, fallback = 0) => {
+const asString = (record, key) => {
     const value = record[key];
-    return typeof value === 'number' ? value : fallback;
+    if (typeof value !== 'string' || !value.trim())
+        throw new RemoteContractError(`${key} 必须是非空字符串`);
+    return value;
 };
-const asBoolean = (record, key, fallback = false) => {
+const asOptionalString = (record, key) => {
     const value = record[key];
-    return typeof value === 'boolean' ? value : fallback;
+    if (value === undefined || value === null || value === '')
+        return undefined;
+    if (typeof value !== 'string')
+        throw new RemoteContractError(`${key} 必须是字符串`);
+    return value;
+};
+const asNumber = (record, key) => {
+    const value = record[key];
+    if (typeof value !== 'number' || !Number.isFinite(value))
+        throw new RemoteContractError(`${key} 必须是有效数字`);
+    return value;
+};
+const asBoolean = (record, key) => {
+    const value = record[key];
+    if (typeof value !== 'boolean')
+        throw new RemoteContractError(`${key} 必须是布尔值`);
+    return value;
+};
+const asOptionalBoolean = (record, key) => {
+    const value = record[key];
+    if (value === undefined || value === null)
+        return undefined;
+    if (typeof value !== 'boolean')
+        throw new RemoteContractError(`${key} 必须是布尔值`);
+    return value;
 };
 const asStringArray = (record, key) => {
-    return asArray(record[key]).filter((item) => typeof item === 'string');
+    const value = record[key];
+    if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+        throw new RemoteContractError(`${key} 必须是字符串数组`);
+    }
+    return value;
 };
 const asPaymentSignType = (value) => {
-    return value === 'MD5' || value === 'HMAC-SHA256' ? value : 'RSA';
-};
-const asStringRecord = (value) => {
-    const record = asRecord(value);
-    const result = {};
-    Object.keys(record).forEach((key) => {
-        const item = record[key];
-        if (typeof item === 'string')
-            result[key] = item;
-    });
-    return result;
+    if (value === 'RSA' || value === 'MD5' || value === 'HMAC-SHA256')
+        return value;
+    throw new RemoteContractError('payment.parameters.signType 不受支持');
 };
 const getClientCatalog = async () => {
     if (clientCatalogCache)
         return clientCatalogCache;
     clientCatalogCache = await (0, http_1.request)('/catalog/client');
     return clientCatalogCache;
+};
+const requireId = (id, field) => {
+    if (!id || !id.trim())
+        throw new Error(`缺少${field}，请返回上一步重新选择`);
+    return id;
 };
 const distanceToKm = (distance) => {
     const value = Number.parseFloat(distance.replace('km', ''));
@@ -74,106 +93,105 @@ const normalizeSlotStatus = (status) => {
         return 'full';
     if (status === 'ALMOST_FULL')
         return 'limited';
-    return 'available';
+    if (status === 'AVAILABLE')
+        return 'available';
+    throw new RemoteContractError('timeSlot.status 不受支持');
 };
 const normalizeAvailability = (status) => {
-    return status === 'AVAILABLE' ? 'available' : 'busy';
+    if (status === 'AVAILABLE')
+        return 'available';
+    if (status === 'BUSY' || status === 'OFF_DUTY' || status === 'DISABLED')
+        return 'busy';
+    throw new RemoteContractError('therapist.status 不受支持');
 };
 const normalizeBookingStatus = (status) => {
     const allowed = ['PENDING_PAYMENT', 'BOOKED', 'CHECKED_IN', 'WAITING_SERVICE', 'IN_SERVICE', 'PENDING_SETTLEMENT', 'COMPLETED', 'CANCELLED'];
-    return allowed.includes(status) ? status : 'BOOKED';
+    if (allowed.includes(status))
+        return status;
+    throw new RemoteContractError('booking.status 不受支持');
 };
 const normalizeStoreBusinessStatus = (status) => {
-    return status === 'CLOSED' ? 'CLOSED' : 'OPEN';
+    if (status === 'OPEN' || status === 'CLOSED')
+        return status;
+    throw new RemoteContractError('store.businessStatusCode 不受支持');
 };
 const buildGalleryImages = (record) => {
     const imageUrls = asStringArray(record, 'galleryImageUrls');
     if (imageUrls.length)
         return imageUrls;
-    const singleImageUrl = asString(record, 'galleryImageUrl', asString(record, 'coverImageUrl'));
-    return singleImageUrl ? [singleImageUrl] : ['', '', ''];
-};
-const actionsByStatus = (status) => {
-    const actions = {
-        PENDING_PAYMENT: ['pay', 'cancel', 'view_detail'],
-        BOOKED: ['show_code', 'refresh_code', 'reschedule', 'contact', 'view_detail'],
-        CHECKED_IN: ['refresh_code', 'contact', 'view_detail'],
-        WAITING_SERVICE: ['contact', 'view_detail'],
-        IN_SERVICE: ['contact', 'view_detail'],
-        PENDING_SETTLEMENT: ['contact', 'view_detail'],
-        COMPLETED: ['review', 'rebook', 'view_detail'],
-        CANCELLED: ['rebook', 'view_detail']
-    };
-    return actions[status];
+    const singleImageUrl = asOptionalString(record, 'galleryImageUrl') || asOptionalString(record, 'coverImageUrl');
+    if (!singleImageUrl)
+        throw new RemoteContractError('store.galleryImageUrls 或 coverImageUrl 必须存在');
+    return [singleImageUrl];
 };
 const formatScheduledAt = (date, startTime) => `${date} ${startTime}`;
 const mapStore = (value) => {
-    const record = asRecord(value);
-    const rawName = asString(record, 'name', '静安寺店');
+    const record = requireRecord(value, 'store');
+    const rawName = asString(record, 'name');
     const highlights = asStringArray(record, 'highlights');
     return {
-        id: asString(record, 'id', 'store-jingan'),
+        id: asString(record, 'id'),
         name: rawName.startsWith('栖愈') ? rawName : `栖愈·${rawName}`,
-        distanceKm: distanceToKm(asString(record, 'distance', '0km')),
-        rating: asNumber(record, 'rating', 4.8),
-        address: asString(record, 'address', ''),
-        phone: asString(record, 'phone', ''),
+        distanceKm: distanceToKm(asString(record, 'distance')),
+        rating: asNumber(record, 'rating'),
+        address: asString(record, 'address'),
+        phone: asString(record, 'phone'),
         latitude: asNumber(record, 'latitude'),
         longitude: asNumber(record, 'longitude'),
-        businessStatusCode: normalizeStoreBusinessStatus(asString(record, 'businessStatusCode', 'OPEN')),
-        businessStatus: asString(record, 'businessStatusLabel', asString(record, 'businessStatus', '')),
-        nextAvailableAt: asString(record, 'nextAvailableAt', '今日可约'),
+        businessStatusCode: normalizeStoreBusinessStatus(asString(record, 'businessStatusCode')),
+        businessStatus: asString(record, 'businessStatusLabel'),
+        nextAvailableAt: asString(record, 'nextAvailableAt'),
         isFrequent: asBoolean(record, 'frequent'),
         facilities: asStringArray(record, 'facilities'),
-        highlights: highlights.length ? highlights : asStringArray(record, 'facilities'),
+        highlights,
         memberBenefitText: asString(record, 'memberBenefitText'),
-        coverImageUrl: asString(record, 'coverImageUrl'),
-        galleryImageUrl: asString(record, 'galleryImageUrl'),
+        coverImageUrl: asOptionalString(record, 'coverImageUrl'),
+        galleryImageUrl: asOptionalString(record, 'galleryImageUrl'),
         galleryImageUrls: buildGalleryImages(record)
     };
 };
 const mapService = (value) => {
-    const record = asRecord(value);
+    const record = requireRecord(value, 'service');
     return {
-        id: asString(record, 'id', 'service-neck'),
-        name: asString(record, 'name', '肩颈舒缓'),
+        id: asString(record, 'id'),
+        name: asString(record, 'name'),
         category: asString(record, 'category'),
-        durationMinutes: asNumber(record, 'durationMinutes', 60),
-        price: asNumber(record, 'price', 198),
-        memberPrice: asNumber(record, 'memberPrice', asNumber(record, 'price', 198)),
+        durationMinutes: asNumber(record, 'durationMinutes'),
+        price: asNumber(record, 'price'),
+        memberPrice: asNumber(record, 'memberPrice'),
         salesCount: asNumber(record, 'salesCount'),
         tags: asStringArray(record, 'tags'),
-        description: asString(record, 'description', ''),
+        description: asString(record, 'description'),
         processSteps: asStringArray(record, 'processSteps'),
         suitableFor: asString(record, 'suitableFor'),
-        coverImageUrl: asString(record, 'coverImageUrl', asString(record, 'imageUrl')),
-        bannerImageUrl: asString(record, 'bannerImageUrl', asString(record, 'coverImageUrl', asString(record, 'imageUrl')))
+        coverImageUrl: asOptionalString(record, 'coverImageUrl'),
+        bannerImageUrl: asOptionalString(record, 'bannerImageUrl')
     };
 };
 const mapTherapist = (value) => {
-    const record = asRecord(value);
+    const record = requireRecord(value, 'therapist');
     return {
-        id: asString(record, 'id', 'therapist-anran'),
-        name: asString(record, 'name', '安然'),
-        level: asString(record, 'level', '资深技师'),
-        experienceYears: asNumber(record, 'experienceYears', 0),
+        id: asString(record, 'id'),
+        name: asString(record, 'name'),
+        level: asString(record, 'level'),
+        experienceYears: asNumber(record, 'experienceYears'),
         skills: asStringArray(record, 'skills'),
-        rating: asNumber(record, 'rating', 4.8),
-        serviceCount: 0,
-        specifyFee: asNumber(record, 'extraFee', 0),
-        nextAvailableAt: asString(record, 'nextAvailable', '今日可约'),
-        availability: normalizeAvailability(asString(record, 'status', 'AVAILABLE')),
-        avatarUrl: ''
+        rating: asNumber(record, 'rating'),
+        serviceCount: asNumber(record, 'serviceCount'),
+        specifyFee: asNumber(record, 'extraFee'),
+        nextAvailableAt: asString(record, 'nextAvailable'),
+        availability: normalizeAvailability(asString(record, 'status')),
+        avatarUrl: asOptionalString(record, 'avatarUrl')
     };
 };
 const mapStoreReview = (value) => {
-    const record = asRecord(value);
+    const record = requireRecord(value, 'review');
     return {
         id: asString(record, 'id'),
         storeId: asString(record, 'storeId'),
         serviceId: asString(record, 'serviceId'),
         userName: asString(record, 'userName'),
-        rating: asNumber(record, 'rating', 5),
+        rating: asNumber(record, 'rating'),
         content: asString(record, 'content'),
         tags: asStringArray(record, 'tags'),
         createdAt: asString(record, 'createdAt')
@@ -184,304 +202,194 @@ const mapReviewPage = (value, page, pageSize) => {
         const items = value.map(mapStoreReview);
         return { items, page, pageSize, total: items.length, hasMore: false };
     }
-    const record = asRecord(value);
+    const record = requireRecord(value, 'reviewPage');
     const items = asArray(record.items).map(mapStoreReview);
+    if (!Array.isArray(record.items))
+        throw new RemoteContractError('reviewPage.items 必须是数组');
     return {
-        items,
-        page: asNumber(record, 'page', page),
-        pageSize: asNumber(record, 'pageSize', pageSize),
-        total: asNumber(record, 'total', items.length),
-        hasMore: asBoolean(record, 'hasMore')
+        items, page: asNumber(record, 'page'), pageSize: asNumber(record, 'pageSize'),
+        total: asNumber(record, 'total'), hasMore: asBoolean(record, 'hasMore')
     };
 };
-const mapPaymentPayload = (value, fallbackBookingId) => {
-    const record = asRecord(value);
-    const parameters = asRecord(record.parameters);
+const mapPaymentPayload = (value) => {
+    const record = requireRecord(value, 'payment');
+    const parameters = requireRecord(record.parameters, 'payment.parameters');
     return {
-        bookingId: asString(record, 'bookingId', fallbackBookingId),
+        bookingId: asString(record, 'bookingId'),
         amount: asNumber(record, 'amount'),
-        paymentNo: asString(record, 'paymentNo', `PAY-${fallbackBookingId}`),
+        paymentNo: asString(record, 'paymentNo'),
         parameters: {
             timeStamp: asString(parameters, 'timeStamp'),
             nonceStr: asString(parameters, 'nonceStr'),
             package: asString(parameters, 'package'),
-            signType: asPaymentSignType(asString(parameters, 'signType', 'RSA')),
+            signType: asPaymentSignType(asString(parameters, 'signType')),
             paySign: asString(parameters, 'paySign'),
-            mockPayment: asBoolean(parameters, 'mockPayment')
+            mockPayment: asOptionalBoolean(parameters, 'mockPayment')
         }
     };
 };
 const mapTimeSlot = (value) => {
-    const record = asRecord(value);
-    const startAt = asString(record, 'time', '10:00');
+    const record = requireRecord(value, 'timeSlot');
+    const startAt = asString(record, 'time');
     return {
         id: startAt.replace(':', ''),
         startAt,
         period: timePeriod(startAt),
-        status: normalizeSlotStatus(asString(record, 'status', 'AVAILABLE'))
+        status: normalizeSlotStatus(asString(record, 'status'))
     };
 };
 const mapPayment = (record) => {
-    const amount = asNumber(record, 'amount', 0);
+    const amount = asNumber(record, 'amount');
     return {
         itemAmount: amount,
-        therapistFee: 0,
-        discountAmount: 0,
-        balanceDeduction: 0,
-        depositDue: 50,
-        paidAmount: 50
+        therapistFee: asNumber(record, 'therapistFee'),
+        discountAmount: asNumber(record, 'discountAmount'),
+        balanceDeduction: asNumber(record, 'balanceDeduction'),
+        depositDue: asNumber(record, 'depositDue'),
+        paidAmount: asNumber(record, 'paidAmount')
     };
 };
-const mapPaymentSummary = (value, fallbackAmount = 0) => {
-    const record = asRecord(value);
+const mapPaymentSummary = (value) => {
+    const record = requireRecord(value, 'confirmation.payment');
     return {
-        itemAmount: asNumber(record, 'itemAmount', fallbackAmount),
-        therapistFee: asNumber(record, 'therapistFee', 0),
-        discountAmount: asNumber(record, 'discountAmount', 0),
-        balanceDeduction: asNumber(record, 'balanceDeduction', 0),
-        depositDue: asNumber(record, 'depositDue', 50),
-        paidAmount: asNumber(record, 'paidAmount', 0)
+        itemAmount: asNumber(record, 'itemAmount'), therapistFee: asNumber(record, 'therapistFee'),
+        discountAmount: asNumber(record, 'discountAmount'), balanceDeduction: asNumber(record, 'balanceDeduction'),
+        depositDue: asNumber(record, 'depositDue'), paidAmount: asNumber(record, 'paidAmount')
     };
 };
 const mapPaymentLines = (value) => {
-    return asArray(value).map((item) => {
-        const record = asRecord(item);
+    if (!Array.isArray(value))
+        throw new RemoteContractError('confirmation.paymentLines 必须是数组');
+    return value.map((item) => {
+        const record = requireRecord(item, 'confirmation.paymentLine');
+        const tone = asOptionalString(record, 'tone');
+        if (tone !== undefined && tone !== 'discount' && tone !== 'default')
+            throw new RemoteContractError('confirmation.paymentLine.tone 不受支持');
         return {
             key: asString(record, 'key'),
             label: asString(record, 'label'),
             amountText: asString(record, 'amountText'),
-            tone: asString(record, 'tone') === 'discount' ? 'discount' : 'default'
+            tone
         };
-    }).filter((item) => item.key && item.label);
+    });
 };
-const mapConfirmationEditActions = (value, fallback) => {
-    const record = asRecord(value);
+const mapConfirmationEditActions = (value) => {
+    const record = requireRecord(value, 'confirmation.editActions');
     return {
-        store: asString(record, 'store', fallback.store),
-        service: asString(record, 'service', fallback.service),
-        therapist: asString(record, 'therapist', fallback.therapist),
-        time: asString(record, 'time', fallback.time)
+        store: asString(record, 'store'), service: asString(record, 'service'),
+        therapist: asString(record, 'therapist'), time: asString(record, 'time')
     };
 };
-const mapServiceCardMeta = (value, fallback) => {
-    const record = asRecord(value);
+const mapServiceCardMeta = (value) => {
+    const record = requireRecord(value, 'serviceCardMeta');
     return {
-        durationUnit: asString(record, 'durationUnit', fallback.durationUnit),
-        servedPrefix: asString(record, 'servedPrefix', fallback.servedPrefix),
-        servedSuffix: asString(record, 'servedSuffix', fallback.servedSuffix)
+        durationUnit: asString(record, 'durationUnit'), servedPrefix: asString(record, 'servedPrefix'),
+        servedSuffix: asString(record, 'servedSuffix')
     };
 };
-const mapStoreCardMeta = (value, fallback) => {
-    const record = asRecord(value);
+const mapConfirmationFormCopy = (value) => {
+    const record = requireRecord(value, 'confirmation.formCopy');
     return {
-        ratingUnit: asString(record, 'ratingUnit', fallback.ratingUnit),
-        nextAvailablePrefix: asString(record, 'nextAvailablePrefix', fallback.nextAvailablePrefix)
+        guestCountLabel: asString(record, 'guestCountLabel'), contactLabel: asString(record, 'contactLabel'),
+        contactPlaceholder: asString(record, 'contactPlaceholder'), remarkLabel: asString(record, 'remarkLabel'),
+        remarkPlaceholder: asString(record, 'remarkPlaceholder'), contactRequiredMessage: asString(record, 'contactRequiredMessage'),
+        submitFallbackText: asString(record, 'submitFallbackText')
     };
 };
-const mapConfirmationFormCopy = (value, fallback) => {
-    const record = asRecord(value);
+const mapBookingConfirmation = (value) => {
+    const record = requireRecord(value, 'confirmation');
     return {
-        guestCountLabel: asString(record, 'guestCountLabel', fallback.guestCountLabel),
-        contactLabel: asString(record, 'contactLabel', fallback.contactLabel),
-        contactPlaceholder: asString(record, 'contactPlaceholder', fallback.contactPlaceholder),
-        remarkLabel: asString(record, 'remarkLabel', fallback.remarkLabel),
-        remarkPlaceholder: asString(record, 'remarkPlaceholder', fallback.remarkPlaceholder),
-        contactRequiredMessage: asString(record, 'contactRequiredMessage', fallback.contactRequiredMessage),
-        submitFallbackText: asString(record, 'submitFallbackText', fallback.submitFallbackText)
-    };
-};
-const mapBookingConfirmation = async (value, fallback) => {
-    const record = asRecord(value);
-    const payment = mapPaymentSummary(record.payment, fallback.payment.itemAmount);
-    const paymentLines = mapPaymentLines(record.paymentLines);
-    return {
-        pageTitle: asString(record, 'pageTitle', fallback.pageTitle),
-        editActions: mapConfirmationEditActions(record.editActions, fallback.editActions),
-        cardMeta: mapServiceCardMeta(record.cardMeta, fallback.cardMeta),
+        pageTitle: asString(record, 'pageTitle'), editActions: mapConfirmationEditActions(record.editActions),
+        cardMeta: mapServiceCardMeta(record.cardMeta),
         store: mapStore(record.store),
         service: mapService(record.service),
         therapist: record.therapist ? mapTherapist(record.therapist) : undefined,
-        therapistDisplayName: asString(record, 'therapistDisplayName', fallback.therapistDisplayName),
-        scheduledAt: asString(record, 'scheduledAt', fallback.scheduledAt),
-        payment,
-        formCopy: mapConfirmationFormCopy(record.formCopy, fallback.formCopy),
-        benefitTitle: asString(record, 'benefitTitle', fallback.benefitTitle),
-        benefitSelectionText: asString(record, 'benefitSelectionText', fallback.benefitSelectionText),
-        paymentTitle: asString(record, 'paymentTitle', fallback.paymentTitle),
-        paymentLines: paymentLines.length ? paymentLines : fallback.paymentLines,
-        totalLabel: asString(record, 'totalLabel', fallback.totalLabel),
-        agreementText: asString(record, 'agreementText', fallback.agreementText),
-        agreementRequiredMessage: asString(record, 'agreementRequiredMessage', fallback.agreementRequiredMessage),
-        depositButtonText: asString(record, 'depositButtonText', fallback.depositButtonText)
+        therapistDisplayName: asString(record, 'therapistDisplayName'), scheduledAt: asString(record, 'scheduledAt'),
+        payment: mapPaymentSummary(record.payment), formCopy: mapConfirmationFormCopy(record.formCopy),
+        benefitTitle: asString(record, 'benefitTitle'), benefitSelectionText: asString(record, 'benefitSelectionText'),
+        paymentTitle: asString(record, 'paymentTitle'), paymentLines: mapPaymentLines(record.paymentLines),
+        totalLabel: asString(record, 'totalLabel'), agreementText: asString(record, 'agreementText'),
+        agreementRequiredMessage: asString(record, 'agreementRequiredMessage'), depositButtonText: asString(record, 'depositButtonText')
     };
 };
 const mapBooking = (value) => {
-    const record = asRecord(value);
-    const status = normalizeBookingStatus(asString(record, 'status', 'BOOKED'));
+    const record = requireRecord(value, 'booking');
+    const status = normalizeBookingStatus(asString(record, 'status'));
+    const availableActions = asStringArray(record, 'availableActions');
     return {
-        id: asString(record, 'id', 'BK-202608-1000'),
-        code: asString(record, 'verificationCode', asString(record, 'id', 'QY202608')),
-        qrImageUrl: asString(record, 'verificationQrImageUrl'),
+        id: asString(record, 'id'), code: asString(record, 'verificationCode'),
+        qrImageUrl: asOptionalString(record, 'verificationQrImageUrl'),
         status,
         store: mapStore(record.store),
         service: mapService(record.service),
         therapist: mapTherapist(record.therapist),
-        scheduledAt: formatScheduledAt(asString(record, 'appointmentDate'), asString(record, 'startTime', '10:00')),
-        contact: `${asString(record, 'customerName', '顾客')} ${asString(record, 'mobile', '')}`.trim(),
+        scheduledAt: formatScheduledAt(asString(record, 'appointmentDate'), asString(record, 'startTime')),
+        contact: `${asString(record, 'customerName')} ${asString(record, 'mobile')}`.trim(),
         payment: mapPayment(record),
-        availableActions: actionsByStatus(status)
+        availableActions
     };
 };
-const catalogRecord = async (key) => {
-    return asRecord((await getClientCatalog())[key]);
+const catalogPayload = async (key) => {
+    const value = (await getClientCatalog())[key];
+    requireRecord(value, `catalog.${key}`);
+    return value;
 };
-const mapHomeCopy = async () => {
-    return { ...(await mock_service_1.mockService.getHome()).copy, ...await catalogRecord('homeCopy') };
-};
-const mapLoginCopy = async () => {
-    return { ...await mock_service_1.mockService.getLoginCopy(), ...await catalogRecord('loginCopy') };
-};
-const mapOrderDictionaries = async () => {
-    const fallback = await mock_service_1.mockService.getOrderDictionaries();
-    const record = await catalogRecord('orderDictionaries');
-    const detailFields = asRecord(record.detailFields);
-    const paymentFields = asRecord(record.paymentFields);
-    const cardMeta = asRecord(record.cardMeta);
-    const serviceCardMeta = asRecord(record.serviceCardMeta);
-    const storeCardMeta = asRecord(record.storeCardMeta);
-    const tabs = asArray(record.tabs).map((item) => {
-        const itemRecord = asRecord(item);
-        const statuses = asStringArray(itemRecord, 'statuses');
-        return {
-            key: asString(itemRecord, 'key'),
-            label: asString(itemRecord, 'label'),
-            statuses: statuses.length ? statuses : undefined
-        };
-    }).filter((item) => item.key && item.label);
+const mapSuccessCopyValue = (value) => {
+    const record = requireRecord(value, 'success.copy');
     return {
-        ...fallback,
-        pageTitle: asString(record, 'pageTitle', fallback.pageTitle),
-        detailTitle: asString(record, 'detailTitle', fallback.detailTitle),
-        statusLabel: Object.keys(asStringRecord(record.statusLabel)).length ? asStringRecord(record.statusLabel) : fallback.statusLabel,
-        actionLabel: Object.keys(asStringRecord(record.actionLabel)).length ? asStringRecord(record.actionLabel) : fallback.actionLabel,
-        tabs: tabs.length ? tabs : fallback.tabs,
-        detailSteps: asArray(record.detailSteps).filter((item) => typeof item === 'string').length ? asArray(record.detailSteps).filter((item) => typeof item === 'string') : fallback.detailSteps,
-        codeTitle: asString(record, 'codeTitle', fallback.codeTitle),
-        codeHint: asString(record, 'codeHint', fallback.codeHint),
-        codeExtraHint: asString(record, 'codeExtraHint', fallback.codeExtraHint),
-        detailFields: {
-            service: asString(detailFields, 'service', fallback.detailFields.service),
-            therapist: asString(detailFields, 'therapist', fallback.detailFields.therapist),
-            scheduledAt: asString(detailFields, 'scheduledAt', fallback.detailFields.scheduledAt),
-            contact: asString(detailFields, 'contact', fallback.detailFields.contact)
-        },
-        paymentTitle: asString(record, 'paymentTitle', fallback.paymentTitle),
-        paymentFields: {
-            item: asString(paymentFields, 'item', fallback.paymentFields.item),
-            therapist: asString(paymentFields, 'therapist', fallback.paymentFields.therapist),
-            discount: asString(paymentFields, 'discount', fallback.paymentFields.discount),
-            paid: asString(paymentFields, 'paid', fallback.paymentFields.paid)
-        },
-        actionSectionTitle: asString(record, 'actionSectionTitle', fallback.actionSectionTitle),
-        checkinButtonText: asString(record, 'checkinButtonText', fallback.checkinButtonText),
-        cancelModalTitle: asString(record, 'cancelModalTitle', fallback.cancelModalTitle),
-        cancelModalContent: asString(record, 'cancelModalContent', fallback.cancelModalContent),
-        cancelModalConfirmText: asString(record, 'cancelModalConfirmText', fallback.cancelModalConfirmText),
-        cancelSuccessToastText: asString(record, 'cancelSuccessToastText', fallback.cancelSuccessToastText),
-        paySuccessToastText: asString(record, 'paySuccessToastText', fallback.paySuccessToastText),
-        payFailureToastText: asString(record, 'payFailureToastText', fallback.payFailureToastText),
-        cardMeta: {
-            paidPrefix: asString(cardMeta, 'paidPrefix', fallback.cardMeta.paidPrefix)
-        },
-        serviceCardMeta: mapServiceCardMeta(serviceCardMeta, fallback.serviceCardMeta),
-        storeCardMeta: mapStoreCardMeta(storeCardMeta, fallback.storeCardMeta)
+        title: asString(record, 'title'), subtitle: asString(record, 'subtitle'),
+        bookingCodePrefix: asString(record, 'bookingCodePrefix'), codeHint: asString(record, 'codeHint'),
+        navigationActionText: asString(record, 'navigationActionText'), contactActionText: asString(record, 'contactActionText'),
+        reminderText: asString(record, 'reminderText'), detailButtonText: asString(record, 'detailButtonText'),
+        homeButtonText: asString(record, 'homeButtonText')
     };
 };
-const mapServiceDictionaries = async () => {
-    return { ...await mock_service_1.mockService.getServiceDictionaries(), ...await catalogRecord('serviceDictionaries') };
+const mapBookingSuccessPayload = (value) => {
+    const record = requireRecord(value, 'bookingSuccess');
+    return { booking: mapBooking(record.booking), copy: mapSuccessCopyValue(record.copy) };
 };
-const mapStoreDetailDictionaries = async () => {
-    return { ...await mock_service_1.mockService.getStoreDetailDictionaries(), ...await catalogRecord('storeDetailDictionaries') };
-};
-const mapTimeDictionaries = async () => {
-    return { ...await mock_service_1.mockService.getTimeDictionaries(), ...await catalogRecord('timeDictionaries') };
-};
-const mapTherapistDictionaries = async () => {
-    return { ...await mock_service_1.mockService.getTherapistDictionaries(), ...await catalogRecord('therapistDictionaries') };
-};
-const mapSuccessCopy = async () => {
-    return { ...await mock_service_1.mockService.getSuccessCopy(), ...await catalogRecord('successCopy') };
-};
-const mapSuccessCopyValue = async (value) => {
-    return { ...await mock_service_1.mockService.getSuccessCopy(), ...asRecord(value) };
-};
-const mapBookingSuccessPayload = async (value, fallback) => {
-    const record = asRecord(value);
+const mapBookingDraft = (value) => {
+    const record = requireRecord(value, 'bookingDraft');
+    const therapistMode = asString(record, 'therapistMode');
+    const flow = asString(record, 'flow');
+    if (therapistMode !== 'specified' && therapistMode !== 'auto')
+        throw new RemoteContractError('bookingDraft.therapistMode 不受支持');
+    if (flow !== 'create' && flow !== 'reschedule')
+        throw new RemoteContractError('bookingDraft.flow 不受支持');
     return {
-        booking: record.booking ? mapBooking(record.booking) : fallback.booking,
-        copy: record.copy ? await mapSuccessCopyValue(record.copy) : fallback.copy
+        storeId: asString(record, 'storeId'), serviceId: asString(record, 'serviceId'), therapistMode,
+        therapistId: asOptionalString(record, 'therapistId'), slotId: asOptionalString(record, 'slotId'),
+        guestCount: asNumber(record, 'guestCount'), contact: asString(record, 'contact'),
+        remark: asString(record, 'remark'), benefitSelection: asString(record, 'benefitSelection'),
+        appointmentDate: asString(record, 'appointmentDate'), flow, sourceBookingId: asOptionalString(record, 'sourceBookingId')
     };
 };
-const mapBookingDraft = (value, fallback) => {
-    const record = asRecord(value);
-    const therapistMode = asString(record, 'therapistMode', fallback.therapistMode);
+const mapBookingDraftPayload = (value) => {
+    const record = requireRecord(value, 'bookingDraftPayload');
+    return { sourceBookingId: asString(record, 'sourceBookingId'), draft: mapBookingDraft(record.draft) };
+};
+const mapProfilePayload = (value) => {
+    const record = requireRecord(value, 'profile');
+    const user = requireRecord(record.user, 'profile.user');
+    const shortcuts = record.shortcuts;
+    const menuItems = record.menuItems;
+    if (!Array.isArray(shortcuts) || !Array.isArray(menuItems))
+        throw new RemoteContractError('profile.shortcuts 和 profile.menuItems 必须是数组');
     return {
-        storeId: asString(record, 'storeId', fallback.storeId),
-        serviceId: asString(record, 'serviceId', fallback.serviceId),
-        therapistMode: therapistMode === 'specified' ? 'specified' : 'auto',
-        therapistId: asString(record, 'therapistId', fallback.therapistId || '') || undefined,
-        slotId: asString(record, 'slotId', fallback.slotId || '') || undefined,
-        guestCount: asNumber(record, 'guestCount', fallback.guestCount),
-        contact: asString(record, 'contact', fallback.contact),
-        remark: asString(record, 'remark', fallback.remark),
-        benefitSelection: asString(record, 'benefitSelection', fallback.benefitSelection),
-        appointmentDate: asString(record, 'appointmentDate', fallback.appointmentDate),
-        flow: asString(record, 'flow', fallback.flow || 'create') === 'reschedule' ? 'reschedule' : 'create',
-        sourceBookingId: asString(record, 'sourceBookingId', fallback.sourceBookingId || '') || undefined
+        user: { name: asString(user, 'name'), phone: asString(user, 'phone'), avatarText: asString(user, 'avatarText'), level: asString(user, 'level'), balanceText: asString(user, 'balanceText'), couponCount: asNumber(user, 'couponCount'), packageCount: asNumber(user, 'packageCount') },
+        title: asString(record, 'title'), settingsIcon: asString(record, 'settingsIcon'), memberTitle: asString(record, 'memberTitle'), memberSubtitle: asString(record, 'memberSubtitle'),
+        memberStats: asStringArray(record, 'memberStats'), shortcuts: shortcuts.map((item) => { const entry = requireRecord(item, 'profile.shortcut'); return { key: asString(entry, 'key'), title: asString(entry, 'title'), subtitle: asString(entry, 'subtitle') }; }),
+        recentBookingTitle: asString(record, 'recentBookingTitle'), recentBookingActionText: asString(record, 'recentBookingActionText'),
+        menuItems: menuItems.map((item) => { const entry = requireRecord(item, 'profile.menuItem'); return { key: asString(entry, 'key'), label: asString(entry, 'label'), valueText: asString(entry, 'valueText') }; }),
+        logoutText: asString(record, 'logoutText'), logoutModalTitle: asString(record, 'logoutModalTitle'), logoutModalContent: asString(record, 'logoutModalContent'), logoutConfirmText: asString(record, 'logoutConfirmText'), logoutCancelText: asString(record, 'logoutCancelText')
     };
-};
-const mapBookingRebookPayload = (value, fallback) => {
-    const record = asRecord(value);
-    return {
-        sourceBookingId: asString(record, 'sourceBookingId', fallback.sourceBookingId),
-        draft: mapBookingDraft(record.draft, fallback.draft)
-    };
-};
-const mapBookingReschedulePayload = (value, fallback) => {
-    const record = asRecord(value);
-    return {
-        sourceBookingId: asString(record, 'sourceBookingId', fallback.sourceBookingId),
-        draft: mapBookingDraft(record.draft, fallback.draft)
-    };
-};
-const mapProfile = async () => {
-    return { ...await mock_service_1.mockService.getProfile(), ...await catalogRecord('profile') };
-};
-const mapProfilePayload = async (value) => {
-    return { ...await mock_service_1.mockService.getProfile(), ...asRecord(value) };
-};
-const mapCheckinDictionaries = async () => {
-    return { ...await mock_service_1.mockService.getCheckinDictionaries(), ...await catalogRecord('checkinDictionaries') };
-};
-const mapReviewDictionaries = async () => {
-    return { ...await mock_service_1.mockService.getReviewDictionaries(), ...await catalogRecord('reviewDictionaries') };
-};
-const mapActionFeedbackDictionaries = async () => {
-    return { ...await mock_service_1.mockService.getActionFeedbackDictionaries(), ...await catalogRecord('actionFeedbackDictionaries') };
-};
-const mapPageStateDictionaries = async () => {
-    return { ...await mock_service_1.mockService.getPageStateDictionaries(), ...await catalogRecord('pageStateDictionaries') };
-};
-const withMockFallback = async (remoteLoader, fallbackLoader) => {
-    // Remote mode must expose backend failures instead of presenting stale Mock data.
-    return remoteLoader();
 };
 const getSelectedStartTime = async (draft) => {
     const data = await (0, http_1.request)('/time-slots', {
         query: {
-            storeId: toRemoteId(draft.storeId, 'store-jingan'),
-            serviceId: toRemoteId(draft.serviceId, 'service-neck'),
-            therapistId: toRemoteId(draft.therapistId, 'therapist-anran'),
+            storeId: requireId(draft.storeId, '门店'),
+            serviceId: requireId(draft.serviceId, '服务项目'),
+            therapistId: draft.therapistMode === 'specified' ? requireId(draft.therapistId, '技师') : undefined,
             date: draft.appointmentDate
         }
     });
@@ -498,7 +406,7 @@ const currentMobile = () => {
 };
 exports.remoteService = {
     async getHome() {
-        const [stores, services, therapists, copy] = await Promise.all([this.getStores(), this.getServices(), this.getTherapists(''), withMockFallback(mapHomeCopy, async () => (await mock_service_1.mockService.getHome()).copy)]);
+        const [stores, services, therapists, copy] = await Promise.all([this.getStores(), this.getServices(), this.getTherapists(''), catalogPayload('homeCopy')]);
         return {
             frequentStores: stores.filter((store) => store.isFrequent),
             nearbyStores: stores.filter((store) => !store.isFrequent),
@@ -516,55 +424,47 @@ exports.remoteService = {
         return data.map(mapService);
     },
     async getStore(id) {
-        return mapStore(await (0, http_1.request)(`/stores/${toRemoteId(id, 'store-jingan')}`));
+        return mapStore(await (0, http_1.request)(`/stores/${requireId(id, '门店')}`));
     },
     async getService(id) {
-        return mapService(await (0, http_1.request)(`/services/${toRemoteId(id, 'service-neck')}`));
+        return mapService(await (0, http_1.request)(`/services/${requireId(id, '服务项目')}`));
     },
     async getTherapists(serviceId) {
-        const data = await (0, http_1.request)('/therapists', { query: { serviceId: serviceId ? toRemoteId(serviceId, 'service-neck') : undefined } });
+        const data = await (0, http_1.request)('/therapists', { query: { serviceId: serviceId || undefined } });
         return data.map(mapTherapist);
     },
     async getTimeSlots(draft) {
         const data = await (0, http_1.request)('/time-slots', {
             query: {
-                storeId: toRemoteId(draft?.storeId, 'store-jingan'),
-                serviceId: toRemoteId(draft?.serviceId, 'service-neck'),
-                therapistId: toRemoteId(draft?.therapistId, 'therapist-anran'),
+                storeId: requireId(draft?.storeId, '门店'),
+                serviceId: requireId(draft?.serviceId, '服务项目'),
+                therapistId: draft?.therapistMode === 'specified' ? requireId(draft.therapistId, '技师') : undefined,
                 date: draft?.appointmentDate
             }
         });
         return data.map(mapTimeSlot);
     },
     async getBookingConfirmation(draft) {
-        const fallback = await mock_service_1.mockService.getBookingConfirmation(draft);
-        return withMockFallback(async () => {
-            const startTime = await getSelectedStartTime(draft);
-            const confirmation = await (0, http_1.request)('/bookings/confirmation', {
-                method: 'POST',
-                data: {
-                    storeId: toRemoteId(draft.storeId, 'store-jingan'),
-                    serviceId: toRemoteId(draft.serviceId, 'service-neck'),
-                    therapistId: draft.therapistMode === 'auto' ? undefined : toRemoteId(draft.therapistId, 'therapist-anran'),
-                    date: draft.appointmentDate,
-                    startTime,
-                    guestCount: draft.guestCount,
-                    customerName: draft.contact,
-                    remark: draft.remark,
-                    couponId: draft.benefitSelection
-                }
-            });
-            return mapBookingConfirmation(confirmation, fallback);
-        }, () => Promise.resolve(fallback));
+        const startTime = await getSelectedStartTime(draft);
+        const confirmation = await (0, http_1.request)('/bookings/confirmation', {
+            method: 'POST',
+            data: {
+                storeId: requireId(draft.storeId, '门店'), serviceId: requireId(draft.serviceId, '服务项目'),
+                therapistId: draft.therapistMode === 'auto' ? undefined : requireId(draft.therapistId, '技师'),
+                date: draft.appointmentDate, startTime, guestCount: draft.guestCount,
+                customerName: draft.contact, remark: draft.remark, couponId: draft.benefitSelection
+            }
+        });
+        return mapBookingConfirmation(confirmation);
     },
-    getOrderDictionaries: () => withMockFallback(mapOrderDictionaries, () => mock_service_1.mockService.getOrderDictionaries()),
-    getReviewDictionaries: () => withMockFallback(mapReviewDictionaries, () => mock_service_1.mockService.getReviewDictionaries()),
-    getServiceDictionaries: () => withMockFallback(mapServiceDictionaries, () => mock_service_1.mockService.getServiceDictionaries()),
-    getStoreDetailDictionaries: () => withMockFallback(mapStoreDetailDictionaries, () => mock_service_1.mockService.getStoreDetailDictionaries()),
-    getTimeDictionaries: () => withMockFallback(mapTimeDictionaries, () => mock_service_1.mockService.getTimeDictionaries()),
-    getTherapistDictionaries: () => withMockFallback(mapTherapistDictionaries, () => mock_service_1.mockService.getTherapistDictionaries()),
-    getSuccessCopy: () => withMockFallback(mapSuccessCopy, () => mock_service_1.mockService.getSuccessCopy()),
-    getLoginCopy: () => withMockFallback(mapLoginCopy, () => mock_service_1.mockService.getLoginCopy()),
+    getOrderDictionaries: () => catalogPayload('orderDictionaries'),
+    getReviewDictionaries: () => catalogPayload('reviewDictionaries'),
+    getServiceDictionaries: () => catalogPayload('serviceDictionaries'),
+    getStoreDetailDictionaries: () => catalogPayload('storeDetailDictionaries'),
+    getTimeDictionaries: () => catalogPayload('timeDictionaries'),
+    getTherapistDictionaries: () => catalogPayload('therapistDictionaries'),
+    getSuccessCopy: async () => mapSuccessCopyValue(await catalogPayload('successCopy')),
+    getLoginCopy: () => catalogPayload('loginCopy'),
     async sendLoginCode(mobile) {
         return (0, http_1.request)('/auth/send-code', { method: 'POST', data: { clientType: 'MINI_PROGRAM', mobile } });
     },
@@ -572,21 +472,18 @@ exports.remoteService = {
         return (0, http_1.request)('/auth/login', { method: 'POST', data: { clientType: 'MINI_PROGRAM', grantType: 'SMS_CODE', identifier: mobile, credential: code } });
     },
     async getBookingSuccess(id) {
-        const fallback = await mock_service_1.mockService.getBookingSuccess(id);
-        return withMockFallback(async () => mapBookingSuccessPayload(await (0, http_1.request)(`/bookings/${id}/success`), fallback), () => Promise.resolve(fallback));
+        return mapBookingSuccessPayload(await (0, http_1.request)(`/bookings/${requireId(id, '预约')}/success`));
     },
     async getBookingRebookDraft(id) {
-        const fallback = await mock_service_1.mockService.getBookingRebookDraft(id);
-        return withMockFallback(async () => mapBookingRebookPayload(await (0, http_1.request)(`/bookings/${id}/rebook-draft`), fallback), () => Promise.resolve(fallback));
+        return mapBookingDraftPayload(await (0, http_1.request)(`/bookings/${requireId(id, '预约')}/rebook-draft`));
     },
     async getBookingRescheduleDraft(id) {
-        const fallback = await mock_service_1.mockService.getBookingRescheduleDraft(id);
-        return withMockFallback(async () => mapBookingReschedulePayload(await (0, http_1.request)(`/bookings/${id}/reschedule-draft`), fallback), () => Promise.resolve(fallback));
+        return mapBookingDraftPayload(await (0, http_1.request)(`/bookings/${requireId(id, '预约')}/reschedule-draft`));
     },
-    getProfile: () => withMockFallback(async () => mapProfilePayload(await (0, http_1.request)('/member/profile')), mapProfile),
-    getCheckinDictionaries: () => withMockFallback(mapCheckinDictionaries, () => mock_service_1.mockService.getCheckinDictionaries()),
-    getActionFeedbackDictionaries: () => withMockFallback(mapActionFeedbackDictionaries, () => mock_service_1.mockService.getActionFeedbackDictionaries()),
-    getPageStateDictionaries: () => withMockFallback(mapPageStateDictionaries, () => mock_service_1.mockService.getPageStateDictionaries()),
+    getProfile: async () => mapProfilePayload(await (0, http_1.request)('/member/profile')),
+    getCheckinDictionaries: () => catalogPayload('checkinDictionaries'),
+    getActionFeedbackDictionaries: () => catalogPayload('actionFeedbackDictionaries'),
+    getPageStateDictionaries: () => catalogPayload('pageStateDictionaries'),
     async createBooking(draft, requestId) {
         const startTime = await getSelectedStartTime(draft);
         const mobile = currentMobile();
@@ -595,9 +492,9 @@ exports.remoteService = {
         const booking = await (0, http_1.request)('/bookings', {
             method: 'POST',
             data: {
-                storeId: toRemoteId(draft.storeId, 'store-jingan'),
-                serviceId: toRemoteId(draft.serviceId, 'service-neck'),
-                therapistId: draft.therapistMode === 'auto' ? undefined : toRemoteId(draft.therapistId, 'therapist-anran'),
+                storeId: requireId(draft.storeId, '门店'),
+                serviceId: requireId(draft.serviceId, '服务项目'),
+                therapistId: draft.therapistMode === 'auto' ? undefined : requireId(draft.therapistId, '技师'),
                 date: draft.appointmentDate,
                 startTime,
                 customerName: draft.contact,
@@ -610,13 +507,13 @@ exports.remoteService = {
     },
     async rescheduleBooking(draft, requestId) {
         const startTime = await getSelectedStartTime(draft);
-        const bookingId = draft.sourceBookingId || '';
+        const bookingId = requireId(draft.sourceBookingId, '原预约');
         const booking = await (0, http_1.request)(`/bookings/${bookingId}/reschedule`, {
             method: 'POST',
             data: {
                 date: draft.appointmentDate,
                 startTime,
-                therapistId: draft.therapistMode === 'auto' ? undefined : toRemoteId(draft.therapistId, 'therapist-anran'),
+                therapistId: draft.therapistMode === 'auto' ? undefined : requireId(draft.therapistId, '技师'),
                 requestId
             }
         });
@@ -630,8 +527,8 @@ exports.remoteService = {
         return mapBooking(await (0, http_1.request)(`/bookings/${id}`));
     },
     async getStoreReviews(storeId, serviceId, page = 1, pageSize = 2) {
-        const remoteStoreId = toRemoteId(storeId, 'store-jingan');
-        const remoteServiceId = serviceId ? toRemoteId(serviceId, 'service-neck') : '';
+        const remoteStoreId = requireId(storeId, '门店');
+        const remoteServiceId = serviceId || '';
         const filterQuery = remoteServiceId ? `storeId=${remoteStoreId}&serviceId=${remoteServiceId}` : `storeId=${remoteStoreId}`;
         const data = await (0, http_1.request)(`/reviews?${filterQuery}&page=${page}&pageSize=${pageSize}`);
         return mapReviewPage(data, page, pageSize);
@@ -646,7 +543,7 @@ exports.remoteService = {
         return mapBooking(await (0, http_1.request)(`/bookings/${id}/cancel`, { method: 'POST', data: { requestId } }));
     },
     async prepareBookingPayment(id, requestId) {
-        return mapPaymentPayload(await (0, http_1.request)(`/bookings/${id}/payment`, { method: 'POST', data: { requestId } }), id);
+        return mapPaymentPayload(await (0, http_1.request)(`/bookings/${requireId(id, '预约')}/payment`, { method: 'POST', data: { requestId } }));
     },
     async payBooking(id, requestId) {
         return mapBooking(await (0, http_1.request)(`/bookings/${id}/pay`, { method: 'POST', data: { requestId } }));
@@ -654,8 +551,8 @@ exports.remoteService = {
     async uploadReviewImage(tempFilePath, requestId) {
         const fileName = tempFilePath.split('/').pop() || `review-${Date.now()}.jpg`;
         const data = await (0, http_1.upload)('/reviews/images', tempFilePath, { fileName, requestId });
-        const record = asRecord(data);
-        return { imageUrl: asString(record, 'imageUrl', tempFilePath) };
+        const record = requireRecord(data, 'reviewImageUpload');
+        return { imageUrl: asString(record, 'imageUrl') };
     },
     async submitReview(review, requestId) {
         await (0, http_1.request)('/reviews', {

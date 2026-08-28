@@ -8,6 +8,7 @@ public record BookingVO(
         CatalogResourceVO.StoreVO store, CatalogResourceVO.ServiceItemVO service,
         CatalogResourceVO.TherapistVO therapist, String roomId, String customerName,
         String mobile, String customerId, String appointmentDate, String startTime,
-        String endTime, Number amount, String memberBenefit, String verificationCode,
-        String verificationQrImageUrl
+        String endTime, Number amount, Number therapistFee, Number discountAmount,
+        Number balanceDeduction, Number depositDue, Number paidAmount, String memberBenefit,
+        String verificationCode, String verificationQrImageUrl, java.util.List<String> availableActions
 ) {}

@@ -14,12 +14,15 @@ import com.qiyu.domain.catalog.ServiceItem;
 import com.qiyu.domain.catalog.Store;
 import com.qiyu.domain.catalog.Therapist;
 import com.qiyu.domain.customer.gateway.CustomerLookupGateway;
-import com.qiyu.infrastructure.mock.MockCatalogProvider;
+import com.qiyu.domain.coupon.gateway.CouponGateway;
+import com.qiyu.domain.payment.gateway.PaymentGateway;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +37,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BookingAppService {
     private final BookingGateway bookingGateway;
     private final CatalogGateway catalogProvider;
-    private final MockCatalogProvider copyProvider;
     private final AuthAppService authAppService;
     private final DataPermissionService dataPermissionService;
     private final AuditLogService auditLogService;
@@ -42,19 +44,23 @@ public class BookingAppService {
     private final AtomicInteger sequence = new AtomicInteger(1003);
     private final boolean persistenceEnabled;
     private final CustomerLookupGateway customerLookupGateway;
+    private final CouponGateway couponGateway;
+    private final PaymentGateway paymentGateway;
 
-    public BookingAppService(BookingGateway bookingGateway, CatalogGateway catalogProvider, MockCatalogProvider copyProvider,
+    public BookingAppService(BookingGateway bookingGateway, CatalogGateway catalogProvider,
                              AuthAppService authAppService,
                              DataPermissionService dataPermissionService, AuditLogService auditLogService,
-                             @Value("${qiyu.auth.persistence:false}") boolean persistenceEnabled, CustomerLookupGateway customerLookupGateway) {
+                             @Value("${qiyu.auth.persistence:false}") boolean persistenceEnabled, CustomerLookupGateway customerLookupGateway,
+                             CouponGateway couponGateway, PaymentGateway paymentGateway) {
         this.bookingGateway = bookingGateway;
         this.catalogProvider = catalogProvider;
-        this.copyProvider = copyProvider;
         this.authAppService = authAppService;
         this.dataPermissionService = dataPermissionService;
         this.auditLogService = auditLogService;
         this.persistenceEnabled = persistenceEnabled;
         this.customerLookupGateway = customerLookupGateway;
+        this.couponGateway = couponGateway;
+        this.paymentGateway = paymentGateway;
         if (!persistenceEnabled) seedBookings();
     }
 
@@ -95,9 +101,12 @@ public class BookingAppService {
         String roomId = command.roomId() == null || command.roomId().isBlank()
                 ? defaultRoomId(command.storeId()) : command.roomId();
         String bookingNo = persistenceEnabled ? "BK-" + java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").format(java.time.LocalDateTime.now()) : "BK-202608-" + sequence.getAndIncrement();
+        BookingPricing pricing = pricing(service, therapist, customerId, command.couponId(), 1);
         Booking booking = new Booking(bookingNo, command.storeId(), command.serviceId(),
                 therapistId, roomId, command.customerName(), command.mobile(), customerId, LocalDate.parse(command.date()),
-                LocalTime.parse(command.startTime()), service.durationMinutes(), BookingStatus.BOOKED);
+                LocalTime.parse(command.startTime()), service.durationMinutes(), BookingStatus.PENDING_PAYMENT, null,
+                pricing.itemAmount(), pricing.therapistFee(), pricing.discountAmount(), BigDecimal.ZERO,
+                pricing.depositDue(), BigDecimal.ZERO);
         // Validate the complete occupied window, including preparation and cleanup buffers,
         // before any state is persisted.
         conflictChecker.ensureAvailable(booking, bookingGateway.findAll());
@@ -112,24 +121,19 @@ public class BookingAppService {
         ServiceItem service = catalogProvider.findService(serviceId);
         Therapist therapist = therapistId == null || therapistId.isBlank() ? null : catalogProvider.findTherapist(therapistId);
         int safeGuestCount = guestCount == null || guestCount < 1 ? 1 : guestCount;
-        int itemAmount = service.memberPrice().intValue() * safeGuestCount;
-        int therapistFee = (therapist == null ? 0 : therapist.extraFee().intValue()) * safeGuestCount;
-        int discountAmount = couponId == null || couponId.isBlank() ? 0 : 20;
-        int totalAmount = Math.max(0, itemAmount + therapistFee - discountAmount);
-        int depositDue = Math.min(totalAmount, 50 * safeGuestCount);
+        BookingPricing pricing = pricing(service, therapist, AuthContext.current().customerId(), couponId, safeGuestCount);
 
         return new BookingOperationVO.Confirmation("确认预约",
-                Map.of("store", "修改门店", "service", "修改项目", "therapist", "修改技师", "time", "修改时间"),
-                Map.of("durationUnit", "分钟", "servedPrefix", "已服务", "servedSuffix", "次"), store, service, therapist,
+                new BookingOperationVO.EditActions("修改门店", "修改项目", "修改技师", "修改时间"),
+                new BookingOperationVO.ServiceCardMeta("分钟", "已服务", "次"), store, service, therapist,
                 therapist == null ? "系统自动分配技师" : therapist.name(), date + " " + startTime,
-                new BookingOperationVO.PaymentSummary(itemAmount, therapistFee, discountAmount, 0, depositDue, depositDue),
-                Map.of("guestCountLabel", "服务人数", "contactLabel", "预约人", "contactPlaceholder", "请输入姓名",
-                        "remarkLabel", "备注", "remarkPlaceholder", "选填", "contactRequiredMessage", "请填写预约人姓名", "submitFallbackText", "确认预约"),
+                new BookingOperationVO.PaymentSummary(money(pricing.itemAmount()), money(pricing.therapistFee()), money(pricing.discountAmount()), 0, money(pricing.depositDue()), money(pricing.depositDue())),
+                new BookingOperationVO.FormCopy("服务人数", "预约人", "请输入姓名", "备注", "选填", "请填写预约人姓名", "确认预约"),
                 "会员权益 · 全门店通用", (couponId == null || couponId.isBlank() ? "不使用优惠" : couponId) + " ›", "费用明细",
-                List.of(new BookingOperationVO.PaymentLine("item", "服务项目", "¥" + itemAmount, null),
-                        new BookingOperationVO.PaymentLine("therapist", "指定技师", "¥" + therapistFee, null),
-                        new BookingOperationVO.PaymentLine("discount", "优惠", "-¥" + discountAmount, "discount")),
-                "应付订金", "我已阅读并同意取消预约规则", "请先阅读并同意取消预约规则", "确认并支付订金 ¥" + depositDue, safeGuestCount);
+                List.of(new BookingOperationVO.PaymentLine("item", "服务项目", "¥" + money(pricing.itemAmount()), null),
+                        new BookingOperationVO.PaymentLine("therapist", "指定技师", "¥" + money(pricing.therapistFee()), null),
+                        new BookingOperationVO.PaymentLine("discount", "优惠", "-¥" + money(pricing.discountAmount()), "discount")),
+                "应付订金", "我已阅读并同意取消预约规则", "请先阅读并同意取消预约规则", "确认并支付订金 ¥" + money(pricing.depositDue()), safeGuestCount);
     }
 
     /** Loads one booking only after applying row-level permission checks. */
@@ -140,7 +144,9 @@ public class BookingAppService {
 
     /** Returns the typed success-page payload for an authorized booking. */
     public BookingOperationVO.Success success(String bookingId) {
-        return new BookingOperationVO.Success(detail(bookingId), copyProvider.successCopy());
+        return new BookingOperationVO.Success(detail(bookingId), new BookingOperationVO.SuccessCopy(
+                "预约成功", "已为你保留安静的放松时光", "预约编号", "到店后可在预约详情或签到页出示预约码。",
+                "导航", "联系门店", "到店前 30 分钟将再次提醒你，请提前 10 分钟到店。", "查看预约详情", "返回首页"));
     }
 
     /** Builds a new-booking draft from an authorized historical booking. */
@@ -189,20 +195,20 @@ public class BookingAppService {
         return toView(booking);
     }
 
-    /** Creates mock payment parameters for an authorized booking without charging the customer. */
+    /** Creates provider payment parameters; an unavailable provider fails closed instead of faking success. */
     public BookingOperationVO.Payment preparePayment(String bookingId, String requestId) {
         Booking booking = authorized(bookingId, "booking:read", "READ");
-        ServiceItem service = catalogProvider.findService(booking.serviceId());
-        String paymentNo = "PAY-" + booking.id() + "-" + (requestId == null || requestId.isBlank() ? "mock" : requestId);
-
-        return new BookingOperationVO.Payment(booking.id(), service.memberPrice(), paymentNo,
-                new BookingOperationVO.PaymentParameters(String.valueOf(System.currentTimeMillis() / 1000), "mock-" + booking.id(),
-                        "prepay_id=mock-" + booking.id(), "RSA", "mock-signature", true));
+        PaymentGateway.PaymentPreparation payment = paymentGateway.prepareDeposit(booking, requestId);
+        PaymentGateway.PaymentParameters parameters = payment.parameters();
+        return new BookingOperationVO.Payment(booking.id(), payment.amount(), payment.paymentNo(),
+                new BookingOperationVO.PaymentParameters(parameters.timeStamp(), parameters.nonceStr(), parameters.packageValue(),
+                        parameters.signType(), parameters.paySign(), false));
     }
 
     /** Applies the deposit-paid state transition for a customer-owned booking. */
     public BookingVO payDeposit(String bookingId) {
         Booking booking = authorized(bookingId, "booking:update", "UPDATE");
+        paymentGateway.verifyDepositConfirmation(booking, null);
         booking.payDeposit();
         bookingGateway.save(booking);
         return toView(booking);
@@ -241,7 +247,8 @@ public class BookingAppService {
         // original schedule unchanged.
         Booking candidate = new Booking(booking.id(), booking.storeId(), booking.serviceId(), booking.therapistId(), booking.roomId(),
                 booking.customerName(), booking.mobile(), booking.customerId(), LocalDate.parse(date), LocalTime.parse(startTime),
-                service.durationMinutes(), booking.status());
+                service.durationMinutes(), booking.status(), booking.verificationCode(), booking.itemAmount(), booking.therapistFeeAmount(),
+                booking.discountAmount(), booking.balanceDeductionAmount(), booking.depositDueAmount(), booking.paidAmount());
         conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
                 .filter(existing -> !existing.id().equals(booking.id()))
                 .toList());
@@ -282,9 +289,9 @@ public class BookingAppService {
                 booking.customerName(), revealPhone ? booking.mobile() : maskMobile(booking.mobile()),
                 booking.customerId(), booking.timeRange().serviceFrom().toLocalDate().toString(),
                 booking.timeRange().serviceFrom().toLocalTime().toString(),
-                booking.timeRange().serviceTo().toLocalTime().toString(), service.memberPrice(),
-                "会员权益全门店通用", booking.verificationCode(),
-                "https://mock-cdn.qiyu.local/checkin/" + booking.verificationCode() + ".png");
+                booking.timeRange().serviceTo().toLocalTime().toString(), booking.itemAmount(), booking.therapistFeeAmount(),
+                booking.discountAmount(), booking.balanceDeductionAmount(), booking.depositDueAmount(), booking.paidAmount(),
+                "会员权益全门店通用", booking.verificationCode(), null, availableActions(booking.status()));
     }
 
     private void seedBookings() {
@@ -328,4 +335,43 @@ public class BookingAppService {
         String suffix = storeId == null ? "default" : storeId.replaceFirst("^store-", "");
         return "room-" + suffix + "-01";
     }
+
+    /** Uses the authenticated customer's coupon ownership as the only source of a booking discount. */
+    private BigDecimal resolveDiscount(String customerId, String couponNo, BigDecimal subtotal) {
+        if (couponNo == null || couponNo.isBlank()) return BigDecimal.ZERO;
+        return couponGateway.findApplicable(customerId, couponNo)
+                .map(coupon -> coupon.discountFor(subtotal))
+                .orElseThrow(() -> new IllegalArgumentException("优惠券不可用"));
+    }
+
+    private BookingPricing pricing(ServiceItem service, Therapist therapist, String customerId, String couponNo, int guestCount) {
+        BigDecimal itemAmount = decimal(service.memberPrice()).multiply(BigDecimal.valueOf(guestCount));
+        BigDecimal therapistFee = (therapist == null ? BigDecimal.ZERO : decimal(therapist.extraFee())).multiply(BigDecimal.valueOf(guestCount));
+        BigDecimal discountAmount = resolveDiscount(customerId, couponNo, itemAmount.add(therapistFee));
+        BigDecimal totalAmount = itemAmount.add(therapistFee).subtract(discountAmount).max(BigDecimal.ZERO);
+        return new BookingPricing(itemAmount, therapistFee, discountAmount, totalAmount.min(BigDecimal.valueOf(50L * guestCount)));
+    }
+
+    /** Server-owned actions keep the client from deriving permissions from a booking status. */
+    private static List<String> availableActions(BookingStatus status) {
+        return switch (status) {
+            case PENDING_PAYMENT -> List.of("pay", "cancel", "view_detail");
+            case BOOKED -> List.of("show_code", "refresh_code", "reschedule", "contact", "view_detail");
+            case CHECKED_IN -> List.of("refresh_code", "contact", "view_detail");
+            case WAITING_SERVICE, IN_SERVICE, PENDING_SETTLEMENT -> List.of("contact", "view_detail");
+            case COMPLETED -> List.of("review", "rebook", "view_detail");
+            case CANCELLED -> List.of("rebook", "view_detail");
+        };
+    }
+
+    private static int money(BigDecimal value) {
+        return value.setScale(0, RoundingMode.HALF_UP).intValueExact();
+    }
+
+    private static BigDecimal decimal(Number value) {
+        return value instanceof BigDecimal decimal ? decimal : new BigDecimal(value.toString());
+    }
+
+    private record BookingPricing(BigDecimal itemAmount, BigDecimal therapistFee, BigDecimal discountAmount,
+                                  BigDecimal depositDue) {}
 }

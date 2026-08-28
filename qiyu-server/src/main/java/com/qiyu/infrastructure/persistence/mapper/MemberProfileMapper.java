@@ -2,7 +2,6 @@ package com.qiyu.infrastructure.persistence.mapper;
 
 import org.apache.ibatis.annotations.Select;
 
-import java.util.Map;
 import java.util.List;
 
 public interface MemberProfileMapper {
@@ -27,5 +26,5 @@ public interface MemberProfileMapper {
             LEFT JOIN member_account ma ON ma.customer_id=c.id AND ma.deleted=0 AND ma.status='ACTIVE'
             WHERE u.id=#{userId} AND u.user_type='CUSTOMER' AND u.deleted=0 AND u.status='ENABLED'
             """)
-    Map<String, Object> findProfile(long userId);
+    CustomerMemberProfileRow findProfile(long userId);
 }

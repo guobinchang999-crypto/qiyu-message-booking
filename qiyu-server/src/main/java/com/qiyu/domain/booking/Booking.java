@@ -2,6 +2,7 @@ package com.qiyu.domain.booking;
 
 import com.qiyu.domain.schedule.BookingTimeRange;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.concurrent.ThreadLocalRandom;
@@ -21,6 +22,12 @@ public final class Booking {
     private final String customerName;
     private final String mobile;
     private final String customerId;
+    private final BigDecimal itemAmount;
+    private final BigDecimal therapistFeeAmount;
+    private final BigDecimal discountAmount;
+    private final BigDecimal balanceDeductionAmount;
+    private final BigDecimal depositDueAmount;
+    private final BigDecimal paidAmount;
     private String verificationCode;
     private BookingTimeRange timeRange;
     private BookingStatus status;
@@ -41,6 +48,16 @@ public final class Booking {
     public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
                    String customerName, String mobile, String customerId, LocalDate date, LocalTime startTime,
                    int durationMinutes, BookingStatus status, String verificationCode) {
+        this(id, storeId, serviceId, therapistId, roomId, customerName, mobile, customerId, date, startTime,
+                durationMinutes, status, verificationCode, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
+    public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
+                   String customerName, String mobile, String customerId, LocalDate date, LocalTime startTime,
+                   int durationMinutes, BookingStatus status, String verificationCode, BigDecimal itemAmount,
+                   BigDecimal therapistFeeAmount, BigDecimal discountAmount, BigDecimal balanceDeductionAmount,
+                   BigDecimal depositDueAmount, BigDecimal paidAmount) {
         this.id = id;
         this.storeId = storeId;
         this.serviceId = serviceId;
@@ -49,6 +66,12 @@ public final class Booking {
         this.customerName = customerName;
         this.mobile = mobile;
         this.customerId = customerId;
+        this.itemAmount = amount(itemAmount);
+        this.therapistFeeAmount = amount(therapistFeeAmount);
+        this.discountAmount = amount(discountAmount);
+        this.balanceDeductionAmount = amount(balanceDeductionAmount);
+        this.depositDueAmount = amount(depositDueAmount);
+        this.paidAmount = amount(paidAmount);
         this.verificationCode = verificationCode == null || verificationCode.isBlank() ? generateVerificationCode() : verificationCode;
         this.timeRange = BookingTimeRange.of(date, startTime, durationMinutes, 10, 10);
         this.status = status;
@@ -126,11 +149,21 @@ public final class Booking {
     public String customerName() { return customerName; }
     public String mobile() { return mobile; }
     public String customerId() { return customerId; }
+    public BigDecimal itemAmount() { return itemAmount; }
+    public BigDecimal therapistFeeAmount() { return therapistFeeAmount; }
+    public BigDecimal discountAmount() { return discountAmount; }
+    public BigDecimal balanceDeductionAmount() { return balanceDeductionAmount; }
+    public BigDecimal depositDueAmount() { return depositDueAmount; }
+    public BigDecimal paidAmount() { return paidAmount; }
     public String verificationCode() { return verificationCode; }
     public BookingTimeRange timeRange() { return timeRange; }
     public BookingStatus status() { return status; }
 
     private static String generateVerificationCode() {
         return String.valueOf(ThreadLocalRandom.current().nextInt(100000, 1000000));
+    }
+
+    private static BigDecimal amount(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 }

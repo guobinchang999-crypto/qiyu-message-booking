@@ -57,7 +57,12 @@ public class MybatisPlusBookingGateway implements BookingGateway {
         entity.setContactMobile(booking.mobile());
         entity.setBookingSource("MINI_PROGRAM");
         entity.setStatus(booking.status().name());
-        entity.setItemAmount(mapper.memberPrice(serviceId));
+        entity.setItemAmount(booking.itemAmount());
+        entity.setTherapistFeeAmount(booking.therapistFeeAmount());
+        entity.setDiscountAmount(booking.discountAmount());
+        entity.setBalanceDeductionAmount(booking.balanceDeductionAmount());
+        entity.setDepositDueAmount(booking.depositDueAmount());
+        entity.setPaidAmount(booking.paidAmount());
         Long currentBookingId = entity.getId();
         if (!BookingStatus.CANCELLED.equals(booking.status())) {
             if (!mapper.lockConflicts("THERAPIST", required(mapper.therapistId(therapistCode(booking.therapistId())), "技师不存在"),
@@ -97,7 +102,9 @@ public class MybatisPlusBookingGateway implements BookingGateway {
                 therapistApiId(entity.getTherapistId() == null ? null : mapper.therapistCode(entity.getTherapistId())),
                 roomApiId(storeId, entity.getRoomId() == null ? null : mapper.roomCode(entity.getRoomId())), entity.getContactName(),
                 entity.getContactMobile(), String.valueOf(entity.getCustomerId()), entity.getScheduledStartAt().toLocalDate(),
-                entity.getScheduledStartAt().toLocalTime(), duration, BookingStatus.valueOf(entity.getStatus()), mapper.checkinCode(entity.getId()));
+                entity.getScheduledStartAt().toLocalTime(), duration, BookingStatus.valueOf(entity.getStatus()), mapper.checkinCode(entity.getId()),
+                entity.getItemAmount(), entity.getTherapistFeeAmount(), entity.getDiscountAmount(), entity.getBalanceDeductionAmount(),
+                entity.getDepositDueAmount(), entity.getPaidAmount());
     }
 
     private static <T> T required(T value, String message) { if (value == null) throw new IllegalArgumentException(message); return value; }
