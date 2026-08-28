@@ -2,6 +2,7 @@ package com.qiyu.adapter.therapist;
 
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.catalog.CatalogQueryService;
+import com.qiyu.application.catalog.CatalogResourceVO;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -18,7 +19,7 @@ public class TherapistController {
     public TherapistController(CatalogQueryService catalogService) { this.catalogService = catalogService; }
 
     @GetMapping
-    public ApiResponse<List<Map<String, Object>>> list(@RequestParam(required = false) String storeId,
+    public ApiResponse<List<CatalogResourceVO.TherapistVO>> list(@RequestParam(required = false) String storeId,
                                                         @RequestParam(required = false) String serviceId) {
         return ApiResponse.success(catalogService.therapists(storeId, serviceId));
     }

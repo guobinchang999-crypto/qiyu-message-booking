@@ -2,6 +2,7 @@ package com.qiyu.adapter.schedule;
 
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.schedule.ScheduleQueryService;
+import com.qiyu.application.schedule.ScheduleQueryService.TimeSlotVO;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -18,7 +19,7 @@ public class ScheduleController {
     public ScheduleController(ScheduleQueryService scheduleQueryService) { this.scheduleQueryService = scheduleQueryService; }
 
     @GetMapping
-    public ApiResponse<List<Map<String, Object>>> list(@RequestParam String storeId, @RequestParam String serviceId,
+    public ApiResponse<List<TimeSlotVO>> list(@RequestParam String storeId, @RequestParam String serviceId,
                                                         @RequestParam String therapistId, @RequestParam(required = false) String date) {
         return ApiResponse.success(scheduleQueryService.timeSlots(storeId, serviceId, therapistId, date));
     }

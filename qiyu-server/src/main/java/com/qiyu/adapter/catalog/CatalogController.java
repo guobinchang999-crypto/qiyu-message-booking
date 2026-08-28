@@ -4,6 +4,7 @@ import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.catalog.CatalogQueryService;
 import com.qiyu.application.catalog.ClientCatalogPayload;
 import com.qiyu.application.catalog.DictionaryItemVO;
+import com.qiyu.application.catalog.DictionaryCollectionVO;
 import com.qiyu.application.catalog.ResourceOptionVO;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,7 +25,7 @@ public class CatalogController {
     }
 
     @GetMapping("/dictionaries")
-    public ApiResponse<Map<String, List<DictionaryItemVO>>> dictionaries() {
+    public ApiResponse<DictionaryCollectionVO> dictionaries() {
         return ApiResponse.success(catalogQueryService.dictionaries());
     }
 

@@ -30,16 +30,12 @@ public class CatalogQueryService {
         this.catalogGateway = catalogGateway;
     }
 
-    public Map<String, List<DictionaryItemVO>> dictionaries() {
-        Map<String, List<DictionaryItemVO>> result = new LinkedHashMap<>();
-        result.put(BOOKING_STATUS, bookingStatuses());
-        result.put(PAYMENT_STATUS, paymentStatuses());
-        result.put(ROOM_STATUS, roomStatuses());
-        result.put(THERAPIST_STATUS, therapistStatuses());
-        result.put(TIME_SLOT_STATUS, timeSlotStatuses());
-        return result;
+    /** Returns all supported system dictionaries with a stable, typed JSON shape. */
+    public DictionaryCollectionVO dictionaries() {
+        return new DictionaryCollectionVO(bookingStatuses(), paymentStatuses(), roomStatuses(), therapistStatuses(), timeSlotStatuses());
     }
 
+    /** Returns one supported dictionary and rejects unknown dictionary codes. */
     public List<DictionaryItemVO> dictionary(String type) {
         return switch (type) {
             case BOOKING_STATUS -> bookingStatuses();
@@ -51,6 +47,7 @@ public class CatalogQueryService {
         };
     }
 
+    /** Returns the client catalog payload assembled from the active mock or persistence source. */
     public ClientCatalogPayload clientCatalog() {
         return new ClientCatalogPayload(
                 catalogProvider.homeCopy(),
@@ -69,40 +66,49 @@ public class CatalogQueryService {
         );
     }
 
+    /** Returns stores as selectable resources for authorized booking workflows. */
     public List<ResourceOptionVO> storeOptions() {
         return catalogGateway.stores().stream()
-                .map(item -> option(item, null, null, null))
+                .map(item -> new ResourceOptionVO(item.id(), item.name(), null, null, null))
                 .toList();
     }
 
+    /** Returns service options for selection controls. */
     public List<ResourceOptionVO> serviceOptions() {
         return catalogGateway.services().stream()
-                .map(item -> option(item, null, null, null))
+                .map(item -> new ResourceOptionVO(item.id(), item.name(), null, null, null))
                 .toList();
     }
 
+    /** Returns therapist options constrained by store and service capability. */
     public List<ResourceOptionVO> therapistOptions(String storeId, String serviceId) {
         return catalogGateway.therapists(storeId, serviceId).stream()
-                .map(item -> option(item, stringValue(item, "storeId"), stringValue(item, "status"), stringValue(item, "statusLabel")))
+                .map(item -> new ResourceOptionVO(item.id(), item.name(), item.storeId(), item.status(), item.statusLabel()))
                 .toList();
     }
 
+    /** Returns room options constrained by store and room status. */
     public List<ResourceOptionVO> roomOptions(String storeId, String status) {
         return catalogGateway.rooms(storeId, status).stream()
-                .map(item -> option(item, stringValue(item, "storeId"), stringValue(item, "status"), stringValue(item, "statusLabel")))
+                .map(item -> new ResourceOptionVO(item.id(), item.name(), item.storeId(), item.status(), item.statusLabel()))
                 .toList();
     }
 
-    public List<Map<String, Object>> stores() { return catalogGateway.stores(); }
+    /** Returns the typed store read models used by the store endpoints. */
+    public List<CatalogResourceVO.StoreVO> stores() { return catalogGateway.stores().stream().map(CatalogResourceVO::store).toList(); }
 
-    public Map<String, Object> store(String id) { return catalogGateway.findStore(id); }
+    /** Returns one typed store model or raises a business error when it does not exist. */
+    public CatalogResourceVO.StoreVO store(String id) { return CatalogResourceVO.store(catalogGateway.findStore(id)); }
 
-    public List<Map<String, Object>> services() { return catalogGateway.services(); }
+    /** Returns all bookable service items. */
+    public List<CatalogResourceVO.ServiceItemVO> services() { return catalogGateway.services().stream().map(CatalogResourceVO::service).toList(); }
 
-    public Map<String, Object> service(String id) { return catalogGateway.findService(id); }
+    /** Returns one typed service item for the service detail page. */
+    public CatalogResourceVO.ServiceItemVO service(String id) { return CatalogResourceVO.service(catalogGateway.findService(id)); }
 
-    public List<Map<String, Object>> therapists(String storeId, String serviceId) {
-        return catalogGateway.therapists(storeId, serviceId);
+    /** Returns therapists filtered by store and service capability. */
+    public List<CatalogResourceVO.TherapistVO> therapists(String storeId, String serviceId) {
+        return catalogGateway.therapists(storeId, serviceId).stream().map(CatalogResourceVO::therapist).toList();
     }
 
     private static List<DictionaryItemVO> bookingStatuses() {
@@ -188,12 +194,4 @@ public class CatalogQueryService {
         return result;
     }
 
-    private static ResourceOptionVO option(Map<String, Object> item, String storeId, String status, String statusLabel) {
-        return new ResourceOptionVO(stringValue(item, "id"), stringValue(item, "name"), storeId, status, statusLabel);
-    }
-
-    private static String stringValue(Map<String, Object> item, String key) {
-        Object value = item.get(key);
-        return value == null ? null : String.valueOf(value);
-    }
 }

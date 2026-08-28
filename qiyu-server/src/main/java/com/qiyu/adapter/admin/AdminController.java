@@ -3,6 +3,9 @@ package com.qiyu.adapter.admin;
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.admin.AdminQueryService;
+import com.qiyu.domain.catalog.Store;
+import com.qiyu.application.booking.BookingVO;
+import com.qiyu.application.admin.AdminResponseModels;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,37 +30,37 @@ public class AdminController {
     public AdminController(AdminQueryService adminQueryService, BookingAppService bookingAppService) { this.adminQueryService = adminQueryService; this.bookingAppService = bookingAppService; }
 
     @PostMapping("/bookings")
-    public ApiResponse<Map<String, Object>> createBooking(@Valid @RequestBody AdminBookingCreateRequest request) {
+    public ApiResponse<BookingVO> createBooking(@Valid @RequestBody AdminBookingCreateRequest request) {
         return ApiResponse.success(bookingAppService.createForAdmin(new BookingCreateCommand(request.storeId(), request.serviceId(), request.therapistId(), request.roomId(), request.date(), request.startTime(), request.customerName(), request.mobile(), request.couponId())));
     }
 
     @PostMapping("/bookings/{id}/reschedule")
-    public ApiResponse<Map<String, Object>> rescheduleBooking(@PathVariable String id, @Valid @RequestBody AdminBookingRescheduleRequest request) {
+    public ApiResponse<BookingVO> rescheduleBooking(@PathVariable String id, @Valid @RequestBody AdminBookingRescheduleRequest request) {
         return ApiResponse.success(bookingAppService.reschedule(id, request.date(), request.startTime()));
     }
 
     @GetMapping("/dashboard")
-    public ApiResponse<Map<String, Object>> dashboard() { return ApiResponse.success(adminQueryService.dashboard()); }
+    public ApiResponse<AdminResponseModels.Dashboard> dashboard() { return ApiResponse.success(adminQueryService.dashboard()); }
 
     @GetMapping("/bookings")
-    public ApiResponse<Map<String, Object>> bookings(@RequestParam(required = false) String pageNum,
+    public ApiResponse<AdminResponseModels.BookingPage> bookings(@RequestParam(required = false) String pageNum,
                                                        @RequestParam(required = false) String pageSize,
                                                        @RequestParam(required = false) String status) {
         return ApiResponse.success(adminQueryService.bookings(pageNum, pageSize, status));
     }
 
     @GetMapping("/customers")
-    public ApiResponse<List<Map<String, Object>>> customers() { return ApiResponse.success(adminQueryService.customers()); }
+    public ApiResponse<List<AdminResponseModels.Customer>> customers() { return ApiResponse.success(adminQueryService.customers()); }
 
     @GetMapping("/members")
-    public ApiResponse<List<Map<String, Object>>> members() { return ApiResponse.success(adminQueryService.members()); }
+    public ApiResponse<List<AdminResponseModels.Member>> members() { return ApiResponse.success(adminQueryService.members()); }
 
     @GetMapping("/coupons")
-    public ApiResponse<List<Map<String, Object>>> coupons() { return ApiResponse.success(adminQueryService.coupons()); }
+    public ApiResponse<List<AdminResponseModels.Coupon>> coupons() { return ApiResponse.success(adminQueryService.coupons()); }
 
     @GetMapping("/schedule-resources")
-    public ApiResponse<Map<String, Object>> scheduleResources() { return ApiResponse.success(adminQueryService.scheduleResources()); }
+    public ApiResponse<AdminResponseModels.ScheduleResources> scheduleResources() { return ApiResponse.success(adminQueryService.scheduleResources()); }
 
     @GetMapping("/accessible-stores")
-    public ApiResponse<List<Map<String, Object>>> accessibleStores() { return ApiResponse.success(adminQueryService.accessibleStores()); }
+    public ApiResponse<List<Store>> accessibleStores() { return ApiResponse.success(adminQueryService.accessibleStores()); }
 }

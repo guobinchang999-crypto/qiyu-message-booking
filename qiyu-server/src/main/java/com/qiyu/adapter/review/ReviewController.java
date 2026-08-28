@@ -3,6 +3,8 @@ package com.qiyu.adapter.review;
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.booking.BookingAppService;
+import com.qiyu.application.booking.BookingVO;
+import com.qiyu.application.review.ReviewResponseModels;
 import com.qiyu.application.media.MediaAppService;
 import com.qiyu.application.review.ReviewAppService;
 import jakarta.validation.Valid;
@@ -57,7 +59,7 @@ public class ReviewController {
     }
 
     @GetMapping
-    public ApiResponse<Map<String, Object>> list(@RequestParam(required = false) String storeId,
+    public ApiResponse<ReviewResponseModels.Page> list(@RequestParam(required = false) String storeId,
                                                  @RequestParam(required = false) String serviceId,
                                                  @RequestParam(defaultValue = "1") int page,
                                                  @RequestParam(defaultValue = "2") int pageSize) {
@@ -72,56 +74,54 @@ public class ReviewController {
         int safePageSize = Math.max(1, pageSize);
         int fromIndex = Math.min((safePage - 1) * safePageSize, filtered.size());
         int toIndex = Math.min(fromIndex + safePageSize, filtered.size());
-        List<Map<String, Object>> items = filtered.subList(fromIndex, toIndex);
-        return ApiResponse.success(Map.of(
-                "items", items,
-                "page", safePage,
-                "pageSize", safePageSize,
-                "total", filtered.size(),
-                "hasMore", toIndex < filtered.size()
-        ));
+        List<ReviewResponseModels.Review> items = filtered.subList(fromIndex, toIndex).stream().map(ReviewController::review).toList();
+        return ApiResponse.success(new ReviewResponseModels.Page(items, safePage, safePageSize, filtered.size(), toIndex < filtered.size()));
     }
 
     @PostMapping
-    public ApiResponse<Map<String, Object>> submit(@Valid @RequestBody ReviewRequest request) {
+    public ApiResponse<ReviewResponseModels.SubmitResult> submit(@Valid @RequestBody ReviewRequest request) {
         if (persistentReviewService != null) {
             return ApiResponse.success(persistentReviewService.submit(request));
         }
-        Map<String, Object> booking = bookingAppService.detail(request.bookingId());
-        Map<String, Object> store = asMap(booking.get("store"));
-        Map<String, Object> service = asMap(booking.get("service"));
+        BookingVO booking = bookingAppService.detail(request.bookingId());
 
         Map<String, Object> review = new LinkedHashMap<>();
         review.put("id", "review-" + System.currentTimeMillis());
-        review.put("storeId", String.valueOf(store.get("id")));
-        review.put("serviceId", String.valueOf(service.get("id")));
-        review.put("userName", Boolean.TRUE.equals(request.anonymous()) ? "匿名用户" : String.valueOf(booking.get("customerName")));
+        review.put("storeId", booking.store().id());
+        review.put("serviceId", booking.service().id());
+        review.put("userName", Boolean.TRUE.equals(request.anonymous()) ? "匿名用户" : booking.customerName());
         review.put("rating", request.serviceRating());
         review.put("content", request.content() == null ? "" : request.content());
         review.put("tags", request.tags() == null ? List.of() : request.tags());
         review.put("imageUrls", request.imageUrls() == null ? List.of() : request.imageUrls());
         review.put("createdAt", LocalDate.now().toString());
         reviews.add(0, review);
-        return ApiResponse.success(Map.of("bookingId", request.bookingId(), "reviewed", true, "review", review));
+        return ApiResponse.success(new ReviewResponseModels.SubmitResult(request.bookingId(), true,
+                new ReviewResponseModels.Review(String.valueOf(review.get("id")), String.valueOf(review.get("storeId")),
+                        String.valueOf(review.get("serviceId")), String.valueOf(review.get("userName")),
+                        ((Number) review.get("rating")).doubleValue(), String.valueOf(review.get("content")),
+                        (List<String>) review.get("tags"), (List<String>) review.get("imageUrls"), String.valueOf(review.get("createdAt")))));
     }
 
     @PostMapping(value = "/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<Map<String, Object>> uploadImage(@RequestParam("file") MultipartFile file) throws java.io.IOException {
+    public ApiResponse<ReviewResponseModels.ImageUpload> uploadImage(@RequestParam("file") MultipartFile file) throws java.io.IOException {
         String imageUrl = mediaAppService.uploadImage("reviews", file.getOriginalFilename(), file.getContentType(), file.getInputStream(), file.getSize());
-        return ApiResponse.success(Map.of("imageUrl", imageUrl, "fileName", file.getOriginalFilename() == null ? "image" : file.getOriginalFilename()));
+        return ApiResponse.success(new ReviewResponseModels.ImageUpload(imageUrl, file.getOriginalFilename() == null ? "image" : file.getOriginalFilename()));
     }
 
     @PostMapping(value = "/images", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ApiResponse<Map<String, Object>> uploadImageMetadata(@Valid @RequestBody ReviewImageUploadRequest request) {
+    public ApiResponse<ReviewResponseModels.ImageUpload> uploadImageMetadata(@Valid @RequestBody ReviewImageUploadRequest request) {
         if (persistenceEnabled) {
             throw new IllegalArgumentException("真实环境必须上传图片文件，不能提交本地临时路径");
         }
         String safeFileName = request.fileName().replaceAll("[^a-zA-Z0-9._-]", "-");
-        return ApiResponse.success(Map.of("imageUrl", "https://mock-cdn.qiyu.local/reviews/" + safeFileName, "fileName", safeFileName));
+        return ApiResponse.success(new ReviewResponseModels.ImageUpload("https://mock-cdn.qiyu.local/reviews/" + safeFileName, safeFileName));
     }
 
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> asMap(Object value) {
-        return value instanceof Map<?, ?> ? (Map<String, Object>) value : Map.of();
+    private static ReviewResponseModels.Review review(Map<String, Object> value) {
+        return new ReviewResponseModels.Review(String.valueOf(value.get("id")), String.valueOf(value.get("storeId")), String.valueOf(value.get("serviceId")),
+                String.valueOf(value.get("userName")), ((Number) value.get("rating")).doubleValue(), String.valueOf(value.get("content")),
+                (List<String>) value.get("tags"), List.of(), String.valueOf(value.get("createdAt")));
     }
+
 }

@@ -6,7 +6,6 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
-import java.util.Map;
 
 public interface ReviewMapper extends BaseMapper<ServiceReviewEntity> {
     @Select("""
@@ -40,7 +39,7 @@ public interface ReviewMapper extends BaseMapper<ServiceReviewEntity> {
             ORDER BY r.created_at DESC, r.id DESC LIMIT #{offset}, #{pageSize}
             </script>
             """)
-    List<Map<String, Object>> listPublished(@Param("storeId") String storeId,
+    List<PublishedReviewRow> listPublished(@Param("storeId") String storeId,
                                             @Param("serviceId") String serviceId,
                                             @Param("offset") int offset,
                                             @Param("pageSize") int pageSize);
@@ -70,5 +69,5 @@ public interface ReviewMapper extends BaseMapper<ServiceReviewEntity> {
                    b.therapist_id therapistId, b.service_item_id serviceItemId
             FROM booking b WHERE b.booking_no = #{bookingNo} AND b.deleted = 0
             """)
-    Map<String, Object> bookingReference(String bookingNo);
+    BookingReferenceRow bookingReference(String bookingNo);
 }

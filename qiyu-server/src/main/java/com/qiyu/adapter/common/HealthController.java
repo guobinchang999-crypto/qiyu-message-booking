@@ -17,8 +17,9 @@ public class HealthController {
     }
 
     @GetMapping("/health")
-    public ApiResponse<Map<String, String>> health() {
-        return ApiResponse.success(Map.of("service", "qiyu-server",
-                "mode", persistenceEnabled ? "local-mysql" : "mock", "status", "UP"));
+    /** Returns the liveness status and active persistence mode. */
+    public ApiResponse<HealthResponse> health() {
+        return ApiResponse.success(new HealthResponse("qiyu-server",
+                persistenceEnabled ? "local-mysql" : "mock", "UP"));
     }
 }

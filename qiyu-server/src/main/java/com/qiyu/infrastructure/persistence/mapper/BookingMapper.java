@@ -23,7 +23,7 @@ public interface BookingMapper extends BaseMapper<BookingEntity> {
             FROM customer c LEFT JOIN booking b ON b.customer_id=c.id AND b.deleted=0
             WHERE c.deleted=0 GROUP BY c.id, c.nickname, c.mobile, c.member_level ORDER BY last_visit_at DESC
             """)
-    List<Map<String, Object>> customerProfiles();
+    List<CustomerProfileRow> customerProfiles();
     @Select("SELECT id FROM store WHERE store_code=#{code} AND deleted=0") Long storeId(String code);
     @Select("SELECT id FROM service_item WHERE service_code=#{code} AND deleted=0") Long serviceId(String code);
     @Select("SELECT member_price_amount FROM service_item WHERE id=#{id}") BigDecimal memberPrice(long id);

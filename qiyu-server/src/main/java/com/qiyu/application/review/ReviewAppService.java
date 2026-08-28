@@ -2,12 +2,15 @@ package com.qiyu.application.review;
 
 import com.qiyu.adapter.review.ReviewRequest;
 import com.qiyu.application.booking.BookingAppService;
+import com.qiyu.application.booking.BookingVO;
 import com.qiyu.infrastructure.persistence.entity.ReviewImageEntity;
 import com.qiyu.infrastructure.persistence.entity.ReviewTagEntity;
 import com.qiyu.infrastructure.persistence.entity.ServiceReviewEntity;
 import com.qiyu.infrastructure.persistence.mapper.ReviewImageMapper;
 import com.qiyu.infrastructure.persistence.mapper.ReviewMapper;
 import com.qiyu.infrastructure.persistence.mapper.ReviewTagMapper;
+import com.qiyu.infrastructure.persistence.mapper.PublishedReviewRow;
+import com.qiyu.infrastructure.persistence.mapper.BookingReferenceRow;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -36,33 +39,35 @@ public class ReviewAppService {
         this.imageMapper = imageMapper;
     }
 
-    public Map<String, Object> list(String storeId, String serviceId, int page, int pageSize) {
+    /** Returns published reviews with bounded pagination. */
+    public ReviewResponseModels.Page list(String storeId, String serviceId, int page, int pageSize) {
         int safePage = Math.max(1, page);
         int safePageSize = Math.min(50, Math.max(1, pageSize));
         long total = reviewMapper.countPublished(storeId, serviceId);
-        List<Map<String, Object>> items = reviewMapper.listPublished(
+        List<ReviewRow> items = reviewMapper.listPublished(
                 storeId, serviceId, (safePage - 1) * safePageSize, safePageSize).stream()
                 .map(this::withRelations).toList();
-        return Map.of("items", items, "page", safePage, "pageSize", safePageSize,
-                "total", total, "hasMore", (long) safePage * safePageSize < total);
+        return new ReviewResponseModels.Page(items.stream().map(ReviewRow::toView).toList(), safePage, safePageSize,
+                total, (long) safePage * safePageSize < total);
     }
 
     @Transactional
-    public Map<String, Object> submit(ReviewRequest request) {
+    /** Validates ownership and completion state before persisting one customer review. */
+    public ReviewResponseModels.SubmitResult submit(ReviewRequest request) {
         // detail() applies the same owner/data-scope check as every other booking operation.
-        Map<String, Object> bookingView = bookingAppService.detail(request.bookingId());
-        if (!"COMPLETED".equals(bookingView.get("status"))) {
+        BookingVO bookingView = bookingAppService.detail(request.bookingId());
+        if (!"COMPLETED".equals(bookingView.status())) {
             throw new IllegalArgumentException("服务完成后才可以评价");
         }
-        Map<String, Object> reference = reviewMapper.bookingReference(request.bookingId());
-        if (reference == null || reference.isEmpty()) throw new IllegalArgumentException("预约不存在");
+        BookingReferenceRow reference = reviewMapper.bookingReference(request.bookingId());
+        if (reference == null) throw new IllegalArgumentException("预约不存在");
 
         ServiceReviewEntity entity = new ServiceReviewEntity();
-        entity.setBookingId(number(reference, "bookingId"));
-        entity.setCustomerId(number(reference, "customerId"));
-        entity.setStoreId(number(reference, "storeId"));
-        entity.setTherapistId(nullableNumber(reference, "therapistId"));
-        entity.setServiceItemId(number(reference, "serviceItemId"));
+        entity.setBookingId(reference.bookingId());
+        entity.setCustomerId(reference.customerId());
+        entity.setStoreId(reference.storeId());
+        entity.setTherapistId(reference.therapistId());
+        entity.setServiceItemId(reference.serviceItemId());
         entity.setTherapistRating(request.therapistRating());
         entity.setEnvironmentRating(request.storeRating());
         entity.setServiceRating(request.serviceRating());
@@ -94,26 +99,21 @@ public class ReviewAppService {
             imageMapper.insert(image);
         }
 
-        Map<String, Object> review = new LinkedHashMap<>();
-        review.put("id", "review-" + entity.getId());
-        review.put("storeId", nestedId(bookingView, "store"));
-        review.put("serviceId", nestedId(bookingView, "service"));
-        review.put("userName", entity.getAnonymous() == 1 ? "匿名用户" : bookingView.get("customerName"));
-        review.put("rating", entity.getServiceRating());
-        review.put("content", entity.getContent());
-        review.put("tags", tags);
-        review.put("imageUrls", images);
-        review.put("createdAt", LocalDate.now().toString());
-        return Map.of("bookingId", request.bookingId(), "reviewed", true, "review", review);
+        ReviewResponseModels.Review review = new ReviewResponseModels.Review("review-" + entity.getId(), bookingView.store().id(),
+                bookingView.service().id(), entity.getAnonymous() == 1 ? "匿名用户" : bookingView.customerName(),
+                entity.getServiceRating().doubleValue(), entity.getContent(), tags, images, LocalDate.now().toString());
+        return new ReviewResponseModels.SubmitResult(request.bookingId(), true, review);
     }
 
-    private Map<String, Object> withRelations(Map<String, Object> source) {
-        Map<String, Object> item = new LinkedHashMap<>(source);
-        long reviewId = ((Number) source.get("id")).longValue();
-        item.put("id", "review-" + reviewId);
-        item.put("tags", tagMapper.names(reviewId));
-        item.put("imageUrls", imageMapper.urls(reviewId));
-        return item;
+    private ReviewRow withRelations(PublishedReviewRow source) {
+        long reviewId = source.id();
+        return new ReviewRow(reviewId, source.storeId(), source.serviceId(), source.userName(), source.rating(),
+                source.content(), tagMapper.names(reviewId), imageMapper.urls(reviewId), source.createdAt());
+    }
+
+    private record ReviewRow(long id, String storeId, String serviceId, String userName, Double rating, String content,
+                             List<String> tags, List<String> imageUrls, String createdAt) {
+        private ReviewResponseModels.Review toView() { return new ReviewResponseModels.Review("review-" + id, storeId, serviceId, userName, rating, content, tags, imageUrls, createdAt); }
     }
 
     private static List<String> safeList(List<String> values) {
@@ -125,18 +125,4 @@ public class ReviewAppService {
         return List.copyOf(result);
     }
 
-    @SuppressWarnings("unchecked")
-    private static String nestedId(Map<String, Object> source, String key) {
-        Object nested = source.get(key);
-        return nested instanceof Map<?, ?> map ? String.valueOf(((Map<String, Object>) map).get("id")) : "";
-    }
-
-    private static long number(Map<String, Object> row, String key) {
-        return ((Number) row.get(key)).longValue();
-    }
-
-    private static Long nullableNumber(Map<String, Object> row, String key) {
-        Object value = row.get(key);
-        return value instanceof Number number ? number.longValue() : null;
-    }
 }

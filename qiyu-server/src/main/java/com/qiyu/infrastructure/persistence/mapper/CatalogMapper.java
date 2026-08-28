@@ -18,7 +18,7 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
               CASE status WHEN 'ACTIVE' THEN '投放中' WHEN 'ENDED' THEN '已结束' ELSE '草稿' END AS display_status
             FROM coupon_template WHERE deleted=0 ORDER BY id DESC
             """)
-    List<Map<String, Object>> coupons();
+    List<CouponRow> coupons();
     @Select("""
             SELECT CONCAT('store-', LOWER(REPLACE(s.store_code, '_', '-'))) AS id,
                    s.store_name AS name, s.address, s.phone, s.latitude, s.longitude,

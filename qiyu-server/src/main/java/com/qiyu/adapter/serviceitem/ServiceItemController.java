@@ -2,6 +2,7 @@ package com.qiyu.adapter.serviceitem;
 
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.catalog.CatalogQueryService;
+import com.qiyu.application.catalog.CatalogResourceVO;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,8 +19,8 @@ public class ServiceItemController {
     public ServiceItemController(CatalogQueryService catalogService) { this.catalogService = catalogService; }
 
     @GetMapping
-    public ApiResponse<List<Map<String, Object>>> list() { return ApiResponse.success(catalogService.services()); }
+    public ApiResponse<List<CatalogResourceVO.ServiceItemVO>> list() { return ApiResponse.success(catalogService.services()); }
 
     @GetMapping("/{id}")
-    public ApiResponse<Map<String, Object>> detail(@PathVariable String id) { return ApiResponse.success(catalogService.service(id)); }
+    public ApiResponse<CatalogResourceVO.ServiceItemVO> detail(@PathVariable String id) { return ApiResponse.success(catalogService.service(id)); }
 }

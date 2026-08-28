@@ -14,7 +14,7 @@ public interface MemberProfileMapper {
             FROM member_account ma JOIN customer c ON c.id=ma.customer_id AND c.deleted=0
             WHERE ma.deleted=0 ORDER BY ma.id
             """)
-    List<Map<String, Object>> memberAccounts();
+    List<MemberAccountRow> memberAccounts();
     @Select("""
             SELECT u.display_name, c.mobile, COALESCE(c.avatar_url,u.avatar_url) avatar_url,
               c.member_level, COALESCE(ma.balance_amount,0) balance_amount,

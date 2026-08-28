@@ -36,14 +36,15 @@ public class AuthAppService {
         this.dbAuthPrincipalProvider = dbAuthPrincipalProvider.getIfAvailable();
     }
 
-    public Map<String, Object> sendCode(String mobile) {
+    /** Issues a verification code and returns its request metadata. */
+    public SendCodeResponse sendCode(String mobile) {
         String requestId = "LOGIN-" + UUID.randomUUID();
         verificationCodes.put(mobile, MOCK_CODE);
-        return Map.of("mobile", mobile, "requestId", requestId, "expiresIn", 60,
-                "verificationCode", MOCK_CODE, "mock", true);
+        return new SendCodeResponse(mobile, requestId, 60, MOCK_CODE, true);
     }
 
-    public Map<String, Object> login(String clientTypeValue, String grantTypeValue, String identifier, String credential) {
+    /** Authenticates one client type and creates the common bearer-token response. */
+    public AuthResponse login(String clientTypeValue, String grantTypeValue, String identifier, String credential) {
         ClientType clientType = parse(ClientType.class, clientTypeValue, "客户端类型不正确");
         GrantType grantType = parse(GrantType.class, grantTypeValue, "登录方式不正确");
         AuthPrincipal principal = authenticate(clientType, grantType, identifier, credential);
@@ -55,12 +56,14 @@ public class AuthAppService {
         return response(token, principal);
     }
 
-    public Map<String, Object> current() {
+    /** Returns the refreshed effective access context for the current token. */
+    public AuthResponse current() {
         refreshCurrentAccessContext();
         AuthPrincipal principal = AuthContext.current();
         return response(StpUtil.getTokenValue(), principal);
     }
 
+    /** Invalidates the current token and removes its cached principal. */
     public void logout() {
         String token = StpUtil.getTokenValue();
         principals.remove(token);
@@ -83,6 +86,7 @@ public class AuthAppService {
         }
     }
 
+    /** Requires a staff principal for administration-only workflows. */
     public AuthPrincipal requireAdmin() {
         AuthPrincipal principal = AuthContext.current();
         if (principal.userType() != UserType.STAFF) {
@@ -91,6 +95,7 @@ public class AuthAppService {
         return principal;
     }
 
+    /** Requires staff authentication and one effective function permission. */
     public AuthPrincipal requirePermission(String permission) {
         AuthPrincipal principal = requireAdmin();
         if (!principal.hasPermission(permission)) {
@@ -99,6 +104,7 @@ public class AuthAppService {
         return principal;
     }
 
+    /** Requires a customer principal for customer-owned workflows. */
     public AuthPrincipal requireCustomer() {
         AuthPrincipal principal = AuthContext.current();
         if (principal.userType() != UserType.CUSTOMER) {
@@ -144,38 +150,20 @@ public class AuthAppService {
         throw new IllegalArgumentException("当前客户端不支持该登录方式");
     }
 
-    private static Map<String, Object> response(String token, AuthPrincipal principal) {
-        Map<String, Object> scope = scopeView(principal.scopeType(), principal.storeIds(), principal.regionIds());
-        Map<String, Object> principalView = new LinkedHashMap<>();
-        principalView.put("userId", principal.userId());
-        principalView.put("userType", principal.userType().name());
-        principalView.put("displayName", principal.displayName());
-        principalView.put("mobile", principal.mobile());
-        principalView.put("customerId", principal.customerId());
-        principalView.put("therapistId", principal.therapistId());
-        principalView.put("roles", principal.roles());
-        principalView.put("permissions", principal.permissions());
-        principalView.put("fieldPermissionCodes", principal.permissions().stream()
+    private static AuthResponse response(String token, AuthPrincipal principal) {
+        AuthResponse.ScopeView scope = scopeView(principal.scopeType(), principal.storeIds(), principal.regionIds());
+        List<AuthResponse.StoreScopeView> scopes = principal.dataScopes().stream()
+                .map(item -> new AuthResponse.StoreScopeView(item.resourceCode(), item.actionCode(),
+                        item.scopeTypes().stream().map(Enum::name).collect(java.util.stream.Collectors.toSet()),
+                        item.storeIds(), item.regionIds())).toList();
+        AuthResponse.PrincipalView principalView = new AuthResponse.PrincipalView(
+                principal.userId(), principal.userType().name(), principal.displayName(), principal.mobile(),
+                principal.customerId(), principal.therapistId(), principal.roles(), principal.permissions(),
+                principal.permissions().stream()
                 .filter(permission -> permission.contains("reveal_") || permission.startsWith("finance:") || permission.contains("health"))
-                .toList());
-        principalView.put("deniedPermissionCodes", principal.deniedPermissions());
-        principalView.put("storeScopes", principal.dataScopes().stream()
-                .map(item -> {
-                    Map<String, Object> view = scopeView(item.scopeTypes().iterator().next(), item.storeIds(), item.regionIds());
-                    view.put("resourceCode", item.resourceCode());
-                    view.put("actionCode", item.actionCode());
-                    view.put("scopeTypes", item.scopeTypes().stream().map(Enum::name).toList());
-                    return view;
-                }).toList());
-        principalView.put("dataScope", scope);
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("accessToken", token);
-        response.put("token", token);
-        response.put("tokenType", "Bearer");
-        response.put("expiresIn", 7200);
-        response.put("principal", principalView);
-        response.put("user", Map.of("mobile", principal.mobile() == null ? "" : principal.mobile(), "displayName", principal.displayName()));
-        return response;
+                .toList(), principal.deniedPermissions(), scopes, scope);
+        return new AuthResponse(token, token, "Bearer", 7200, principalView,
+                new AuthResponse.UserSummary(principal.mobile() == null ? "" : principal.mobile(), principal.displayName()));
     }
 
     private static <T extends Enum<T>> T parse(Class<T> type, String value, String message) {
@@ -186,12 +174,8 @@ public class AuthAppService {
         catch (IllegalArgumentException exception) { throw new IllegalArgumentException(message); }
     }
 
-    private static Map<String, Object> scopeView(DataScopeType type, Set<String> storeIds, Set<String> regionIds) {
-        Map<String, Object> scope = new LinkedHashMap<>();
-        scope.put("scopeType", type.name());
-        scope.put("storeIds", storeIds);
-        scope.put("regionIds", regionIds);
-        return scope;
+    private static AuthResponse.ScopeView scopeView(DataScopeType type, Set<String> storeIds, Set<String> regionIds) {
+        return new AuthResponse.ScopeView(type.name(), storeIds, regionIds);
     }
 
     private static List<DataAccessScope> customerScopes() {
