@@ -4,20 +4,37 @@ import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.admin.AdminQueryService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestBody;
+import jakarta.validation.Valid;
+import com.qiyu.application.booking.BookingAppService;
+import com.qiyu.application.booking.BookingCreateCommand;
 
 import java.util.Map;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/admin")
+@RequestMapping("/admin")
 @SaCheckLogin
 public class AdminController {
     private final AdminQueryService adminQueryService;
+    private final BookingAppService bookingAppService;
 
-    public AdminController(AdminQueryService adminQueryService) { this.adminQueryService = adminQueryService; }
+    public AdminController(AdminQueryService adminQueryService, BookingAppService bookingAppService) { this.adminQueryService = adminQueryService; this.bookingAppService = bookingAppService; }
+
+    @PostMapping("/bookings")
+    public ApiResponse<Map<String, Object>> createBooking(@Valid @RequestBody AdminBookingCreateRequest request) {
+        return ApiResponse.success(bookingAppService.createForAdmin(new BookingCreateCommand(request.storeId(), request.serviceId(), request.therapistId(), request.roomId(), request.date(), request.startTime(), request.customerName(), request.mobile(), request.couponId())));
+    }
+
+    @PostMapping("/bookings/{id}/reschedule")
+    public ApiResponse<Map<String, Object>> rescheduleBooking(@PathVariable String id, @Valid @RequestBody AdminBookingRescheduleRequest request) {
+        return ApiResponse.success(bookingAppService.reschedule(id, request.date(), request.startTime()));
+    }
 
     @GetMapping("/dashboard")
     public ApiResponse<Map<String, Object>> dashboard() { return ApiResponse.success(adminQueryService.dashboard()); }
@@ -28,6 +45,15 @@ public class AdminController {
                                                        @RequestParam(required = false) String status) {
         return ApiResponse.success(adminQueryService.bookings(pageNum, pageSize, status));
     }
+
+    @GetMapping("/customers")
+    public ApiResponse<List<Map<String, Object>>> customers() { return ApiResponse.success(adminQueryService.customers()); }
+
+    @GetMapping("/members")
+    public ApiResponse<List<Map<String, Object>>> members() { return ApiResponse.success(adminQueryService.members()); }
+
+    @GetMapping("/coupons")
+    public ApiResponse<List<Map<String, Object>>> coupons() { return ApiResponse.success(adminQueryService.coupons()); }
 
     @GetMapping("/schedule-resources")
     public ApiResponse<Map<String, Object>> scheduleResources() { return ApiResponse.success(adminQueryService.scheduleResources()); }

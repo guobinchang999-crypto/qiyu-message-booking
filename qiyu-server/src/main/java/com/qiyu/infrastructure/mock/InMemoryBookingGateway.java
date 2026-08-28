@@ -3,6 +3,7 @@ package com.qiyu.infrastructure.mock;
 import com.qiyu.domain.booking.Booking;
 import com.qiyu.domain.booking.gateway.BookingGateway;
 import org.springframework.stereotype.Repository;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Repository
+@ConditionalOnProperty(name = "qiyu.auth.persistence", havingValue = "false", matchIfMissing = true)
 public class InMemoryBookingGateway implements BookingGateway {
     private final Map<String, Booking> bookings = new LinkedHashMap<>();
 

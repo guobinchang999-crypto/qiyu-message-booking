@@ -6,7 +6,12 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Booking aggregate for the MVP. Persistence is intentionally deferred. */
+/**
+ * Booking aggregate and the single authority for lifecycle transitions.
+ *
+ * <p>Store, service, therapist and room references are stable identifiers rather than display
+ * names. This keeps authorization and resource-conflict checks valid when names change.</p>
+ */
 public final class Booking {
     private final String id;
     private final String storeId;
@@ -29,6 +34,13 @@ public final class Booking {
     public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
                    String customerName, String mobile, String customerId, LocalDate date, LocalTime startTime,
                    int durationMinutes, BookingStatus status) {
+        this(id, storeId, serviceId, therapistId, roomId, customerName, mobile, customerId, date, startTime,
+                durationMinutes, status, generateVerificationCode());
+    }
+
+    public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
+                   String customerName, String mobile, String customerId, LocalDate date, LocalTime startTime,
+                   int durationMinutes, BookingStatus status, String verificationCode) {
         this.id = id;
         this.storeId = storeId;
         this.serviceId = serviceId;
@@ -37,12 +49,13 @@ public final class Booking {
         this.customerName = customerName;
         this.mobile = mobile;
         this.customerId = customerId;
-        this.verificationCode = generateVerificationCode();
+        this.verificationCode = verificationCode == null || verificationCode.isBlank() ? generateVerificationCode() : verificationCode;
         this.timeRange = BookingTimeRange.of(date, startTime, durationMinutes, 10, 10);
         this.status = status;
     }
 
     public void checkIn() {
+        // Check-in is only meaningful after the deposit has secured the reservation.
         if (status != BookingStatus.BOOKED) {
             throw new IllegalArgumentException("当前预约状态不可签到");
         }
@@ -64,6 +77,7 @@ public final class Booking {
     }
 
     public void startService() {
+        // WAITING_SERVICE supports stores that explicitly queue checked-in customers.
         if (status != BookingStatus.CHECKED_IN && status != BookingStatus.WAITING_SERVICE) {
             throw new IllegalArgumentException("当前预约状态不可开始服务");
         }
@@ -88,6 +102,7 @@ public final class Booking {
         if (status != BookingStatus.BOOKED) {
             throw new IllegalArgumentException("当前预约状态不可改期");
         }
+        // Preparation and cleanup buffers are part of resource occupancy, not presentation data.
         this.timeRange = BookingTimeRange.of(date, startTime, durationMinutes, 10, 10);
     }
 
@@ -99,6 +114,7 @@ public final class Booking {
     }
 
     public boolean occupiesResource() {
+        // Historical bookings remain queryable but no longer block rooms or therapists.
         return status != BookingStatus.CANCELLED && status != BookingStatus.COMPLETED;
     }
 

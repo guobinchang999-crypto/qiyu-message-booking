@@ -20,7 +20,7 @@ npm run dev
 
 Mock 登录会话包含角色、门店范围和过期时间。演示角色为总部运营管理员和静安寺店店长，真实认证服务接入时替换 `src/services/admin-auth.ts` 的会话来源即可。
 
-后台服务模式默认是 Mock。可在浏览器控制台设置 `localStorage.setItem('qiyu-admin-api-mode', 'dev')` 后刷新，使总部看板读取 `/api/v1/admin/dashboard`；清除该值可回到 Mock。
+后台服务模式默认是 Mock。可在浏览器控制台设置 `localStorage.setItem('qiyu-admin-api-mode', 'dev')` 后刷新，使总部看板读取 `/admin/dashboard`；清除该值可回到 Mock。
 
 总部看板和排班与资源页已支持 Remote 读取；切换 dev 模式前需先启动 `qiyu-server`，真机或非本机环境需要使用可访问的 HTTPS API 地址。
 

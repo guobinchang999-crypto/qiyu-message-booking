@@ -41,6 +41,7 @@ import {
 } from './contracts';
 import { mockService } from './mock-service';
 import { request, upload } from './http';
+import { AUTH_SESSION_STORAGE_KEY } from './config';
 
 type RemoteRecord = Record<string, unknown>;
 type ClientCatalog = {
@@ -568,16 +569,28 @@ const mapPageStateDictionaries = async (): Promise<PageStateDictionaryPayload> =
 };
 
 const withMockFallback = async <T>(remoteLoader: () => Promise<T>, fallbackLoader: () => Promise<T>): Promise<T> => {
-  try {
-    return await remoteLoader();
-  } catch (error) {
-    return fallbackLoader();
-  }
+  // Remote mode must expose backend failures instead of presenting stale Mock data.
+  return remoteLoader();
 };
 
 const getSelectedStartTime = async (draft: BookingDraft): Promise<string> => {
-  const slots = await mockService.getTimeSlots(draft);
-  return slots.find((slot) => slot.id === draft.slotId)?.startAt || draft.slotId || '14:00';
+  const data = await request<unknown[]>('/time-slots', {
+    query: {
+      storeId: toRemoteId(draft.storeId, 'store-jingan'),
+      serviceId: toRemoteId(draft.serviceId, 'service-neck'),
+      therapistId: toRemoteId(draft.therapistId, 'therapist-anran'),
+      date: draft.appointmentDate
+    }
+  });
+  const slot = data.map(mapTimeSlot).find((item) => item.id === draft.slotId || item.startAt === draft.slotId);
+  if (!slot) throw new Error('所选时间段已失效，请重新选择');
+  return slot.startAt;
+};
+
+const currentMobile = (): string => {
+  if (typeof wx === 'undefined' || typeof wx.getStorageSync !== 'function') return '';
+  const session = wx.getStorageSync(AUTH_SESSION_STORAGE_KEY) as { principal?: { mobile?: string }; user?: { mobile?: string } };
+  return session?.principal?.mobile || session?.user?.mobile || '';
 };
 
 export const remoteService: BookingService = {
@@ -673,16 +686,18 @@ export const remoteService: BookingService = {
   getPageStateDictionaries: (): Promise<PageStateDictionaryPayload> => withMockFallback(mapPageStateDictionaries, () => mockService.getPageStateDictionaries()),
   async createBooking(draft: BookingDraft, requestId: string): Promise<Booking> {
     const startTime = await getSelectedStartTime(draft);
+    const mobile = currentMobile();
+    if (!mobile) throw new Error('登录状态已失效，请重新登录');
     const booking = await request<unknown>('/bookings', {
       method: 'POST',
       data: {
         storeId: toRemoteId(draft.storeId, 'store-jingan'),
         serviceId: toRemoteId(draft.serviceId, 'service-neck'),
-        therapistId: toRemoteId(draft.therapistId, 'therapist-anran'),
+        therapistId: draft.therapistMode === 'auto' ? undefined : toRemoteId(draft.therapistId, 'therapist-anran'),
         date: draft.appointmentDate,
         startTime,
         customerName: draft.contact,
-        mobile: '13800001288',
+        mobile,
         couponId: draft.benefitSelection,
         requestId
       }

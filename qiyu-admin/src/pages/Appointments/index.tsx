@@ -4,6 +4,8 @@ import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import BookingStatusTag from '@/components/BookingStatusTag';
 import { adminMockApi } from '@/services/mock';
+import { adminRemoteApi } from '@/services/remote';
+import { adminApiConfig } from '@/services/config';
 import { can, canAccessStore, isSelfScope, maskPhone, readAdminSession } from '@/services/admin-auth';
 import type { Appointment, AppointmentConflict, BookingOptionPayload, BookingStatus } from '@/types';
 
@@ -25,8 +27,9 @@ export default function AppointmentsPage() {
   const [conflictMessage, setConflictMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm<Appointment>();
-  const reload = async () => setAppointments(await adminMockApi.getAppointments());
-  useEffect(() => { reload(); adminMockApi.getBookingOptions().then(setOptions); }, []);
+  const isMock = adminApiConfig.mode === 'mock';
+  const reload = async () => setAppointments(isMock ? await adminMockApi.getAppointments() : await adminRemoteApi.getAppointments());
+  useEffect(() => { reload(); (isMock ? adminMockApi.getBookingOptions() : adminRemoteApi.getBookingOptions()).then(setOptions); }, [isMock]);
   const visibleStores = useMemo(() => options.stores.filter((store) => canAccessStore(session, 'booking', 'READ', store.value)), [options.stores, session]);
   const rows = useMemo(() => appointments.filter((item) => {
     const storeAllowed = canAccessStore(session, 'booking', 'READ', item.store);
@@ -54,7 +57,7 @@ export default function AppointmentsPage() {
     const item: Appointment = {
       ...values,
       id: editing?.id ?? `QY20260804${String(appointments.length + 5).padStart(3, '0')}`,
-      phone: values.phone ?? '139****0000'
+      phone: values.phone ?? ''
     };
     setSaving(true);
     try {
@@ -64,8 +67,13 @@ export default function AppointmentsPage() {
         form.setFields(conflictResult.conflicts.map((conflict) => ({ name: conflictFields[conflict.field], errors: [conflict.message] })));
         return;
       }
-      if (editing) await adminMockApi.updateAppointment(item);
-      else await adminMockApi.createAppointment(item);
+      if (isMock) {
+        if (editing) await adminMockApi.updateAppointment(item);
+        else await adminMockApi.createAppointment(item);
+      } else {
+        if (editing) await adminRemoteApi.rescheduleAppointment(item);
+        else await adminRemoteApi.createAppointment(item);
+      }
       await reload();
       setDrawerOpen(false); message.success(editing ? '预约已更新' : '预约已创建');
     } catch (error) {
@@ -76,9 +84,9 @@ export default function AppointmentsPage() {
       setSaving(false);
     }
   };
-  const cancelBooking = (record: Appointment) => Modal.confirm({ title: '确认取消预约？', content: `将取消 ${record.customerName} 的 ${record.service} 预约，并释放房间占用。`, okText: '确认取消', okButtonProps: { danger: true }, onOk: async () => { await adminMockApi.cancelAppointment(record.id); await reload(); message.success('预约已取消，房间资源已释放'); } });
-  const checkIn = async (record: Appointment) => { await adminMockApi.checkInAppointment(record.id); await reload(); message.success('客户已签到'); };
-  const markWaiting = async (record: Appointment) => { await adminMockApi.markWaitingService(record.id); await reload(); message.success('已进入待服务'); };
+  const cancelBooking = (record: Appointment) => Modal.confirm({ title: '确认取消预约？', content: `将取消 ${record.customerName} 的 ${record.service} 预约，并释放房间占用。`, okText: '确认取消', okButtonProps: { danger: true }, onOk: async () => { if (isMock) await adminMockApi.cancelAppointment(record.id); else await adminRemoteApi.transitionAppointment(record.id, 'cancel'); await reload(); message.success('预约已取消，房间资源已释放'); } });
+  const checkIn = async (record: Appointment) => { if (isMock) await adminMockApi.checkInAppointment(record.id); else await adminRemoteApi.transitionAppointment(record.id, 'checkin'); await reload(); message.success('客户已签到'); };
+  const markWaiting = async (record: Appointment) => { if (isMock) await adminMockApi.markWaitingService(record.id); else await adminRemoteApi.transitionAppointment(record.id, 'start-service'); await reload(); message.success('已进入待服务'); };
   const columns = [
     { title: '预约时间', dataIndex: 'scheduledAt', width: 165, sorter: (a: Appointment, b: Appointment) => a.scheduledAt.localeCompare(b.scheduledAt) },
     { title: '客户', dataIndex: 'customerName', render: (value: string, record: Appointment) => <div><div>{value}</div><span style={{ color: '#7c8780', fontSize: 12 }}>{maskPhone(record.phone, session)}</span></div> },

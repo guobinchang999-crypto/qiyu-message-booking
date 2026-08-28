@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const baseUrl = process.env.QIYU_API_BASE_URL || 'http://localhost:8080/api/v1';
+const baseUrl = process.env.QIYU_API_BASE_URL || 'http://localhost:8080';
 
 const requestJson = async (path, options = {}) => {
   const response = await fetch(`${baseUrl}${path}`, {

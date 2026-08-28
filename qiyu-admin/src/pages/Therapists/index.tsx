@@ -1,8 +1,10 @@
-import { Tag } from 'antd';
+import { Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
 import ManagementTablePage from '@/components/ManagementTablePage';
 import { adminMockApi } from '@/services/mock';
+import { adminApiConfig } from '@/services/config';
+import { adminRemoteApi } from '@/services/remote';
 import type { TherapistProfile } from '@/types';
 
 const columns: ColumnsType<TherapistProfile> = [
@@ -17,7 +19,7 @@ const columns: ColumnsType<TherapistProfile> = [
 
 export default function TherapistsPage() {
   const [data, setData] = useState<TherapistProfile[]>([]);
-  useEffect(() => { adminMockApi.getTherapists().then(setData); }, []);
+  useEffect(() => { (adminApiConfig.mode === 'mock' ? adminMockApi.getTherapists() : adminRemoteApi.getTherapists()).then(setData).catch((error) => message.error(error instanceof Error ? error.message : '技师数据加载失败')); }, []);
   return <ManagementTablePage<TherapistProfile>
     title="技师管理"
     description="统一维护技师状态、技能标签、所属门店和今日预约负载。"

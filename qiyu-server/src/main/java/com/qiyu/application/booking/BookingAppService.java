@@ -9,8 +9,11 @@ import com.qiyu.application.auth.AuditLogService;
 import com.qiyu.application.auth.DataPermissionService;
 import com.qiyu.application.auth.AuthContext;
 import com.qiyu.domain.schedule.ScheduleConflictChecker;
+import com.qiyu.domain.catalog.gateway.CatalogGateway;
+import com.qiyu.domain.customer.gateway.CustomerLookupGateway;
 import com.qiyu.infrastructure.mock.MockCatalogProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -19,38 +22,79 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Orchestrates booking use cases across authentication, catalog validation, resource conflict
+ * detection, persistence and audit logging. State-transition rules themselves stay in the
+ * {@link Booking} aggregate.
+ */
 @Service
 public class BookingAppService {
     private final BookingGateway bookingGateway;
-    private final MockCatalogProvider catalogProvider;
+    private final CatalogGateway catalogProvider;
+    private final MockCatalogProvider copyProvider;
     private final AuthAppService authAppService;
     private final DataPermissionService dataPermissionService;
     private final AuditLogService auditLogService;
     private final ScheduleConflictChecker conflictChecker = new ScheduleConflictChecker();
     private final AtomicInteger sequence = new AtomicInteger(1003);
+    private final boolean persistenceEnabled;
+    private final CustomerLookupGateway customerLookupGateway;
 
-    public BookingAppService(BookingGateway bookingGateway, MockCatalogProvider catalogProvider, AuthAppService authAppService,
-                             DataPermissionService dataPermissionService, AuditLogService auditLogService) {
+    public BookingAppService(BookingGateway bookingGateway, CatalogGateway catalogProvider, MockCatalogProvider copyProvider,
+                             AuthAppService authAppService,
+                             DataPermissionService dataPermissionService, AuditLogService auditLogService,
+                             @Value("${qiyu.auth.persistence:false}") boolean persistenceEnabled, CustomerLookupGateway customerLookupGateway) {
         this.bookingGateway = bookingGateway;
         this.catalogProvider = catalogProvider;
+        this.copyProvider = copyProvider;
         this.authAppService = authAppService;
         this.dataPermissionService = dataPermissionService;
         this.auditLogService = auditLogService;
-        seedBookings();
+        this.persistenceEnabled = persistenceEnabled;
+        this.customerLookupGateway = customerLookupGateway;
+        if (!persistenceEnabled) seedBookings();
     }
 
     public synchronized Map<String, Object> create(BookingCreateCommand command) {
+        // A booking belongs to the authenticated customer; callers cannot inject another owner.
         AuthPrincipal principal = authAppService.requireCustomer();
+        return createForCustomer(command, principal.customerId(), false);
+    }
+
+    /** Creates a booking for an existing customer from an authorized staff workflow. */
+    public synchronized Map<String, Object> createForAdmin(BookingCreateCommand command) {
+        AuthPrincipal principal = authAppService.requirePermission("booking:create");
+        if (!principal.canAccessStore("booking", "CREATE", command.storeId())) {
+            throw new SecurityException("没有权限在该门店创建预约");
+        }
+        String customerId = customerLookupGateway.findIdByMobile(command.mobile())
+                .orElseThrow(() -> new IllegalArgumentException("客户不存在，请先创建客户档案"));
+        return createForCustomer(command, customerId, true);
+    }
+
+    private Map<String, Object> createForCustomer(BookingCreateCommand command, String customerId, boolean staffCreated) {
         Map<String, Object> service = catalogProvider.findService(command.serviceId());
         catalogProvider.findStore(command.storeId());
-        Map<String, Object> therapist = catalogProvider.findTherapist(command.therapistId());
+        String therapistId = command.therapistId();
+        if (therapistId == null || therapistId.isBlank()) {
+            therapistId = catalogProvider.therapists(command.storeId(), command.serviceId()).stream()
+                    .filter(item -> "AVAILABLE".equals(item.get("status")))
+                    .map(item -> String.valueOf(item.get("id")))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("当前门店暂无可用技师"));
+        }
+        Map<String, Object> therapist = catalogProvider.findTherapist(therapistId);
         if (!command.storeId().equals(therapist.get("storeId"))) {
             throw new IllegalArgumentException("所选技师不属于当前门店");
         }
-        String roomId = command.roomId() == null || command.roomId().isBlank() ? "room-jingan-01" : command.roomId();
-        Booking booking = new Booking("BK-202608-" + sequence.getAndIncrement(), command.storeId(), command.serviceId(),
-                command.therapistId(), roomId, command.customerName(), command.mobile(), principal.customerId(), LocalDate.parse(command.date()),
+        String roomId = command.roomId() == null || command.roomId().isBlank()
+                ? defaultRoomId(command.storeId()) : command.roomId();
+        String bookingNo = persistenceEnabled ? "BK-" + java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").format(java.time.LocalDateTime.now()) : "BK-202608-" + sequence.getAndIncrement();
+        Booking booking = new Booking(bookingNo, command.storeId(), command.serviceId(),
+                therapistId, roomId, command.customerName(), command.mobile(), customerId, LocalDate.parse(command.date()),
                 LocalTime.parse(command.startTime()), (Integer) service.get("durationMinutes"), BookingStatus.BOOKED);
+        // Validate the complete occupied window, including preparation and cleanup buffers,
+        // before any state is persisted.
         conflictChecker.ensureAvailable(booking, bookingGateway.findAll());
         return toView(bookingGateway.save(booking));
     }
@@ -125,7 +169,7 @@ public class BookingAppService {
     public Map<String, Object> success(String bookingId) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("booking", detail(bookingId));
-        result.put("copy", catalogProvider.successCopy());
+        result.put("copy", copyProvider.successCopy());
         return result;
     }
 
@@ -175,9 +219,11 @@ public class BookingAppService {
     }
 
     public Map<String, Object> checkIn(String bookingId) {
+        // Authorization precedes mutation so forbidden requests cannot reveal transition details.
         Booking booking = authorized(bookingId, "booking:checkin", "CHECKIN");
         String beforeStatus = booking.status().name();
         booking.checkIn();
+        bookingGateway.save(booking);
         auditLogService.record("booking:checkin", "booking", booking.id(), booking.storeId(),
                 Map.of("status", beforeStatus), Map.of("status", booking.status().name()));
         return toView(booking);
@@ -186,6 +232,7 @@ public class BookingAppService {
     public Map<String, Object> refreshVerificationCode(String bookingId) {
         Booking booking = authorized(bookingId, "booking:read", "READ");
         booking.refreshVerificationCode();
+        bookingGateway.save(booking);
         return toView(booking);
     }
 
@@ -193,6 +240,7 @@ public class BookingAppService {
         Booking booking = authorized(bookingId, "booking:cancel", "CANCEL");
         String beforeStatus = booking.status().name();
         booking.cancel();
+        bookingGateway.save(booking);
         auditLogService.record("booking:cancel", "booking", booking.id(), booking.storeId(),
                 Map.of("status", beforeStatus), Map.of("status", booking.status().name()));
         return toView(booking);
@@ -222,24 +270,28 @@ public class BookingAppService {
     public Map<String, Object> payDeposit(String bookingId) {
         Booking booking = authorized(bookingId, "booking:update", "UPDATE");
         booking.payDeposit();
+        bookingGateway.save(booking);
         return toView(booking);
     }
 
     public Map<String, Object> startService(String bookingId) {
         Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
         booking.startService();
+        bookingGateway.save(booking);
         return toView(booking);
     }
 
     public Map<String, Object> finishService(String bookingId) {
         Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
         booking.finishService();
+        bookingGateway.save(booking);
         return toView(booking);
     }
 
     public Map<String, Object> completeSettlement(String bookingId) {
         Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
         booking.completeSettlement();
+        bookingGateway.save(booking);
         return toView(booking);
     }
 
@@ -247,6 +299,8 @@ public class BookingAppService {
         Booking booking = authorized(bookingId, "booking:update", "UPDATE");
         String beforeScheduledAt = booking.timeRange().serviceFrom().toString();
         Map<String, Object> service = catalogProvider.findService(booking.serviceId());
+        // Build a detached candidate first. A failed conflict check must leave the aggregate's
+        // original schedule unchanged.
         Booking candidate = new Booking(booking.id(), booking.storeId(), booking.serviceId(), booking.therapistId(), booking.roomId(),
                 booking.customerName(), booking.mobile(), booking.customerId(), LocalDate.parse(date), LocalTime.parse(startTime),
                 numberValue(service, "durationMinutes"), booking.status());
@@ -254,6 +308,7 @@ public class BookingAppService {
                 .filter(existing -> !existing.id().equals(booking.id()))
                 .toList());
         booking.reschedule(LocalDate.parse(date), LocalTime.parse(startTime), numberValue(service, "durationMinutes"));
+        bookingGateway.save(booking);
         auditLogService.record("booking:update", "booking", booking.id(), booking.storeId(),
                 Map.of("scheduledAt", beforeScheduledAt), Map.of("scheduledAt", booking.timeRange().serviceFrom().toString()));
         return toView(booking);
@@ -261,6 +316,8 @@ public class BookingAppService {
 
     public List<Map<String, Object>> list(String status) {
         AuthPrincipal principal = dataPermissionService.requirePermission("booking:read");
+        // Data scope is applied before mapping, so list, statistics and sensitive-field handling
+        // never receive rows outside the principal's accessible stores or therapist identity.
         return bookingGateway.findAll().stream()
                 .filter(booking -> dataPermissionService.canAccessBooking(principal, booking, "READ"))
                 .filter(booking -> status == null || status.isBlank() || booking.status().name().equals(status))
@@ -281,6 +338,8 @@ public class BookingAppService {
         result.put("therapist", therapist);
         result.put("roomId", booking.roomId());
         result.put("customerName", booking.customerName());
+        // Field permission is independent of row permission: broad store access does not imply
+        // access to a customer's full mobile number.
         boolean revealPhone = dataPermissionService.canRevealCustomerPhone(AuthContext.current(), booking);
         result.put("mobile", revealPhone ? booking.mobile() : maskMobile(booking.mobile()));
         result.put("customerId", booking.customerId());
@@ -315,6 +374,7 @@ public class BookingAppService {
     private Booking authorized(String bookingId, String permissionCode, String actionCode) {
         Booking booking = bookingGateway.findById(bookingId)
                 .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
+        // One guard combines functional permission, explicit deny and row-level data scope.
         dataPermissionService.requireBooking(AuthContext.current(), booking, permissionCode, actionCode);
         return booking;
     }
@@ -337,5 +397,10 @@ public class BookingAppService {
             return number.intValue();
         }
         return Integer.parseInt(String.valueOf(value));
+    }
+
+    private static String defaultRoomId(String storeId) {
+        String suffix = storeId == null ? "default" : storeId.replaceFirst("^store-", "");
+        return "room-" + suffix + "-01";
     }
 }

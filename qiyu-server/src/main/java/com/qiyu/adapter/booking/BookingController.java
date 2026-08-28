@@ -16,8 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * HTTP adapter for the complete booking lifecycle.
+ *
+ * <p>Authentication is enforced at the adapter boundary. Functional and data-scope permissions
+ * remain in the application service because the same rules must also protect non-HTTP callers.</p>
+ */
 @RestController
-@RequestMapping("/api/v1/bookings")
+@RequestMapping("/bookings")
 @SaCheckLogin
 public class BookingController {
     private final BookingAppService bookingAppService;
@@ -32,6 +38,7 @@ public class BookingController {
 
     @PostMapping
     public ApiResponse<Map<String, Object>> create(@Valid @RequestBody BookingCreateRequest request) {
+        // Keep transport DTOs out of the application layer so its use case contract remains stable.
         BookingCreateCommand command = new BookingCreateCommand(request.storeId(), request.serviceId(), request.therapistId(),
                 request.roomId(), request.date(), request.startTime(), request.customerName(), request.mobile(), request.couponId());
         return ApiResponse.success(bookingAppService.create(command));

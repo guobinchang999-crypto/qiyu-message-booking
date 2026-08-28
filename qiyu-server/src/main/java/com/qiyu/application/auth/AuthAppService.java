@@ -19,7 +19,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-/** Authentication service uses deterministic mock identities until persistence is configured. */
+/**
+ * Unified authentication entry point for the admin web application and customer mini program.
+ * Database identities are preferred; deterministic identities remain available for mock mode.
+ */
 @Service
 public class AuthAppService {
     private static final String MOCK_CODE = "123456";
@@ -44,6 +47,7 @@ public class AuthAppService {
         ClientType clientType = parse(ClientType.class, clientTypeValue, "客户端类型不正确");
         GrantType grantType = parse(GrantType.class, grantTypeValue, "登录方式不正确");
         AuthPrincipal principal = authenticate(clientType, grantType, identifier, credential);
+        // Every client receives the same token contract even though each grant type authenticates differently.
         StpUtil.login(principal.userId(), new SaLoginModel().setTimeout(7200));
         StpUtil.getTokenSession().set("principal", principal);
         String token = StpUtil.getTokenValue();
@@ -63,7 +67,12 @@ public class AuthAppService {
         StpUtil.logout();
     }
 
-    /** Database-mode requests refresh scopes so revoked and expired grants take effect without re-login. */
+    /**
+     * Rebuilds the effective access snapshot for the current request in persistence mode.
+     *
+     * <p>This is intentionally request-driven: permission revocation and expiry of temporary
+     * cross-store grants must take effect without waiting for the login token to expire.</p>
+     */
     public void refreshCurrentAccessContext() {
         if (dbAuthPrincipalProvider == null || !StpUtil.isLogin()) return;
         AuthPrincipal current = AuthContext.current();
@@ -99,8 +108,14 @@ public class AuthAppService {
     }
 
     private AuthPrincipal authenticate(ClientType clientType, GrantType grantType, String identifier, String credential) {
-        AuthPrincipal persisted = dbAuthPrincipalProvider == null ? null : dbAuthPrincipalProvider.authenticate(clientType, grantType, identifier, credential);
-        if (persisted != null) return persisted;
+        // Once persistence mode is enabled, never fall back to deterministic demo identities.
+        // A missing database identity must remain an authentication failure, not become admin access.
+        if (dbAuthPrincipalProvider != null) {
+            AuthPrincipal persisted = dbAuthPrincipalProvider.authenticate(clientType, grantType, identifier, credential);
+            if (persisted == null) throw new IllegalArgumentException("用户名或密码不正确");
+            return persisted;
+        }
+        // Mock identities are available only when the application explicitly runs in mock mode.
         if (clientType == ClientType.MINI_PROGRAM && grantType == GrantType.SMS_CODE) {
             String expected = verificationCodes.getOrDefault(identifier, MOCK_CODE);
             if (!expected.equals(credential)) throw new IllegalArgumentException("验证码不正确");
@@ -164,6 +179,9 @@ public class AuthAppService {
     }
 
     private static <T extends Enum<T>> T parse(Class<T> type, String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(message);
+        }
         try { return Enum.valueOf(type, value.toUpperCase()); }
         catch (IllegalArgumentException exception) { throw new IllegalArgumentException(message); }
     }

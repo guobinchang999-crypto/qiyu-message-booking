@@ -174,7 +174,7 @@ export QIYU_LOCAL_MINIO_SECRET_KEY='从目标环境安全获取的密码'
 mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-资源种子使用固定对象名，可重复执行。日常启动可将 `QIYU_LOCAL_MINIO_SEED_ENABLED` 设为 `false`；用户评价图片仍通过 `/api/v1/reviews/images` 上传到 MinIO。
+资源种子使用固定对象名，可重复执行。日常启动可将 `QIYU_LOCAL_MINIO_SEED_ENABLED` 设为 `false`；用户评价图片通过 `/reviews/images` 上传到 MinIO。
 
 后端启动后，可以在仓库根目录执行接口联通 smoke。该脚本会覆盖客户端远程联调的主要契约，包括 catalog、门店/服务/技师/时间槽、预约创建/详情/成功页、支付参数准备与确认、预约码刷新、改期、取消、评价图片上传、评价提交回流和会员资料：
 
@@ -185,7 +185,7 @@ node scripts/smoke-api.mjs
 如后端地址不是默认值，可通过 `QIYU_API_BASE_URL` 覆盖，例如：
 
 ```bash
-QIYU_API_BASE_URL=http://localhost:8080/api/v1 node scripts/smoke-api.mjs
+QIYU_API_BASE_URL=http://localhost:8080 node scripts/smoke-api.mjs
 ```
 
 ```bash

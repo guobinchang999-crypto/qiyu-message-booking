@@ -1,8 +1,10 @@
-import { Tag } from 'antd';
+import { Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
 import ManagementTablePage from '@/components/ManagementTablePage';
 import { adminMockApi } from '@/services/mock';
+import { adminApiConfig } from '@/services/config';
+import { adminRemoteApi } from '@/services/remote';
 import type { StoreProfile } from '@/types';
 
 const columns: ColumnsType<StoreProfile> = [
@@ -17,7 +19,7 @@ const columns: ColumnsType<StoreProfile> = [
 
 export default function StoresPage() {
   const [data, setData] = useState<StoreProfile[]>([]);
-  useEffect(() => { adminMockApi.getStores().then(setData); }, []);
+  useEffect(() => { (adminApiConfig.mode === 'mock' ? adminMockApi.getStores() : adminRemoteApi.getStores()).then(setData).catch((error) => message.error(error instanceof Error ? error.message : '门店数据加载失败')); }, []);
   return <ManagementTablePage<StoreProfile>
     title="门店管理"
     description="统一维护品牌门店基础信息、营业时间、房间与技师规模。"

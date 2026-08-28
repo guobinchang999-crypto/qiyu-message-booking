@@ -16,6 +16,16 @@ springdoc:
   swagger-ui:
     path: /doc.html
 
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
 sa-token:
   token-name: Authorization
   token-prefix: Bearer

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.remoteService = void 0;
 const mock_service_1 = require("./mock-service");
 const http_1 = require("./http");
+const config_1 = require("./config");
 let clientCatalogCache = null;
 const idAlias = {
     jingan: 'store-jingan',
@@ -472,16 +473,28 @@ const mapPageStateDictionaries = async () => {
     return { ...await mock_service_1.mockService.getPageStateDictionaries(), ...await catalogRecord('pageStateDictionaries') };
 };
 const withMockFallback = async (remoteLoader, fallbackLoader) => {
-    try {
-        return await remoteLoader();
-    }
-    catch (error) {
-        return fallbackLoader();
-    }
+    // Remote mode must expose backend failures instead of presenting stale Mock data.
+    return remoteLoader();
 };
 const getSelectedStartTime = async (draft) => {
-    const slots = await mock_service_1.mockService.getTimeSlots(draft);
-    return slots.find((slot) => slot.id === draft.slotId)?.startAt || draft.slotId || '14:00';
+    const data = await (0, http_1.request)('/time-slots', {
+        query: {
+            storeId: toRemoteId(draft.storeId, 'store-jingan'),
+            serviceId: toRemoteId(draft.serviceId, 'service-neck'),
+            therapistId: toRemoteId(draft.therapistId, 'therapist-anran'),
+            date: draft.appointmentDate
+        }
+    });
+    const slot = data.map(mapTimeSlot).find((item) => item.id === draft.slotId || item.startAt === draft.slotId);
+    if (!slot)
+        throw new Error('所选时间段已失效，请重新选择');
+    return slot.startAt;
+};
+const currentMobile = () => {
+    if (typeof wx === 'undefined' || typeof wx.getStorageSync !== 'function')
+        return '';
+    const session = wx.getStorageSync(config_1.AUTH_SESSION_STORAGE_KEY);
+    return session?.principal?.mobile || session?.user?.mobile || '';
 };
 exports.remoteService = {
     async getHome() {
@@ -576,16 +589,19 @@ exports.remoteService = {
     getPageStateDictionaries: () => withMockFallback(mapPageStateDictionaries, () => mock_service_1.mockService.getPageStateDictionaries()),
     async createBooking(draft, requestId) {
         const startTime = await getSelectedStartTime(draft);
+        const mobile = currentMobile();
+        if (!mobile)
+            throw new Error('登录状态已失效，请重新登录');
         const booking = await (0, http_1.request)('/bookings', {
             method: 'POST',
             data: {
                 storeId: toRemoteId(draft.storeId, 'store-jingan'),
                 serviceId: toRemoteId(draft.serviceId, 'service-neck'),
-                therapistId: toRemoteId(draft.therapistId, 'therapist-anran'),
+                therapistId: draft.therapistMode === 'auto' ? undefined : toRemoteId(draft.therapistId, 'therapist-anran'),
                 date: draft.appointmentDate,
                 startTime,
                 customerName: draft.contact,
-                mobile: '13800001288',
+                mobile,
                 couponId: draft.benefitSelection,
                 requestId
             }

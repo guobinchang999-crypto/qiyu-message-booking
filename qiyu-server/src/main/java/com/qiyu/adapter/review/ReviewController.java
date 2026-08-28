@@ -4,7 +4,10 @@ import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.booking.BookingAppService;
 import com.qiyu.application.media.MediaAppService;
+import com.qiyu.application.review.ReviewAppService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,11 +24,14 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/reviews")
+@RequestMapping("/reviews")
 @SaCheckLogin
 public class ReviewController {
     private final BookingAppService bookingAppService;
     private final MediaAppService mediaAppService;
+    private final ReviewAppService persistentReviewService;
+    @Value("${qiyu.auth.persistence:false}")
+    private boolean persistenceEnabled;
     private final List<Map<String, Object>> reviews = new ArrayList<>(List.of(
             Map.of("id", "review-jingan-1", "storeId", "store-jingan", "serviceId", "service-neck", "userName", "林女士", "rating", 5,
                     "content", "环境安静，技师会提前确认肩颈重点，结束后放松感很明显。", "tags", List.of("环境安静", "手法专业"), "createdAt", "2026-08-01"),
@@ -43,9 +49,11 @@ public class ReviewController {
                     "content", "位置方便，午休时间过来做肩颈很合适。", "tags", List.of("位置方便", "肩颈舒缓"), "createdAt", "2026-07-22")
     ));
 
-    public ReviewController(BookingAppService bookingAppService, MediaAppService mediaAppService) {
+    public ReviewController(BookingAppService bookingAppService, MediaAppService mediaAppService,
+                            ObjectProvider<ReviewAppService> persistentReviewService) {
         this.bookingAppService = bookingAppService;
         this.mediaAppService = mediaAppService;
+        this.persistentReviewService = persistentReviewService.getIfAvailable();
     }
 
     @GetMapping
@@ -53,6 +61,9 @@ public class ReviewController {
                                                  @RequestParam(required = false) String serviceId,
                                                  @RequestParam(defaultValue = "1") int page,
                                                  @RequestParam(defaultValue = "2") int pageSize) {
+        if (persistentReviewService != null) {
+            return ApiResponse.success(persistentReviewService.list(storeId, serviceId, page, pageSize));
+        }
         List<Map<String, Object>> filtered = reviews.stream()
                 .filter(review -> storeId == null || storeId.isBlank() || storeId.equals(review.get("storeId")))
                 .filter(review -> serviceId == null || serviceId.isBlank() || serviceId.equals(review.get("serviceId")))
@@ -73,6 +84,9 @@ public class ReviewController {
 
     @PostMapping
     public ApiResponse<Map<String, Object>> submit(@Valid @RequestBody ReviewRequest request) {
+        if (persistentReviewService != null) {
+            return ApiResponse.success(persistentReviewService.submit(request));
+        }
         Map<String, Object> booking = bookingAppService.detail(request.bookingId());
         Map<String, Object> store = asMap(booking.get("store"));
         Map<String, Object> service = asMap(booking.get("service"));
@@ -99,6 +113,9 @@ public class ReviewController {
 
     @PostMapping(value = "/images", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Map<String, Object>> uploadImageMetadata(@Valid @RequestBody ReviewImageUploadRequest request) {
+        if (persistenceEnabled) {
+            throw new IllegalArgumentException("真实环境必须上传图片文件，不能提交本地临时路径");
+        }
         String safeFileName = request.fileName().replaceAll("[^a-zA-Z0-9._-]", "-");
         return ApiResponse.success(Map.of("imageUrl", "https://mock-cdn.qiyu.local/reviews/" + safeFileName, "fileName", safeFileName));
     }

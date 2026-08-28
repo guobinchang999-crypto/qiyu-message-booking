@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import BookingStatusTag from '@/components/BookingStatusTag';
 import ManagementTablePage from '@/components/ManagementTablePage';
 import { adminMockApi } from '@/services/mock';
+import { adminRemoteApi } from '@/services/remote';
+import { adminApiConfig } from '@/services/config';
 import { can, canAccessStore, readAdminSession } from '@/services/admin-auth';
 import type { CheckinTask } from '@/types';
 
@@ -11,20 +13,21 @@ export default function CheckinPage() {
   const session = readAdminSession();
   const [data, setData] = useState<CheckinTask[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const reload = async () => setData((await adminMockApi.getCheckinTasks()).filter((item) => canAccessStore(session, 'booking', 'CHECKIN', item.store)));
-  useEffect(() => { reload(); }, []);
+  const isMock = adminApiConfig.mode === 'mock';
+  const reload = async () => setData((await (isMock ? adminMockApi.getCheckinTasks() : adminRemoteApi.getCheckinTasks())).filter((item) => canAccessStore(session, 'booking', 'CHECKIN', item.store)));
+  useEffect(() => { reload(); }, [isMock]);
   const checkIn = async (record: CheckinTask) => {
-    await adminMockApi.checkInAppointment(record.id);
+    if (isMock) await adminMockApi.checkInAppointment(record.id); else await adminRemoteApi.transitionAppointment(record.id, 'checkin');
     await reload();
     message.success('客户已签到');
   };
   const markWaiting = async (record: CheckinTask) => {
-    await adminMockApi.markWaitingService(record.id);
+    if (isMock) await adminMockApi.markWaitingService(record.id); else await adminRemoteApi.transitionAppointment(record.id, 'start-service');
     await reload();
     message.success('已安排进入待服务');
   };
   const batchCheckIn = async () => {
-    await Promise.all(selectedRowKeys.map((key) => adminMockApi.checkInAppointment(String(key))));
+    await Promise.all(selectedRowKeys.map((key) => isMock ? adminMockApi.checkInAppointment(String(key)) : adminRemoteApi.transitionAppointment(String(key), 'checkin')));
     setSelectedRowKeys([]);
     await reload();
     message.success(`已批量签到 ${selectedRowKeys.length} 位客户`);

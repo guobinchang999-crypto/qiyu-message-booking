@@ -1,4 +1,4 @@
-import { apiConfig, AUTH_TOKEN_STORAGE_KEY } from './config';
+import { apiConfig, AUTH_SESSION_STORAGE_KEY, AUTH_TOKEN_STORAGE_KEY } from './config';
 
 interface ApiEnvelope<T> {
   code: number;
@@ -31,6 +31,13 @@ export const request = <T>(path: string, options: { method?: 'GET' | 'POST'; dat
       header: authHeader(),
       success: (response) => {
         const body = response.data;
+        if (response.statusCode === 401 || body?.code === 401) {
+          wx.removeStorageSync(AUTH_TOKEN_STORAGE_KEY);
+          wx.removeStorageSync(AUTH_SESSION_STORAGE_KEY);
+          wx.reLaunch({ url: '/pages/login/index' });
+          reject(new Error('登录状态已失效，请重新登录'));
+          return;
+        }
         if (response.statusCode >= 200 && response.statusCode < 300 && body.code === 0) {
           resolve(body.data);
           return;
@@ -54,6 +61,13 @@ export const upload = <T>(path: string, filePath: string, formData: Record<strin
       success: (response) => {
         try {
           const body = JSON.parse(response.data) as ApiEnvelope<T>;
+          if (response.statusCode === 401 || body.code === 401) {
+            wx.removeStorageSync(AUTH_TOKEN_STORAGE_KEY);
+            wx.removeStorageSync(AUTH_SESSION_STORAGE_KEY);
+            wx.reLaunch({ url: '/pages/login/index' });
+            reject(new Error('登录状态已失效，请重新登录'));
+            return;
+          }
           if (response.statusCode >= 200 && response.statusCode < 300 && body.code === 0) {
             resolve(body.data);
             return;

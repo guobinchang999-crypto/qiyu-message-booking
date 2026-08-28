@@ -1,8 +1,10 @@
-import { Tag } from 'antd';
+import { Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
 import ManagementTablePage from '@/components/ManagementTablePage';
 import { adminMockApi } from '@/services/mock';
+import { adminApiConfig } from '@/services/config';
+import { adminRemoteApi } from '@/services/remote';
 import type { ServiceCatalogItem } from '@/types';
 
 const columns: ColumnsType<ServiceCatalogItem> = [
@@ -17,7 +19,7 @@ const columns: ColumnsType<ServiceCatalogItem> = [
 
 export default function ServicesPage() {
   const [data, setData] = useState<ServiceCatalogItem[]>([]);
-  useEffect(() => { adminMockApi.getServiceCatalog().then(setData); }, []);
+  useEffect(() => { (adminApiConfig.mode === 'mock' ? adminMockApi.getServiceCatalog() : adminRemoteApi.getServices()).then(setData).catch((error) => message.error(error instanceof Error ? error.message : '服务项目加载失败')); }, []);
   return <ManagementTablePage<ServiceCatalogItem>
     title="服务项目"
     description="维护项目时长、价格、会员价和上下架状态，客户端预约使用同一项目语义。"

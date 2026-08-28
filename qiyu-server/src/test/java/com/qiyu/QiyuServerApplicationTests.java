@@ -34,7 +34,7 @@ class QiyuServerApplicationTests {
     }
 
     private String issueToken(String requestBody) throws Exception {
-        String response = mockMvc.perform(post("/api/v1/auth/login").contentType(APPLICATION_JSON).content(requestBody))
+        String response = mockMvc.perform(post("/auth/login").contentType(APPLICATION_JSON).content(requestBody))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         return JsonPath.read(response, "$.data.accessToken");
     }
@@ -54,20 +54,20 @@ class QiyuServerApplicationTests {
 
     @Test
     void protectedEndpointsRejectAnonymousRequests() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/dashboard"))
+        mockMvc.perform(get("/admin/dashboard"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
-        mockMvc.perform(get("/api/v1/member/profile"))
+        mockMvc.perform(get("/member/profile"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
     }
 
     @Test
     void customerCannotEnterAdminDomainOrReadAnotherCustomersBooking() throws Exception {
-        clientPerform(get("/api/v1/admin/dashboard"))
+        clientPerform(get("/admin/dashboard"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
-        clientPerform(get("/api/v1/bookings/BK-202608-1999"))
+        clientPerform(get("/bookings/BK-202608-1999"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
@@ -75,23 +75,23 @@ class QiyuServerApplicationTests {
     @Test
     void employeeWithoutDashboardPermissionIsRejected() throws Exception {
         String employeeToken = issueToken("{\"clientType\":\"ADMIN_WEB\",\"grantType\":\"PASSWORD\",\"identifier\":\"employee\",\"credential\":\"123456\"}");
-        mockMvc.perform(get("/api/v1/admin/dashboard").header("Authorization", "Bearer " + employeeToken))
+        mockMvc.perform(get("/admin/dashboard").header("Authorization", "Bearer " + employeeToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
 
     @Test
     void logoutImmediatelyInvalidatesTheSession() throws Exception {
-        clientPerform(post("/api/v1/auth/logout"))
+        clientPerform(post("/auth/logout"))
                 .andExpect(status().isOk());
-        clientPerform(get("/api/v1/member/profile"))
+        clientPerform(get("/member/profile"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
     }
 
     @Test
     void mockAuthSupportsCodeIssueAndLogin() throws Exception {
-        clientPerform(post("/api/v1/auth/send-code")
+        clientPerform(post("/auth/send-code")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {"mobile":"13800001288"}
@@ -102,7 +102,7 @@ class QiyuServerApplicationTests {
                 .andExpect(jsonPath("$.data.verificationCode").value("123456"))
                 .andExpect(jsonPath("$.data.mock").value(true));
 
-        clientPerform(post("/api/v1/auth/login")
+        clientPerform(post("/auth/login")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {"mobile":"13800001288","code":"123456"}
@@ -114,7 +114,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void mockAuthRejectsInvalidCode() throws Exception {
-        clientPerform(post("/api/v1/auth/login")
+        clientPerform(post("/auth/login")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {"mobile":"13800001288","code":"000000"}
@@ -124,7 +124,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void catalogDictionariesExposeBackendStatusOptions() throws Exception {
-        clientPerform(get("/api/v1/catalog/dictionaries"))
+        clientPerform(get("/catalog/dictionaries"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.bookingStatus", hasSize(8)))
                 .andExpect(jsonPath("$.data.bookingStatus[0].value").value("PENDING_PAYMENT"))
@@ -134,7 +134,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void adminDashboardContractExposesArrivalRateForRemoteMapping() throws Exception {
-        adminPerform(get("/api/v1/admin/dashboard"))
+        adminPerform(get("/admin/dashboard"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.statistics", hasSize(4)))
                 .andExpect(jsonPath("$.data.storeRanking[0].name").value("静安寺店"))
@@ -146,7 +146,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void adminScheduleResourcesContractExposesWeeklySchedulesAndRooms() throws Exception {
-        adminPerform(get("/api/v1/admin/schedule-resources"))
+        adminPerform(get("/admin/schedule-resources"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.therapistSchedules", hasSize(4)))
                 .andExpect(jsonPath("$.data.therapistSchedules[0].week", hasSize(7)))
@@ -158,9 +158,9 @@ class QiyuServerApplicationTests {
     void storeManagerCannotReadAnotherStoreBookingOrItsDraft() throws Exception {
         String managerToken = issueToken("{\"clientType\":\"ADMIN_WEB\",\"grantType\":\"PASSWORD\",\"identifier\":\"manager\",\"credential\":\"123456\"}");
 
-        mockMvc.perform(get("/api/v1/bookings/BK-202608-1999").header("Authorization", "Bearer " + managerToken))
+        mockMvc.perform(get("/bookings/BK-202608-1999").header("Authorization", "Bearer " + managerToken))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/v1/bookings/BK-202608-1999/rebook-draft").header("Authorization", "Bearer " + managerToken))
+        mockMvc.perform(get("/bookings/BK-202608-1999/rebook-draft").header("Authorization", "Bearer " + managerToken))
                 .andExpect(status().isForbidden());
     }
 
@@ -168,13 +168,13 @@ class QiyuServerApplicationTests {
     void employeeCannotReadAnotherTherapistBooking() throws Exception {
         String employeeToken = issueToken("{\"clientType\":\"ADMIN_WEB\",\"grantType\":\"PASSWORD\",\"identifier\":\"employee\",\"credential\":\"123456\"}");
 
-        mockMvc.perform(get("/api/v1/bookings/BK-202608-1999").header("Authorization", "Bearer " + employeeToken))
+        mockMvc.perform(get("/bookings/BK-202608-1999").header("Authorization", "Bearer " + employeeToken))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void catalogResourceOptionsSupportStoreFiltering() throws Exception {
-        clientPerform(get("/api/v1/stores"))
+        clientPerform(get("/stores"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].businessStatusCode").value("OPEN"))
                 .andExpect(jsonPath("$.data[0].businessStatusLabel").value("营业中"))
@@ -182,14 +182,14 @@ class QiyuServerApplicationTests {
                 .andExpect(jsonPath("$.data[0].latitude").value(31.225349))
                 .andExpect(jsonPath("$.data[0].longitude").value(121.438384));
 
-        clientPerform(get("/api/v1/catalog/options/therapists")
+        clientPerform(get("/catalog/options/therapists")
                         .param("storeId", "store-jingan")
                         .param("serviceId", "service-neck"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(2)))
                 .andExpect(jsonPath("$.data[0].storeId").value("store-jingan"));
 
-        clientPerform(get("/api/v1/catalog/options/rooms")
+        clientPerform(get("/catalog/options/rooms")
                         .param("storeId", "store-jingan")
                         .param("status", "AVAILABLE"))
                 .andExpect(status().isOk())
@@ -200,7 +200,7 @@ class QiyuServerApplicationTests {
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void timeSlotsRespectServiceBuffersAndResourceOverlap() throws Exception {
-        clientPerform(get("/api/v1/time-slots")
+        clientPerform(get("/time-slots")
                         .param("storeId", "store-jingan")
                         .param("serviceId", "service-neck")
                         .param("therapistId", "therapist-anran")
@@ -216,7 +216,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void serviceCatalogKeepsClientDisplayFields() throws Exception {
-        clientPerform(get("/api/v1/services/service-neck"))
+        clientPerform(get("/services/service-neck"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.category").value("调理"))
                 .andExpect(jsonPath("$.data.salesCount").value(3280))
@@ -227,7 +227,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void clientCatalogExposesMiniProgramDictionaries() throws Exception {
-        clientPerform(get("/api/v1/catalog/client"))
+        clientPerform(get("/catalog/client"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.homeCopy.memberTitle").value("会员权益 · 全门店通用"))
                 .andExpect(jsonPath("$.data.homeCopy.serviceCardMeta.durationUnit").value("分钟"))
@@ -278,7 +278,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void bookingConfirmationReturnsAggregatedSummary() throws Exception {
-        clientPerform(post("/api/v1/bookings/confirmation")
+        clientPerform(post("/bookings/confirmation")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -306,16 +306,16 @@ class QiyuServerApplicationTests {
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void bookingFulfillmentTransitionsFollowExplicitDomainRules() throws Exception {
-        clientPerform(post("/api/v1/bookings/BK-202608-1000/checkin"))
+        clientPerform(post("/bookings/BK-202608-1000/checkin"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CHECKED_IN"));
-        adminPerform(post("/api/v1/bookings/BK-202608-1000/start-service"))
+        adminPerform(post("/bookings/BK-202608-1000/start-service"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("IN_SERVICE"));
-        adminPerform(post("/api/v1/bookings/BK-202608-1000/finish-service"))
+        adminPerform(post("/bookings/BK-202608-1000/finish-service"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PENDING_SETTLEMENT"));
-        adminPerform(post("/api/v1/bookings/BK-202608-1000/settle"))
+        adminPerform(post("/bookings/BK-202608-1000/settle"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
     }
@@ -323,15 +323,15 @@ class QiyuServerApplicationTests {
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void bookingFulfillmentRejectsInvalidTransitions() throws Exception {
-        adminPerform(post("/api/v1/bookings/BK-202608-1001/start-service"))
+        adminPerform(post("/bookings/BK-202608-1001/start-service"))
                 .andExpect(status().isBadRequest());
-        adminPerform(post("/api/v1/bookings/BK-202608-1000/settle"))
+        adminPerform(post("/bookings/BK-202608-1000/settle"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void createBookingUsesIdAfterSeededMockBookings() throws Exception {
-        clientPerform(post("/api/v1/bookings")
+        clientPerform(post("/bookings")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -350,7 +350,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void memberProfileReturnsUnifiedBenefits() throws Exception {
-        clientPerform(get("/api/v1/member/profile"))
+        clientPerform(get("/member/profile"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.user.name").value("林知夏"))
                 .andExpect(jsonPath("$.data.memberTitle").value("会员权益 · 全门店通用"))
@@ -361,7 +361,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void storeReviewsCanBeFilteredByStore() throws Exception {
-        clientPerform(get("/api/v1/reviews").param("storeId", "store-jingan"))
+        clientPerform(get("/reviews").param("storeId", "store-jingan"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items", hasSize(2)))
                 .andExpect(jsonPath("$.data.total").value(5))
@@ -369,7 +369,7 @@ class QiyuServerApplicationTests {
                 .andExpect(jsonPath("$.data.items[0].storeId").value("store-jingan"))
                 .andExpect(jsonPath("$.data.items[0].tags", hasSize(2)));
 
-        clientPerform(get("/api/v1/reviews")
+        clientPerform(get("/reviews")
                         .param("storeId", "store-jingan")
                         .param("serviceId", "service-neck"))
                 .andExpect(status().isOk())
@@ -381,7 +381,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void reviewImageUploadReturnsMockCdnUrl() throws Exception {
-        clientPerform(post("/api/v1/reviews/images")
+        clientPerform(post("/reviews/images")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -397,7 +397,7 @@ class QiyuServerApplicationTests {
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void submittedReviewAppearsInFilteredReviewList() throws Exception {
-        clientPerform(post("/api/v1/reviews")
+        clientPerform(post("/reviews")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -417,7 +417,7 @@ class QiyuServerApplicationTests {
                 .andExpect(jsonPath("$.data.review.userName").value("匿名用户"))
                 .andExpect(jsonPath("$.data.review.imageUrls", hasSize(1)));
 
-        clientPerform(get("/api/v1/reviews")
+        clientPerform(get("/reviews")
                         .param("storeId", "store-jingan")
                         .param("serviceId", "service-neck"))
                 .andExpect(status().isOk())
@@ -427,7 +427,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void bookingSuccessReturnsBookingAndCopy() throws Exception {
-        clientPerform(get("/api/v1/bookings/BK-202608-1000/success"))
+        clientPerform(get("/bookings/BK-202608-1000/success"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.booking.id").value("BK-202608-1000"))
                 .andExpect(jsonPath("$.data.copy.title").value("预约成功"))
@@ -436,7 +436,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void rebookDraftReturnsEditableBookingDraft() throws Exception {
-        clientPerform(get("/api/v1/bookings/BK-202608-1000/rebook-draft"))
+        clientPerform(get("/bookings/BK-202608-1000/rebook-draft"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.sourceBookingId").value("BK-202608-1000"))
                 .andExpect(jsonPath("$.data.draft.storeId").value("store-jingan"))
@@ -447,7 +447,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void rescheduleDraftReturnsCurrentResourceAndEmptySlot() throws Exception {
-        clientPerform(get("/api/v1/bookings/BK-202608-1002/reschedule-draft"))
+        clientPerform(get("/bookings/BK-202608-1002/reschedule-draft"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.sourceBookingId").value("BK-202608-1002"))
                 .andExpect(jsonPath("$.data.draft.storeId").value("store-jingan"))
@@ -461,7 +461,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void rescheduleBookingUpdatesAppointmentTime() throws Exception {
-        clientPerform(post("/api/v1/bookings/BK-202608-1002/reschedule")
+        clientPerform(post("/bookings/BK-202608-1002/reschedule")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -478,7 +478,7 @@ class QiyuServerApplicationTests {
     @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.BEFORE_METHOD)
     void conflictingCreateAndRescheduleAreRejectedWithoutMutatingOriginalBooking() throws Exception {
-        clientPerform(post("/api/v1/bookings")
+        clientPerform(post("/bookings")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -493,7 +493,7 @@ class QiyuServerApplicationTests {
                                 """))
                 .andExpect(status().isBadRequest());
 
-        clientPerform(post("/api/v1/bookings/BK-202608-1002/reschedule")
+        clientPerform(post("/bookings/BK-202608-1002/reschedule")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -503,7 +503,7 @@ class QiyuServerApplicationTests {
                                 """))
                 .andExpect(status().isBadRequest());
 
-        clientPerform(get("/api/v1/bookings/BK-202608-1002"))
+        clientPerform(get("/bookings/BK-202608-1002"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.appointmentDate").value("2026-08-11"))
                 .andExpect(jsonPath("$.data.startTime").value("10:00"));
@@ -511,20 +511,20 @@ class QiyuServerApplicationTests {
 
     @Test
     void cancelBookingChangesStatus() throws Exception {
-        clientPerform(post("/api/v1/bookings/BK-202608-1000/cancel"))
+        clientPerform(post("/bookings/BK-202608-1000/cancel"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value("BK-202608-1000"))
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.data.statusLabel").value("已取消"));
 
-        clientPerform(get("/api/v1/bookings/BK-202608-1000"))
+        clientPerform(get("/bookings/BK-202608-1000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"));
     }
 
     @Test
     void payBookingChangesPendingPaymentToBooked() throws Exception {
-        clientPerform(post("/api/v1/bookings/BK-202608-1001/payment")
+        clientPerform(post("/bookings/BK-202608-1001/payment")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -537,7 +537,7 @@ class QiyuServerApplicationTests {
                 .andExpect(jsonPath("$.data.parameters.package").value("prepay_id=mock-BK-202608-1001"))
                 .andExpect(jsonPath("$.data.parameters.mockPayment").value(true));
 
-        clientPerform(post("/api/v1/bookings/BK-202608-1001/pay"))
+        clientPerform(post("/bookings/BK-202608-1001/pay"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value("BK-202608-1001"))
                 .andExpect(jsonPath("$.data.status").value("BOOKED"))
@@ -546,7 +546,7 @@ class QiyuServerApplicationTests {
 
     @Test
     void refreshBookingVerificationCodeReturnsNewCode() throws Exception {
-        clientPerform(post("/api/v1/bookings/BK-202608-1002/verification-code/refresh"))
+        clientPerform(post("/bookings/BK-202608-1002/verification-code/refresh"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value("BK-202608-1002"))
                 .andExpect(jsonPath("$.data.verificationCode", matchesPattern("\\d{6}")))

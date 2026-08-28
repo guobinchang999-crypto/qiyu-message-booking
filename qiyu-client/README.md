@@ -49,4 +49,4 @@ Use `prod` for the production endpoint, or clear the key to return to Mock mode:
 wx.removeStorageSync('qiyu-api-mode');
 ```
 
-The `dev` URL is `http://localhost:8080/api/v1` for local DevTools use. A real device requires replacing it with a reachable HTTPS test address before network testing.
+The `dev` URL is `http://localhost:8080` for local DevTools use. A real device requires replacing it with a reachable HTTPS test address before network testing.

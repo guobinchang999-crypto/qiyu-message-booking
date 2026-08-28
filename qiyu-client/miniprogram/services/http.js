@@ -24,6 +24,13 @@ const request = (path, options = {}) => {
             header: authHeader(),
             success: (response) => {
                 const body = response.data;
+                if (response.statusCode === 401 || body?.code === 401) {
+                    wx.removeStorageSync(config_1.AUTH_TOKEN_STORAGE_KEY);
+                    wx.removeStorageSync(config_1.AUTH_SESSION_STORAGE_KEY);
+                    wx.reLaunch({ url: '/pages/login/index' });
+                    reject(new Error('登录状态已失效，请重新登录'));
+                    return;
+                }
                 if (response.statusCode >= 200 && response.statusCode < 300 && body.code === 0) {
                     resolve(body.data);
                     return;
@@ -47,6 +54,13 @@ const upload = (path, filePath, formData) => {
             success: (response) => {
                 try {
                     const body = JSON.parse(response.data);
+                    if (response.statusCode === 401 || body.code === 401) {
+                        wx.removeStorageSync(config_1.AUTH_TOKEN_STORAGE_KEY);
+                        wx.removeStorageSync(config_1.AUTH_SESSION_STORAGE_KEY);
+                        wx.reLaunch({ url: '/pages/login/index' });
+                        reject(new Error('登录状态已失效，请重新登录'));
+                        return;
+                    }
                     if (response.statusCode >= 200 && response.statusCode < 300 && body.code === 0) {
                         resolve(body.data);
                         return;

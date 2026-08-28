@@ -1,8 +1,10 @@
-import { Tag } from 'antd';
+import { Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
 import ManagementTablePage from '@/components/ManagementTablePage';
 import { adminMockApi } from '@/services/mock';
+import { adminRemoteApi } from '@/services/remote';
+import { adminApiConfig } from '@/services/config';
 import type { CouponCampaign } from '@/types';
 
 const columns: ColumnsType<CouponCampaign> = [
@@ -17,7 +19,7 @@ const columns: ColumnsType<CouponCampaign> = [
 
 export default function CouponsPage() {
   const [data, setData] = useState<CouponCampaign[]>([]);
-  useEffect(() => { adminMockApi.getCoupons().then(setData); }, []);
+  useEffect(() => { (adminApiConfig.mode === 'mock' ? adminMockApi.getCoupons() : adminRemoteApi.getCoupons()).then(setData).catch((error) => message.error(error instanceof Error ? error.message : '优惠券数据加载失败')); }, []);
   return <ManagementTablePage<CouponCampaign>
     title="优惠券"
     description="维护优惠券投放和核销统计，当前仅保留 Mock 入口，不接入真实营销规则。"

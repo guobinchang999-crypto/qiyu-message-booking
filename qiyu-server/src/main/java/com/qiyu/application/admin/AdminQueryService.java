@@ -4,7 +4,10 @@ import com.qiyu.application.booking.BookingAppService;
 import com.qiyu.application.auth.AuthAppService;
 import com.qiyu.application.auth.AuthPrincipal;
 import com.qiyu.application.auth.DataPermissionService;
-import com.qiyu.infrastructure.mock.MockCatalogProvider;
+import com.qiyu.domain.catalog.gateway.CatalogGateway;
+import com.qiyu.infrastructure.persistence.mapper.BookingMapper;
+import com.qiyu.infrastructure.persistence.mapper.MemberProfileMapper;
+import com.qiyu.infrastructure.persistence.mapper.CatalogMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -14,16 +17,37 @@ import java.util.Map;
 @Service
 public class AdminQueryService {
     private final BookingAppService bookingAppService;
-    private final MockCatalogProvider catalogProvider;
+    private final CatalogGateway catalogProvider;
     private final AuthAppService authAppService;
     private final DataPermissionService dataPermissionService;
+    private final BookingMapper bookingMapper;
+    private final MemberProfileMapper memberProfileMapper;
+    private final CatalogMapper catalogMapper;
 
-    public AdminQueryService(BookingAppService bookingAppService, MockCatalogProvider catalogProvider, AuthAppService authAppService,
-                             DataPermissionService dataPermissionService) {
+    public AdminQueryService(BookingAppService bookingAppService, CatalogGateway catalogProvider, AuthAppService authAppService,
+                             DataPermissionService dataPermissionService, BookingMapper bookingMapper, MemberProfileMapper memberProfileMapper, CatalogMapper catalogMapper) {
         this.bookingAppService = bookingAppService;
         this.catalogProvider = catalogProvider;
         this.authAppService = authAppService;
         this.dataPermissionService = dataPermissionService;
+        this.bookingMapper = bookingMapper;
+        this.memberProfileMapper = memberProfileMapper;
+        this.catalogMapper = catalogMapper;
+    }
+
+    public List<Map<String, Object>> customers() {
+        authAppService.requirePermission("customer:read");
+        return bookingMapper.customerProfiles();
+    }
+
+    public List<Map<String, Object>> members() {
+        authAppService.requirePermission("customer:read");
+        return memberProfileMapper.memberAccounts();
+    }
+
+    public List<Map<String, Object>> coupons() {
+        authAppService.requirePermission("coupon:read");
+        return catalogMapper.coupons();
     }
 
     public Map<String, Object> dashboard() {

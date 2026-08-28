@@ -4,31 +4,34 @@ import { useEffect, useState } from 'react';
 import BookingStatusTag from '@/components/BookingStatusTag';
 import ManagementTablePage from '@/components/ManagementTablePage';
 import { adminMockApi } from '@/services/mock';
+import { adminRemoteApi } from '@/services/remote';
+import { adminApiConfig } from '@/services/config';
 import type { AppointmentAuditRecord, ServiceOrder } from '@/types';
 
 export default function ServiceOrdersPage() {
   const [data, setData] = useState<ServiceOrder[]>([]);
   const [auditLogs, setAuditLogs] = useState<AppointmentAuditRecord[]>([]);
   const [auditOpen, setAuditOpen] = useState(false);
-  const reload = async () => setData(await adminMockApi.getServiceOrders());
-  useEffect(() => { reload(); }, []);
+  const isMock = adminApiConfig.mode === 'mock';
+  const reload = async () => setData(isMock ? await adminMockApi.getServiceOrders() : await adminRemoteApi.getServiceOrders());
+  useEffect(() => { reload(); }, [isMock]);
   const startService = async (record: ServiceOrder) => {
-    await adminMockApi.startService(record.bookingId);
+    if (isMock) await adminMockApi.startService(record.bookingId); else await adminRemoteApi.transitionAppointment(record.bookingId, 'start-service');
     await reload();
     message.success('服务已开始，房间状态已更新为使用中');
   };
   const finishService = async (record: ServiceOrder) => {
-    await adminMockApi.finishService(record.bookingId);
+    if (isMock) await adminMockApi.finishService(record.bookingId); else await adminRemoteApi.transitionAppointment(record.bookingId, 'finish-service');
     await reload();
     message.success('服务已完成，订单进入待结算');
   };
   const completeSettlement = async (record: ServiceOrder) => {
-    await adminMockApi.completeSettlement(record.bookingId);
+    if (isMock) await adminMockApi.completeSettlement(record.bookingId); else await adminRemoteApi.transitionAppointment(record.bookingId, 'settle');
     await reload();
     message.success('结算已完成，房间资源已释放');
   };
   const openAudit = async (record: ServiceOrder) => {
-    setAuditLogs(await adminMockApi.getAppointmentAuditLogs(record.bookingId));
+    setAuditLogs(isMock ? await adminMockApi.getAppointmentAuditLogs(record.bookingId) : await adminRemoteApi.getAppointmentAuditLogs(record.bookingId));
     setAuditOpen(true);
   };
   const columns: ColumnsType<ServiceOrder> = [

@@ -12,8 +12,8 @@ export const AUTH_SESSION_STORAGE_KEY = 'qiyu-auth-session';
 
 export const apiConfigs: Record<ApiMode, ApiConfig> = {
   mock: { mode: 'mock', baseUrl: '', timeout: 8000 },
-  dev: { mode: 'dev', baseUrl: 'http://localhost:8080/api/v1', timeout: 8000 },
-  prod: { mode: 'prod', baseUrl: 'https://api.qiyu.example.com/api/v1', timeout: 8000 }
+  dev: { mode: 'dev', baseUrl: 'http://localhost:8080', timeout: 8000 },
+  prod: { mode: 'prod', baseUrl: 'https://api.qiyu.example.com', timeout: 8000 }
 };
 
 const isApiMode = (value: unknown): value is ApiMode => value === 'mock' || value === 'dev' || value === 'prod';

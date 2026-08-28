@@ -11,6 +11,11 @@ export const adminRequest = async <T>(path: string, options: { method?: 'GET' | 
     body: options.data ? JSON.stringify(options.data) : undefined
   });
   const body = await response.json() as ApiEnvelope<T>;
+  if (response.status === 401 || body.code === 401) {
+    localStorage.removeItem('qiyu-admin-auth');
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') window.location.assign('/login');
+    throw new Error('登录状态已失效，请重新登录');
+  }
   if (!response.ok || body.code !== 0) throw new Error(body.message || `请求失败 ${response.status}`);
   return body.data;
 };

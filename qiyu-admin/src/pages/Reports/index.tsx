@@ -3,6 +3,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
 import ManagementTablePage from '@/components/ManagementTablePage';
 import { adminMockApi } from '@/services/mock';
+import { adminRemoteApi } from '@/services/remote';
+import { adminApiConfig } from '@/services/config';
 import { canAccessStore, readAdminSession } from '@/services/admin-auth';
 import type { BusinessReportRow } from '@/types';
 
@@ -18,7 +20,10 @@ const columns: ColumnsType<BusinessReportRow> = [
 export default function ReportsPage() {
   const session = readAdminSession();
   const [data, setData] = useState<BusinessReportRow[]>([]);
-  useEffect(() => { adminMockApi.getBusinessReports().then((rows) => setData(rows.filter((row) => canAccessStore(session, 'report', 'READ', row.store) || canAccessStore(session, 'booking', 'READ', row.store)))); }, [session]);
+  useEffect(() => {
+    const loadReports = adminApiConfig.mode === 'mock' ? adminMockApi.getBusinessReports() : adminRemoteApi.getBusinessReports();
+    loadReports.then((rows) => setData(rows.filter((row) => canAccessStore(session, 'report', 'READ', row.store) || canAccessStore(session, 'booking', 'READ', row.store))));
+  }, [session]);
   return <ManagementTablePage<BusinessReportRow>
     title="经营报表"
     description="查看统一品牌门店预约、完成率、营业额和热门项目，深度分析后续扩展。"

@@ -1,7 +1,10 @@
+import { message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
 import ManagementTablePage from '@/components/ManagementTablePage';
 import { adminMockApi } from '@/services/mock';
+import { adminRemoteApi } from '@/services/remote';
+import { adminApiConfig } from '@/services/config';
 import type { MemberAccount } from '@/types';
 
 const columns: ColumnsType<MemberAccount> = [
@@ -15,7 +18,7 @@ const columns: ColumnsType<MemberAccount> = [
 
 export default function MembersPage() {
   const [data, setData] = useState<MemberAccount[]>([]);
-  useEffect(() => { adminMockApi.getMembers().then(setData); }, []);
+  useEffect(() => { (adminApiConfig.mode === 'mock' ? adminMockApi.getMembers() : adminRemoteApi.getMembers()).then(setData).catch((error) => message.error(error instanceof Error ? error.message : '会员数据加载失败')); }, []);
   return <ManagementTablePage<MemberAccount>
     title="会员管理"
     description="会员余额、套餐权益和优惠券均以全门店通用语义展示。"

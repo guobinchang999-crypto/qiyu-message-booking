@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/time-slots")
+@RequestMapping("/time-slots")
 public class ScheduleController {
     private final ScheduleQueryService scheduleQueryService;
 

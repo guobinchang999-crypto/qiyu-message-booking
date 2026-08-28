@@ -5,6 +5,7 @@ import com.qiyu.domain.payment.PaymentStatus;
 import com.qiyu.domain.room.RoomStatus;
 import com.qiyu.domain.schedule.TimeSlotStatus;
 import com.qiyu.domain.therapist.TherapistStatus;
+import com.qiyu.domain.catalog.gateway.CatalogGateway;
 import com.qiyu.infrastructure.mock.MockCatalogProvider;
 import org.springframework.stereotype.Service;
 
@@ -22,9 +23,11 @@ public class CatalogQueryService {
     private static final String TIME_SLOT_STATUS = "timeSlotStatus";
 
     private final MockCatalogProvider catalogProvider;
+    private final CatalogGateway catalogGateway;
 
-    public CatalogQueryService(MockCatalogProvider catalogProvider) {
+    public CatalogQueryService(MockCatalogProvider catalogProvider, CatalogGateway catalogGateway) {
         this.catalogProvider = catalogProvider;
+        this.catalogGateway = catalogGateway;
     }
 
     public Map<String, List<DictionaryItemVO>> dictionaries() {
@@ -67,27 +70,39 @@ public class CatalogQueryService {
     }
 
     public List<ResourceOptionVO> storeOptions() {
-        return catalogProvider.stores().stream()
+        return catalogGateway.stores().stream()
                 .map(item -> option(item, null, null, null))
                 .toList();
     }
 
     public List<ResourceOptionVO> serviceOptions() {
-        return catalogProvider.services().stream()
+        return catalogGateway.services().stream()
                 .map(item -> option(item, null, null, null))
                 .toList();
     }
 
     public List<ResourceOptionVO> therapistOptions(String storeId, String serviceId) {
-        return catalogProvider.therapists(storeId, serviceId).stream()
+        return catalogGateway.therapists(storeId, serviceId).stream()
                 .map(item -> option(item, stringValue(item, "storeId"), stringValue(item, "status"), stringValue(item, "statusLabel")))
                 .toList();
     }
 
     public List<ResourceOptionVO> roomOptions(String storeId, String status) {
-        return catalogProvider.rooms(storeId, status).stream()
+        return catalogGateway.rooms(storeId, status).stream()
                 .map(item -> option(item, stringValue(item, "storeId"), stringValue(item, "status"), stringValue(item, "statusLabel")))
                 .toList();
+    }
+
+    public List<Map<String, Object>> stores() { return catalogGateway.stores(); }
+
+    public Map<String, Object> store(String id) { return catalogGateway.findStore(id); }
+
+    public List<Map<String, Object>> services() { return catalogGateway.services(); }
+
+    public Map<String, Object> service(String id) { return catalogGateway.findService(id); }
+
+    public List<Map<String, Object>> therapists(String storeId, String serviceId) {
+        return catalogGateway.therapists(storeId, serviceId);
     }
 
     private static List<DictionaryItemVO> bookingStatuses() {
