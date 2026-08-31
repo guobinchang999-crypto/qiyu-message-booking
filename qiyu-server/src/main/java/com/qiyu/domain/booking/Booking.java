@@ -17,8 +17,8 @@ public final class Booking {
     private final String id;
     private final String storeId;
     private final String serviceId;
-    private final String therapistId;
-    private final String roomId;
+    private String therapistId;
+    private String roomId;
     private final String customerName;
     private final String mobile;
     private final String customerId;
@@ -127,6 +127,25 @@ public final class Booking {
         }
         // Preparation and cleanup buffers are part of resource occupancy, not presentation data.
         this.timeRange = BookingTimeRange.of(date, startTime, durationMinutes, 10, 10);
+    }
+
+    /** Swaps the assigned therapist before the service starts, keeping ownership unchanged. */
+    public void changeTherapist(String therapistId) {
+        requireResourceChangeAllowed();
+        this.therapistId = therapistId;
+    }
+
+    /** Assigns or swaps the service room before the service starts. */
+    public void assignRoom(String roomId) {
+        requireResourceChangeAllowed();
+        this.roomId = roomId;
+    }
+
+    private void requireResourceChangeAllowed() {
+        if (status != BookingStatus.BOOKED && status != BookingStatus.CHECKED_IN
+                && status != BookingStatus.WAITING_SERVICE) {
+            throw new IllegalArgumentException("当前预约状态不可调整技师或房间");
+        }
     }
 
     public void refreshVerificationCode() {

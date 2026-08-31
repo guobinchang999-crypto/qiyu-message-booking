@@ -54,6 +54,16 @@ public class AdminController {
         return ApiResponse.success(bookingAppService.reschedule(id, request.date(), request.startTime()));
     }
 
+    @PostMapping("/bookings/{id}/therapist")
+    public ApiResponse<BookingVO> changeBookingTherapist(@PathVariable String id, @RequestBody AdminBookingTherapistRequest request) {
+        return ApiResponse.success(bookingAppService.changeTherapist(id, request.therapistId()));
+    }
+
+    @PostMapping("/bookings/{id}/room")
+    public ApiResponse<BookingVO> assignBookingRoom(@PathVariable String id, @RequestBody AdminBookingRoomRequest request) {
+        return ApiResponse.success(bookingAppService.assignRoom(id, request.roomId()));
+    }
+
     @GetMapping("/dashboard")
     public ApiResponse<AdminResponseModels.Dashboard> dashboard() { return ApiResponse.success(adminQueryService.dashboard()); }
 

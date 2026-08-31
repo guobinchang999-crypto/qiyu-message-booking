@@ -10,6 +10,7 @@ import com.qiyu.application.auth.DataPermissionService;
 import com.qiyu.application.auth.AuthContext;
 import com.qiyu.domain.schedule.ScheduleConflictChecker;
 import com.qiyu.domain.catalog.gateway.CatalogGateway;
+import com.qiyu.domain.catalog.Room;
 import com.qiyu.domain.catalog.ServiceItem;
 import com.qiyu.domain.catalog.Store;
 import com.qiyu.domain.catalog.Therapist;
@@ -68,7 +69,7 @@ public class BookingAppService {
     public synchronized BookingVO create(BookingCreateCommand command) {
         // A booking belongs to the authenticated customer; callers cannot inject another owner.
         AuthPrincipal principal = authAppService.requireCustomer();
-        return createForCustomer(command, principal.customerId(), false);
+        return createForCustomer(command, principal.customerId(), BookingStatus.PENDING_PAYMENT, BigDecimal.ZERO);
     }
 
     /** Creates a booking for an existing customer from an authorized staff workflow. */
@@ -80,10 +81,14 @@ public class BookingAppService {
         }
         String customerId = customerLookupGateway.findIdByMobile(command.mobile())
                 .orElseThrow(() -> new IllegalArgumentException("客户不存在，请先创建客户档案"));
-        return createForCustomer(command, customerId, true);
+        // On-site staff confirms the reservation and collects the deposit at the counter, so the
+        // booking is created BOOKED (with the deposit recorded as paid) instead of waiting for a
+        // simulated online payment that must remain fail-closed until a merchant is configured.
+        return createForCustomer(command, customerId, BookingStatus.BOOKED, null);
     }
 
-    private BookingVO createForCustomer(BookingCreateCommand command, String customerId, boolean staffCreated) {
+    private BookingVO createForCustomer(BookingCreateCommand command, String customerId,
+                                        BookingStatus initialStatus, BigDecimal paidAmountOverride) {
         ServiceItem service = catalogProvider.findService(command.serviceId());
         catalogProvider.findStore(command.storeId());
         String therapistId = command.therapistId();
@@ -104,9 +109,9 @@ public class BookingAppService {
         BookingPricing pricing = pricing(service, therapist, customerId, command.couponId(), 1);
         Booking booking = new Booking(bookingNo, command.storeId(), command.serviceId(),
                 therapistId, roomId, command.customerName(), command.mobile(), customerId, LocalDate.parse(command.date()),
-                LocalTime.parse(command.startTime()), service.durationMinutes(), BookingStatus.PENDING_PAYMENT, null,
+                LocalTime.parse(command.startTime()), service.durationMinutes(), initialStatus, null,
                 pricing.itemAmount(), pricing.therapistFee(), pricing.discountAmount(), BigDecimal.ZERO,
-                pricing.depositDue(), BigDecimal.ZERO);
+                pricing.depositDue(), paidAmountOverride == null ? pricing.depositDue() : paidAmountOverride);
         // Validate the complete occupied window, including preparation and cleanup buffers,
         // before any state is persisted.
         conflictChecker.ensureAvailable(booking, bookingGateway.findAll());
@@ -139,6 +144,7 @@ public class BookingAppService {
     /** Loads one booking only after applying row-level permission checks. */
     public BookingVO detail(String bookingId) {
         Booking booking = authorized(bookingId, "booking:read", "READ");
+        recordPhoneReveal(booking.storeId(), booking.id());
         return toView(booking);
     }
 
@@ -259,16 +265,81 @@ public class BookingAppService {
         return toView(booking);
     }
 
+    /** Reassigns the therapist for an existing booking after store and conflict validation. */
+    public synchronized BookingVO changeTherapist(String bookingId, String therapistId) {
+        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
+        Therapist therapist = catalogProvider.findTherapist(therapistId);
+        if (!booking.storeId().equals(therapist.storeId())) {
+            throw new IllegalArgumentException("所选技师不属于当前门店");
+        }
+        Booking candidate = new Booking(booking.id(), booking.storeId(), booking.serviceId(), therapistId, booking.roomId(),
+                booking.customerName(), booking.mobile(), booking.customerId(), booking.timeRange().serviceFrom().toLocalDate(),
+                booking.timeRange().serviceFrom().toLocalTime(), catalogProvider.findService(booking.serviceId()).durationMinutes(),
+                booking.status(), booking.verificationCode(), booking.itemAmount(), booking.therapistFeeAmount(),
+                booking.discountAmount(), booking.balanceDeductionAmount(), booking.depositDueAmount(), booking.paidAmount());
+        conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
+                .filter(existing -> !existing.id().equals(booking.id()))
+                .toList());
+        String before = booking.therapistId();
+        booking.changeTherapist(therapistId);
+        bookingGateway.save(booking);
+        auditLogService.record("booking:update", "booking", booking.id(), booking.storeId(),
+                Map.of("therapistId", before == null ? "" : before), Map.of("therapistId", therapistId));
+        return toView(booking);
+    }
+
+    /** Assigns or swaps the service room after store and conflict validation. */
+    public synchronized BookingVO assignRoom(String bookingId, String roomId) {
+        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
+        Room room = catalogProvider.findRoom(roomId);
+        if (!booking.storeId().equals(room.storeId())) {
+            throw new IllegalArgumentException("所选房间不属于当前门店");
+        }
+        Booking candidate = new Booking(booking.id(), booking.storeId(), booking.serviceId(), booking.therapistId(), roomId,
+                booking.customerName(), booking.mobile(), booking.customerId(), booking.timeRange().serviceFrom().toLocalDate(),
+                booking.timeRange().serviceFrom().toLocalTime(), catalogProvider.findService(booking.serviceId()).durationMinutes(),
+                booking.status(), booking.verificationCode(), booking.itemAmount(), booking.therapistFeeAmount(),
+                booking.discountAmount(), booking.balanceDeductionAmount(), booking.depositDueAmount(), booking.paidAmount());
+        conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
+                .filter(existing -> !existing.id().equals(booking.id()))
+                .toList());
+        String before = booking.roomId();
+        booking.assignRoom(roomId);
+        bookingGateway.save(booking);
+        auditLogService.record("booking:update", "booking", booking.id(), booking.storeId(),
+                Map.of("roomId", before == null ? "" : before), Map.of("roomId", roomId));
+        return toView(booking);
+    }
+
     /** Returns only bookings allowed by the current principal and optional status filter. */
     public List<BookingVO> list(String status) {
         AuthPrincipal principal = dataPermissionService.requirePermission("booking:read");
         // Data scope is applied before mapping, so list, statistics and sensitive-field handling
         // never receive rows outside the principal's accessible stores or therapist identity.
-        return bookingGateway.findAll().stream()
+        List<BookingVO> rows = bookingGateway.findAll().stream()
                 .filter(booking -> dataPermissionService.canAccessBooking(principal, booking, "READ"))
                 .filter(booking -> status == null || status.isBlank() || booking.status().name().equals(status))
                 .map(this::toView)
                 .toList();
+        // Phone reveal is a request-level capability, not a per-row event; one audit entry avoids
+        // flooding the log for a single list that exposes N customer numbers.
+        if (!rows.isEmpty()) {
+            recordPhoneReveal(null, "LIST");
+        }
+        return rows;
+    }
+
+    /**
+     * Audits the reveal capability once per request for staff principals who hold the
+     * {@code customer:reveal_phone} permission, instead of once per booking row.
+     */
+    private void recordPhoneReveal(String storeId, String resourceId) {
+        AuthPrincipal principal = AuthContext.current();
+        if (principal.userType() == com.qiyu.domain.auth.UserType.CUSTOMER
+                || !principal.hasPermission("customer:reveal_phone")) {
+            return;
+        }
+        auditLogService.record("customer:reveal_phone", "booking", resourceId, storeId, Map.of(), Map.of("field", "mobile"));
     }
 
     /** Maps a domain booking while applying sensitive-field permissions before serialization. */
@@ -281,9 +352,6 @@ public class BookingAppService {
         // Field permission is independent of row permission: broad store access does not imply
         // access to a customer's full mobile number.
         boolean revealPhone = dataPermissionService.canRevealCustomerPhone(AuthContext.current(), booking);
-        if (revealPhone && AuthContext.current().userType() != com.qiyu.domain.auth.UserType.CUSTOMER) {
-            auditLogService.record("customer:reveal_phone", "booking", booking.id(), booking.storeId(), Map.of(), Map.of("field", "mobile"));
-        }
         return new BookingVO(booking.id(), booking.status().name(), booking.status().label(),
                 com.qiyu.application.catalog.CatalogResourceVO.store(store),
                 com.qiyu.application.catalog.CatalogResourceVO.service(service),

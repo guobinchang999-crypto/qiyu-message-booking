@@ -75,11 +75,6 @@ public class MybatisPlusBookingGateway implements BookingGateway {
             }
         }
         if (entity.getId() == null) {
-            entity.setTherapistFeeAmount(java.math.BigDecimal.ZERO);
-            entity.setDiscountAmount(java.math.BigDecimal.ZERO);
-            entity.setBalanceDeductionAmount(java.math.BigDecimal.ZERO);
-            entity.setDepositDueAmount(java.math.BigDecimal.ZERO);
-            entity.setPaidAmount(java.math.BigDecimal.ZERO);
             entity.setCreatedByUserId(mapper.customerUserId(entity.getCustomerId()));
             mapper.insert(entity);
         } else mapper.updateById(entity);

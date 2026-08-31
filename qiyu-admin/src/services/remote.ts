@@ -169,6 +169,12 @@ export const adminRemoteApi = {
       date: appointment.scheduledAt.slice(0, 10), startTime: appointment.scheduledAt.slice(11, 16)
     } });
   },
+  async changeTherapist(id: string, therapistId: string): Promise<void> {
+    await adminRequest(`/admin/bookings/${encodeURIComponent(id)}/therapist`, { method: 'POST', data: { therapistId } });
+  },
+  async assignRoom(id: string, roomId: string): Promise<void> {
+    await adminRequest(`/admin/bookings/${encodeURIComponent(id)}/room`, { method: 'POST', data: { roomId } });
+  },
   async getCoupons(): Promise<CouponCampaign[]> {
     const rows = await adminRequest<RemoteCoupon[]>('/admin/coupons');
     return rows.map((row) => ({ id: row.id, name: row.name, discount: row.discount, scope: '全门店通用', validUntil: row.validUntil, issuedCount: row.issuedCount, usedCount: row.usedCount, status: row.displayStatus }));

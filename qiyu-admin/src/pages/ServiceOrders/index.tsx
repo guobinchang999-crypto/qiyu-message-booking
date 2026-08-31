@@ -10,23 +10,28 @@ export default function ServiceOrdersPage() {
   const [data, setData] = useState<ServiceOrder[]>([]);
   const [auditLogs, setAuditLogs] = useState<AppointmentAuditRecord[]>([]);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const reload = async () => setData(await adminRemoteApi.getServiceOrders());
   useEffect(() => { void reload(); }, []);
-  const startService = async (record: ServiceOrder) => {
-    await adminRemoteApi.transitionAppointment(record.bookingId, 'start-service');
-    await reload();
-    message.success('服务已开始，房间状态已更新为使用中');
+  const runAction = async (bookingId: string, messageText: string, action: () => Promise<void>) => {
+    if (busyIds.has(bookingId)) return;
+    setBusyIds((current) => new Set(current).add(bookingId));
+    try {
+      await action();
+      await reload();
+      message.success(messageText);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '操作失败，请重试');
+    } finally {
+      setBusyIds((current) => { const next = new Set(current); next.delete(bookingId); return next; });
+    }
   };
-  const finishService = async (record: ServiceOrder) => {
-    await adminRemoteApi.transitionAppointment(record.bookingId, 'finish-service');
-    await reload();
-    message.success('服务已完成，订单进入待结算');
-  };
-  const completeSettlement = async (record: ServiceOrder) => {
-    await adminRemoteApi.transitionAppointment(record.bookingId, 'settle');
-    await reload();
-    message.success('结算已完成，房间资源已释放');
-  };
+  const startService = (record: ServiceOrder) => runAction(record.bookingId, '服务已开始，房间状态已更新为使用中', () =>
+    adminRemoteApi.transitionAppointment(record.bookingId, 'start-service'));
+  const finishService = (record: ServiceOrder) => runAction(record.bookingId, '服务已完成，订单进入待结算', () =>
+    adminRemoteApi.transitionAppointment(record.bookingId, 'finish-service'));
+  const completeSettlement = (record: ServiceOrder) => runAction(record.bookingId, '结算已完成，房间资源已释放', () =>
+    adminRemoteApi.transitionAppointment(record.bookingId, 'settle'));
   const openAudit = async (record: ServiceOrder) => {
     setAuditLogs(await adminRemoteApi.getAppointmentAuditLogs(record.bookingId));
     setAuditOpen(true);
@@ -40,7 +45,7 @@ export default function ServiceOrdersPage() {
     { title: '房间', dataIndex: 'room' },
     { title: '状态', dataIndex: 'status', render: (status, record) => <BookingStatusTag status={status} label={record.statusLabel} /> },
     { title: '实付', dataIndex: 'paidAmount', render: (value: number) => `¥${value}` },
-    { title: '履约动作', key: 'flow', fixed: 'right', width: 300, render: (_, record) => <Space size={4} wrap><Button size="small" type="link" disabled={!['CHECKED_IN', 'WAITING_SERVICE'].includes(record.status)} onClick={() => startService(record)}>开始服务</Button><Button size="small" type="link" disabled={record.status !== 'IN_SERVICE'} onClick={() => finishService(record)}>完成服务</Button><Button size="small" type="link" disabled={record.status !== 'PENDING_SETTLEMENT'} onClick={() => completeSettlement(record)}>完成结算</Button><Button size="small" type="link" onClick={() => openAudit(record)}>操作记录</Button></Space> }
+    { title: '履约动作', key: 'flow', fixed: 'right', width: 300, render: (_, record) => <Space size={4} wrap><Button size="small" type="link" loading={busyIds.has(record.bookingId)} disabled={!['CHECKED_IN', 'WAITING_SERVICE'].includes(record.status)} onClick={() => startService(record)}>开始服务</Button><Button size="small" type="link" loading={busyIds.has(record.bookingId)} disabled={record.status !== 'IN_SERVICE'} onClick={() => finishService(record)}>完成服务</Button><Button size="small" type="link" loading={busyIds.has(record.bookingId)} disabled={record.status !== 'PENDING_SETTLEMENT'} onClick={() => completeSettlement(record)}>完成结算</Button><Button size="small" type="link" onClick={() => openAudit(record)}>操作记录</Button></Space> }
   ];
   return <>
     <ManagementTablePage<ServiceOrder>
