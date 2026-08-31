@@ -97,7 +97,7 @@ extraActions={(record) => <Space size={0}>
   <Button type="text" size="small" icon={<SafetyCertificateOutlined />} title="数据权限" loading={scopeLoading && scopeUser?.id === record.id} onClick={() => void editDataScope(record)} />
   <Button type="text" size="small" icon={<KeyOutlined />} title="重置密码" onClick={() => resetPassword(record)} />
 </Space>}>
-  <Modal title={`${scopeUser?.displayName || ''}的数据权限`} open={!!scopeUser} confirmLoading={scopeLoading} onOk={() => void saveDataScope()} onCancel={() => setScopeUser(undefined)} destroyOnClose>
+  <Modal title={`${scopeUser?.displayName || ''}的数据权限`} open={!!scopeUser} confirmLoading={scopeLoading} onOk={() => void saveDataScope()} onCancel={() => setScopeUser(undefined)} destroyOnHidden>
     <Form form={scopeForm} layout="vertical" preserve={false} style={{ marginTop: 20 }} initialValues={{ scopeType: 'SELF', storeIds: [], regionIds: [] }}>
       <Form.Item name="scopeType" label="数据范围" rules={[{ required: true }]}>
         <Select options={[

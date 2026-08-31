@@ -159,7 +159,7 @@ export default function MembersPage() {
         okText="确认调整"
         onOk={submitAdjustment}
         onCancel={() => setSelectedMember(undefined)}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false} initialValues={initialValues} style={{ marginTop: 20 }}>
           <Form.Item label="当前余额">

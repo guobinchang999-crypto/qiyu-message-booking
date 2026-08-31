@@ -93,7 +93,7 @@ export default function SystemCrudPage<T extends { id: string }>(props: SystemCr
       <div className="qiyu-toolbar"><Input allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={load} prefix={<SearchOutlined />} placeholder={`搜索${props.title}`} style={{ width: 300 }} /><Button icon={<ReloadOutlined />} onClick={load}>刷新</Button><Tag bordered={false} color="blue">权限码：{props.permissionHint}</Tag></div>
       <Table<T> rowKey="id" loading={loading} columns={columns} dataSource={rows} scroll={{ x: 1050 }} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 条` }} />
     </Card>
-    <Modal title={active ? `编辑${props.title}` : `新增${props.title}`} open={open} confirmLoading={saving} onOk={submit} onCancel={() => setOpen(false)} destroyOnClose>
+    <Modal title={active ? `编辑${props.title}` : `新增${props.title}`} open={open} confirmLoading={saving} onOk={submit} onCancel={() => setOpen(false)} destroyOnHidden>
       <Form form={form as FormInstance} layout="vertical" preserve={false} style={{ marginTop: 20 }}>
         {props.fields.map((field) => <Form.Item key={field.name} name={field.name} label={field.label} valuePropName={field.type === 'switch' ? 'checked' : 'value'} rules={field.required ? [{ required: true, message: `请填写${field.label}` }] : undefined}><FieldControl field={field} /></Form.Item>)}
       </Form>

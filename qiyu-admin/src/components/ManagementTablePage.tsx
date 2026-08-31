@@ -58,7 +58,7 @@ export default function ManagementTablePage<T extends { id: string }>(props: Man
     <Card className="qiyu-card">
       <div className="qiyu-toolbar">
         <Input allowClear prefix={<SearchOutlined />} placeholder={`搜索${props.title}`} style={{ width: 280 }} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
-        <Space wrap>{props.toolbar}{props.dataSource.slice(0, 3).flatMap((record) => props.rowTags?.(record) ?? []).slice(0, 6).map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space>
+        <Space wrap>{props.toolbar}{[...new Set(props.dataSource.slice(0, 3).flatMap((record) => props.rowTags?.(record) ?? []))].slice(0, 6).map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space>
       </div>
       <Table<T> rowKey="id" rowSelection={props.rowSelection} columns={columns} dataSource={rows} scroll={{ x: 980 }} pagination={{ pageSize: 8, showSizeChanger: false, showTotal: (total) => `共 ${total} 条` }} />
     </Card>
