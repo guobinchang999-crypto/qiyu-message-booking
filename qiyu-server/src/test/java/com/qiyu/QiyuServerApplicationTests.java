@@ -404,7 +404,8 @@ class QiyuServerApplicationTests {
                                   "date": "2026-08-08",
                                   "startTime": "18:00",
                                   "customerName": "林知夏",
-                                  "mobile": "13800001288"
+                                  "mobile": "13800001288",
+                                  "requestId": "request-create-test-1"
                                 }
                                 """))
                 .andExpect(status().isOk())

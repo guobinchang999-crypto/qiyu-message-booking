@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag, message } from 'antd';
+import { Button, Card, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Switch, Table, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { can, readAdminSession } from '@/services/admin-auth';
@@ -45,12 +45,12 @@ export default function TherapistsPage() {
   return <div className="qiyu-page">
     <div className="qiyu-page-header"><div><h1 className="qiyu-page-title">技师管理</h1><div className="qiyu-page-description">统一维护技师状态、技能标签、所属门店和今日预约负载。</div></div>{manageable && <Button type="primary" icon={<PlusOutlined />} disabled={!stores.length} onClick={() => showForm()}>新增技师</Button>}</div>
     <Card className="qiyu-card"><div className="qiyu-toolbar"><Input allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} prefix={<SearchOutlined />} placeholder="搜索技师、门店、等级或技能" style={{ width: 320 }} /><Button icon={<ReloadOutlined />} loading={loading} onClick={load}>刷新</Button></div><Table rowKey="id" loading={loading} columns={columns} dataSource={visibleRows} scroll={{ x: 1100 }} pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 位技师` }} /></Card>
-    <Modal title={editing ? '编辑技师' : '新增技师'} open={open} confirmLoading={saving} onOk={submit} onCancel={() => setOpen(false)} width={620} destroyOnHidden><Form form={form} layout="vertical" preserve={false} initialValues={initialValues} style={{ marginTop: 20 }}>
-      <Space align="start" style={{ display: 'flex' }}><Form.Item name="code" label="技师编码" rules={[{ required: true }]} style={{ flex: 1 }}><Input disabled={!!editing} /></Form.Item><Form.Item name="name" label="技师姓名" rules={[{ required: true }]} style={{ flex: 1 }}><Input /></Form.Item></Space>
+    <Modal title={editing ? '编辑技师' : '新增技师'} open={open} confirmLoading={saving} onOk={submit} onCancel={() => setOpen(false)} width={640} destroyOnHidden><Form form={form} layout="vertical" preserve={false} initialValues={initialValues} style={{ marginTop: 24 }}>
+      <Row gutter={16}><Col span={12}><Form.Item name="code" label="技师编码" rules={[{ required: true }]}><Input disabled={!!editing} /></Form.Item></Col><Col span={12}><Form.Item name="name" label="技师姓名" rules={[{ required: true }]}><Input /></Form.Item></Col></Row>
       <Form.Item name="storeId" label="所属门店" rules={[{ required: true }]}><Select options={storeOptions} showSearch optionFilterProp="label" /></Form.Item>
-      <Space align="start" style={{ display: 'flex' }}><Form.Item name="level" label="技师等级" rules={[{ required: true }]} style={{ flex: 1 }}><Input /></Form.Item><Form.Item name="status" label="工作状态" rules={[{ required: true }]} style={{ flex: 1 }}><Select options={[{ label: '可预约', value: '可预约' }, { label: '服务中', value: '服务中' }, { label: '休假', value: '休假' }]} /></Form.Item></Space>
+      <Row gutter={16}><Col span={12}><Form.Item name="level" label="技师等级" rules={[{ required: true }]}><Input /></Form.Item></Col><Col span={12}><Form.Item name="status" label="工作状态" rules={[{ required: true }]}><Select options={[{ label: '可预约', value: '可预约' }, { label: '服务中', value: '服务中' }, { label: '休假', value: '休假' }]} /></Form.Item></Col></Row>
       <Form.Item name="skills" label="擅长项目" rules={[{ required: true, message: '请至少填写一个技能' }]}><Select mode="tags" tokenSeparators={[',', '，']} placeholder="输入技能后按回车" /></Form.Item>
-      <Space align="start" style={{ display: 'flex' }}><Form.Item name="rating" label="评分" style={{ flex: 1 }}><InputNumber min={0} max={5} precision={1} style={{ width: '100%' }} /></Form.Item><Form.Item name="specifyFee" label="指定服务费" style={{ flex: 1 }}><InputNumber min={0} precision={2} prefix="¥" style={{ width: '100%' }} /></Form.Item></Space>
+      <Row gutter={16}><Col span={12}><Form.Item name="rating" label="评分"><InputNumber min={0} max={5} precision={1} style={{ width: '100%' }} /></Form.Item></Col><Col span={12}><Form.Item name="specifyFee" label="指定服务费"><InputNumber min={0} precision={2} prefix="¥" style={{ width: '100%' }} /></Form.Item></Col></Row>
       <Form.Item name="enabled" label="启用技师" valuePropName="checked"><Switch checkedChildren="启用" unCheckedChildren="停用" /></Form.Item>
     </Form></Modal>
   </div>;

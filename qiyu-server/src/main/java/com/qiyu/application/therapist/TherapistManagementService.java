@@ -1,6 +1,6 @@
 package com.qiyu.application.therapist;
 
-import com.qiyu.application.admin.AdminResponseModels;
+import com.qiyu.application.admin.dto.AdminResponseModels;
 import com.qiyu.application.auth.AuthAppService;
 import com.qiyu.application.auth.AuthPrincipal;
 import org.springframework.beans.factory.ObjectProvider;

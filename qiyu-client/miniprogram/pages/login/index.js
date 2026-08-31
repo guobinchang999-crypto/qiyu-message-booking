@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const booking_service_1 = require("../../services/booking-service");
 const navigation_1 = require("../../constants/navigation");
 const config_1 = require("../../services/config");
+const http_1 = require("../../services/http");
 const SMS_COUNTDOWN_SECONDS = 60;
 const emptyCopy = {
     brandMark: '',
@@ -93,6 +94,7 @@ Page({
             const result = await booking_service_1.bookingService.login(this.data.phone, this.data.code);
             wx.setStorageSync(config_1.AUTH_TOKEN_STORAGE_KEY, result.accessToken);
             wx.setStorageSync(config_1.AUTH_SESSION_STORAGE_KEY, { ...result, expiresAt: Date.now() + result.expiresIn * 1000 });
+            (0, http_1.clearLoginRedirectGuard)();
             wx.reLaunch({ url: navigation_1.pageRoutes.home });
         }
         catch (error) {

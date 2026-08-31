@@ -9,6 +9,11 @@ spring:
     driver-class-name: org.h2.Driver
   flyway:
     enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - cn.dev33.satoken.dao.SaTokenDaoRedisJackson
 
 qiyu:
   auth:

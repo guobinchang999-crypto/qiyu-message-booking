@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag, message } from 'antd';
+import { Button, Card, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Switch, Table, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { can, readAdminSession } from '@/services/admin-auth';
@@ -46,10 +46,10 @@ export default function RoomsPage() {
   return <div className="qiyu-page">
     <div className="qiyu-page-header"><div><h1 className="qiyu-page-title">房间管理</h1><div className="qiyu-page-description">维护门店房间档案与实时资源状态，预约排房使用同一稳定资源 ID。</div></div>{manageable && <Button type="primary" icon={<PlusOutlined />} disabled={!stores.length} onClick={() => showForm()}>新增房间</Button>}</div>
     <Card className="qiyu-card"><div className="qiyu-toolbar"><Input allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} prefix={<SearchOutlined />} placeholder="搜索房间、门店、用途或备注" style={{ width: 320 }} /><Button icon={<ReloadOutlined />} loading={loading} onClick={load}>刷新</Button></div><Table rowKey="id" loading={loading} columns={columns} dataSource={visibleRows} scroll={{ x: 980 }} pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 个房间` }} /></Card>
-    <Modal title={editing ? '编辑房间' : '新增房间'} open={open} confirmLoading={saving} onOk={submit} onCancel={() => setOpen(false)} width={580} destroyOnHidden><Form form={form} layout="vertical" preserve={false} initialValues={initialValues} style={{ marginTop: 20 }}>
-      <Space align="start" style={{ display: 'flex' }}><Form.Item name="code" label="房间编码" rules={[{ required: true }]} style={{ flex: 1 }}><Input disabled={!!editing} /></Form.Item><Form.Item name="name" label="房间名称" rules={[{ required: true }]} style={{ flex: 1 }}><Input /></Form.Item></Space>
+    <Modal title={editing ? '编辑房间' : '新增房间'} open={open} confirmLoading={saving} onOk={submit} onCancel={() => setOpen(false)} width={640} destroyOnHidden><Form form={form} layout="vertical" preserve={false} initialValues={initialValues} style={{ marginTop: 24 }}>
+      <Row gutter={16}><Col span={12}><Form.Item name="code" label="房间编码" rules={[{ required: true }]}><Input disabled={!!editing} /></Form.Item></Col><Col span={12}><Form.Item name="name" label="房间名称" rules={[{ required: true }]}><Input /></Form.Item></Col></Row>
       <Form.Item name="storeId" label="所属门店" rules={[{ required: true }]}><Select options={storeOptions} showSearch optionFilterProp="label" /></Form.Item>
-      <Space align="start" style={{ display: 'flex' }}><Form.Item name="type" label="房间用途" rules={[{ required: true }]} style={{ flex: 1 }}><Input /></Form.Item><Form.Item name="capacity" label="接待人数" rules={[{ required: true }]} style={{ flex: 1 }}><InputNumber min={1} precision={0} style={{ width: '100%' }} /></Form.Item><Form.Item name="status" label="资源状态" rules={[{ required: true }]} style={{ flex: 1 }}><Select options={statusOptions.map(({ label, value }) => ({ label, value }))} /></Form.Item></Space>
+      <Row gutter={16}><Col span={8}><Form.Item name="type" label="房间用途" rules={[{ required: true }]}><Input /></Form.Item></Col><Col span={8}><Form.Item name="capacity" label="接待人数" rules={[{ required: true }]}><InputNumber min={1} precision={0} style={{ width: '100%' }} /></Form.Item></Col><Col span={8}><Form.Item name="status" label="资源状态" rules={[{ required: true }]}><Select options={statusOptions.map(({ label, value }) => ({ label, value }))} /></Form.Item></Col></Row>
       <Form.Item name="note" label="房间备注"><Input.TextArea rows={3} maxLength={200} showCount /></Form.Item><Form.Item name="enabled" label="启用房间" valuePropName="checked"><Switch checkedChildren="启用" unCheckedChildren="停用" /></Form.Item>
     </Form></Modal>
   </div>;

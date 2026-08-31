@@ -10,12 +10,14 @@
 4. `design/CODEX-UI-DEVELOPMENT-PROMPT.md`：了解微信小程序客户端的实现约束和交付要求。
 5. `design/UI-ACCEPTANCE-CHECKLIST.md`：了解 UI 验收标准、适配要求和问题记录格式。
 6. `skills/cola-architecture/SKILL.md`：开发或审查 `qiyu-server` 后端架构前必须阅读。
+7. Codex 用户技能 `antd`（来源：`ant-design/ant-design-cli`）：开发或审查 `qiyu-admin` UI 前必须使用，作为 Ant Design 组件 API、设计令牌、语义结构和最佳实践的参考依据。
 
 如果后续新增后端架构、数据库设计、后台 UI 或部署相关技能文档，执行相关任务前也应先阅读对应文档。
 
 使用仓库技能时：
 
 - `skills/cola-architecture/SKILL.md`：用于 `qiyu-server` 后端分层、包结构、领域建模和架构审查。
+- `antd`：用于 `qiyu-admin` 的 Ant Design 5 / Ant Design Pro 组件选型、API 查询、设计令牌、语义结构、可访问性和用法检查。编写组件前应按 `qiyu-admin` 实际安装的 antd 版本运行 `antd info`、`antd demo`、`antd token` 或 `antd design.md`，修改后运行 `antd lint`；命令使用 `--format json`。
 
 ## Agent Focus
 
@@ -83,6 +85,7 @@
 ## 前端规则
 
 - 管理后台优先使用 Ant Design Pro / Ant Design 组件，不重复造基础控件。
+- 管理后台 UI 以 `antd` skill 提供的版本化 Ant Design 规范为组件实现和视觉基础依据，并结合本项目 `design/` 文档落实品牌、业务流程和页面验收要求；发生冲突时，不得突破本项目产品边界和业务规则。
 - 微信小程序优先使用 TDesign MiniProgram 组件和主题令牌。
 - 客户端视觉以 `design/UI-DESIGN-SYSTEM.md` 为最高优先级，其次参考对应效果图，再参考 TDesign 默认行为。
 - 页面之间的门店、服务项目、技师、预约时间、订单状态和金额必须保持一致。

@@ -1,5 +1,8 @@
 package com.qiyu.application.auth;
 
+import com.qiyu.application.auth.dto.AuthResponse;
+import com.qiyu.application.auth.dto.SendCodeResponse;
+
 import cn.dev33.satoken.stp.SaLoginModel;
 import cn.dev33.satoken.stp.StpUtil;
 import com.qiyu.domain.auth.ClientType;
@@ -8,6 +11,7 @@ import com.qiyu.domain.auth.DataScopeType;
 import com.qiyu.domain.auth.GrantType;
 import com.qiyu.domain.auth.UserType;
 import com.qiyu.domain.auth.gateway.SmsVerificationGateway;
+import com.qiyu.infrastructure.auth.DbAuthPrincipalProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;

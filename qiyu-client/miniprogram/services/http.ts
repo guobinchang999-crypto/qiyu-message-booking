@@ -6,6 +6,21 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
+// Guards against several in-flight requests each triggering their own login redirect.
+let loginRedirected = false;
+
+export const clearLoginRedirectGuard = (): void => { loginRedirected = false; };
+
+const redirectToLogin = (): void => {
+  if (loginRedirected) return;
+  loginRedirected = true;
+  wx.removeStorageSync(AUTH_TOKEN_STORAGE_KEY);
+  wx.removeStorageSync(AUTH_SESSION_STORAGE_KEY);
+  wx.reLaunch({ url: '/pages/login/index', complete: () => { loginRedirected = false; } });
+};
+
+const NETWORK_ERROR_MESSAGE = '网络连接失败，请稍后重试';
+
 const buildUrl = (path: string, query?: Record<string, string | undefined>): string => {
   if (!apiConfig.baseUrl) throw new Error('生产接口地址尚未配置');
   const url = `${apiConfig.baseUrl}${path}`;
@@ -33,9 +48,7 @@ export const request = <T>(path: string, options: { method?: 'GET' | 'POST' | 'P
       success: (response) => {
         const body = response.data;
         if (response.statusCode === 401 || body?.code === 401) {
-          wx.removeStorageSync(AUTH_TOKEN_STORAGE_KEY);
-          wx.removeStorageSync(AUTH_SESSION_STORAGE_KEY);
-          wx.reLaunch({ url: '/pages/login/index' });
+          redirectToLogin();
           reject(new Error('登录状态已失效，请重新登录'));
           return;
         }
@@ -45,7 +58,7 @@ export const request = <T>(path: string, options: { method?: 'GET' | 'POST' | 'P
         }
         reject(new Error(body?.message || `请求失败 ${response.statusCode}`));
       },
-      fail: reject
+      fail: () => reject(new Error(NETWORK_ERROR_MESSAGE))
     });
   });
 };
@@ -63,9 +76,7 @@ export const upload = <T>(path: string, filePath: string, formData: Record<strin
         try {
           const body = JSON.parse(response.data) as ApiEnvelope<T>;
           if (response.statusCode === 401 || body.code === 401) {
-            wx.removeStorageSync(AUTH_TOKEN_STORAGE_KEY);
-            wx.removeStorageSync(AUTH_SESSION_STORAGE_KEY);
-            wx.reLaunch({ url: '/pages/login/index' });
+            redirectToLogin();
             reject(new Error('登录状态已失效，请重新登录'));
             return;
           }
@@ -78,7 +89,7 @@ export const upload = <T>(path: string, filePath: string, formData: Record<strin
           reject(new Error('上传响应格式异常'));
         }
       },
-      fail: reject
+      fail: () => reject(new Error(NETWORK_ERROR_MESSAGE))
     });
   });
 };

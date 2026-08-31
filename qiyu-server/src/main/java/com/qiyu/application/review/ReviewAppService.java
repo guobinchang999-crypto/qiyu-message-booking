@@ -1,8 +1,10 @@
 package com.qiyu.application.review;
 
+import com.qiyu.application.review.dto.ReviewResponseModels;
+
 import com.qiyu.adapter.review.ReviewRequest;
-import com.qiyu.application.booking.BookingAppService;
-import com.qiyu.application.booking.BookingVO;
+import com.qiyu.application.booking.BookingQueryService;
+import com.qiyu.application.booking.dto.BookingVO;
 import com.qiyu.infrastructure.persistence.entity.ReviewImageEntity;
 import com.qiyu.infrastructure.persistence.entity.ReviewTagEntity;
 import com.qiyu.infrastructure.persistence.entity.ServiceReviewEntity;
@@ -26,14 +28,14 @@ import java.util.Map;
 @Service
 @ConditionalOnProperty(name = "qiyu.auth.persistence", havingValue = "true")
 public class ReviewAppService {
-    private final BookingAppService bookingAppService;
+    private final BookingQueryService bookingQueryService;
     private final ReviewMapper reviewMapper;
     private final ReviewTagMapper tagMapper;
     private final ReviewImageMapper imageMapper;
 
-    public ReviewAppService(BookingAppService bookingAppService, ReviewMapper reviewMapper,
+    public ReviewAppService(BookingQueryService bookingQueryService, ReviewMapper reviewMapper,
                             ReviewTagMapper tagMapper, ReviewImageMapper imageMapper) {
-        this.bookingAppService = bookingAppService;
+        this.bookingQueryService = bookingQueryService;
         this.reviewMapper = reviewMapper;
         this.tagMapper = tagMapper;
         this.imageMapper = imageMapper;
@@ -55,7 +57,7 @@ public class ReviewAppService {
     /** Validates ownership and completion state before persisting one customer review. */
     public ReviewResponseModels.SubmitResult submit(ReviewRequest request) {
         // detail() applies the same owner/data-scope check as every other booking operation.
-        BookingVO bookingView = bookingAppService.detail(request.bookingId());
+        BookingVO bookingView = bookingQueryService.detail(request.bookingId());
         if (!"COMPLETED".equals(bookingView.status())) {
             throw new IllegalArgumentException("服务完成后才可以评价");
         }

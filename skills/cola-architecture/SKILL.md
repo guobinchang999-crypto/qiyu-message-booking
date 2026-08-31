@@ -165,6 +165,9 @@ qiyu-server/
 - 查询流程可以务实处理，不强行复杂建模
 - 行为简单时可以使用 `*AppService`
 - 行为由 command 驱动且规则较多时，优先使用 `*CmdExe` / `*QueryExe`
+- 管理类 CRUD 出站端口（`*Repository` / `*Gateway` 接口）可以放在 application；核心业务出站端口必须放在 domain（见 5.12）
+- 查询与命令规模都较大时，按 `BookingQueryService`（读）/ `BookingAppService`（写）拆分，并抽出 `*Assembler`、`*Authorizer`、`*PricingCalculator` 等共享组件，避免服务膨胀
+- 用例契约类型（Command / Query / VO / Models / Payload 等请求与响应模型）按官方 COLA Light 约定放在 `application/<module>/dto` 子包，不要散放在业务包根目录（完整多模块 COLA 中这些类型属于 client 模块）
 
 ### 4.3 domain
 
@@ -297,6 +300,11 @@ qiyu-server/
 8. 避免从 adapter 或 application 直接访问 mapper 或 DAO；除非任务明确需要，并且依赖方向仍然清晰。
 9. API 边界使用 DTO / Command / Query / VO，不直接返回持久化实体。
 10. 状态流转必须通过明确枚举或领域方法表达。
+11. 技术配置类（MyBatis-Plus、Sa-Token、Scheduling 等）放在 `infrastructure/config`，不要建顶层 `config` 包。
+12. 出站端口双规：核心业务端口（booking、catalog、coupon、payment、member 等参与业务不变量）放在 domain/gateway；管理类 CRUD 端口（门店/系统/角色/菜单等管理维护）放在 application 层对应模块。两者都不能在 application 直接 import 基础设施实现类。
+13. domain 中的 `catalog` 记录（Store/ServiceItem/Therapist/Room）是稳定的共享读模型快照，允许携带展示字段；行为类不变量必须放在聚合与领域服务中，不写入这些读模型。
+14. 聚合构建统一走 `BookingFactory`（demo/create/restore 表达意图），不要使用望远镜式构造函数；预约编号使用 `BookingNo` 值对象。
+15. 预约创建必须携带 `requestId` 幂等键并走唯一索引兜底；更新必须携带乐观锁 version；资源占用冲突校验依赖资源主表行锁，不能只靠内存 `synchronized`。
 
 ## 6. 推荐包结构
 
@@ -308,12 +316,15 @@ com.qiyu
 │   ├── booking
 │   ├── checkin
 │   ├── store
-│   └── therapist
+│   ├── therapist
+│   └── scheduling
 ├── application
 │   ├── booking
+│   │   └── dto        ← 用例契约：BookingCreateCommand / BookingVO / BookingOperationVO
 │   ├── schedule
 │   ├── order
 │   └── member
+│       └── dto
 ├── domain
 │   ├── booking
 │   ├── schedule
@@ -324,6 +335,7 @@ com.qiyu
     ├── persistence
     ├── cache
     ├── config
+    ├── auth
     └── integration
 ```
 

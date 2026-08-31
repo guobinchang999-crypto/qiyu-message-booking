@@ -1,6 +1,6 @@
-import { CalendarOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { CalendarOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, DatePicker, Drawer, Form, Input, Modal, Select, Space, Table, message } from 'antd';
-import dayjs from 'dayjs';
+import dayjs, { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import BookingStatusTag from '@/components/BookingStatusTag';
 import { adminRemoteApi } from '@/services/remote';
@@ -9,6 +9,7 @@ import type { Appointment, BookingOptionPayload, BookingStatus } from '@/types';
 
 const emptyOptions: BookingOptionPayload = { stores: [], services: [], therapists: [], rooms: [], statuses: [] };
 const firstValue = (options: Array<{ value: string }>): string | undefined => options[0]?.value;
+type AppointmentFormValues = Omit<Appointment, 'scheduledAt'> & { scheduledAt: Dayjs };
 
 export default function AppointmentsPage() {
   const session = readAdminSession();
@@ -20,7 +21,7 @@ export default function AppointmentsPage() {
   const [conflictMessage, setConflictMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
-  const [form] = Form.useForm<Appointment>();
+  const [form] = Form.useForm<AppointmentFormValues>();
   const reload = async () => setAppointments(await adminRemoteApi.getAppointments());
   useEffect(() => {
     void reload();
@@ -46,7 +47,7 @@ export default function AppointmentsPage() {
       therapist: firstValue(options.therapists),
       room: firstValue(options.rooms),
       service: firstValue(options.services),
-      scheduledAt: '',
+      scheduledAt: dayjs(),
       status: 'BOOKED',
       amount: 0
     });
@@ -56,7 +57,8 @@ export default function AppointmentsPage() {
     setEditing(record);
     setConflictMessage('');
     form.setFieldsValue({ ...record, store: record.storeId || record.store, service: record.serviceId || record.service,
-      therapist: record.therapistId || record.therapist, room: record.roomId || record.room });
+      therapist: record.therapistId || record.therapist, room: record.roomId || record.room,
+      scheduledAt: dayjs(record.scheduledAt, 'YYYY-MM-DD HH:mm') });
     setDrawerOpen(true);
   };
   const save = async () => {
@@ -68,20 +70,13 @@ export default function AppointmentsPage() {
       therapistId: values.therapist,
       roomId: values.room,
       id: editing?.id ?? '',
-      phone: values.phone ?? ''
+      phone: values.phone ?? '',
+      scheduledAt: dayjs(values.scheduledAt).format('YYYY-MM-DD HH:mm')
     };
     setSaving(true);
     try {
       if (editing) {
-        const therapistChanged = (item.therapistId || '') !== (editing.therapistId || editing.therapist || '');
-        const roomChanged = (item.roomId || '') !== (editing.roomId || editing.room || '');
-        const timeChanged = item.scheduledAt !== editing.scheduledAt;
-        if (therapistChanged) await adminRemoteApi.changeTherapist(editing.id, item.therapistId!);
-        if (roomChanged) await adminRemoteApi.assignRoom(editing.id, item.roomId!);
-        if (timeChanged) await adminRemoteApi.rescheduleAppointment(item);
-        if (!therapistChanged && !roomChanged && !timeChanged) {
-          setConflictMessage('没有需要修改的内容'); message.info('没有需要修改的内容'); return;
-        }
+        await adminRemoteApi.updateAppointment(item);
       } else {
         await adminRemoteApi.createAppointment(item);
       }
@@ -120,10 +115,10 @@ export default function AppointmentsPage() {
   ];
   return <div className="qiyu-page">
     <div className="qiyu-page-header"><div><h1 className="qiyu-page-title">预约管理</h1><div className="qiyu-page-description">集中查看和处理已授权门店的预约，资源调整将实时反映在排班中。</div></div>{can(session, 'booking:create') && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>创建预约</Button>}</div>
-    <Card className="qiyu-card"><div className="qiyu-toolbar"><Input allowClear prefix={<SearchOutlined />} placeholder="搜索客户、手机号或预约编号" style={{ width: 260 }} onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))} /><Select allowClear placeholder="全部门店" options={visibleStores} style={{ width: 145 }} onChange={(store) => setFilters((current) => ({ ...current, store }))} /><Select allowClear placeholder="订单状态" options={options.statuses} style={{ width: 145 }} onChange={(status) => setFilters((current) => ({ ...current, status: status as BookingStatus | undefined }))} /><DatePicker prefix={<CalendarOutlined />} onChange={(date) => setFilters((current) => ({ ...current, date: date ? dayjs(date).format('YYYY-MM-DD') : undefined }))} /></div><Table rowKey="id" columns={columns} dataSource={rows} scroll={{ x: 1200 }} pagination={{ pageSize: 6, showSizeChanger: false, showTotal: (total) => `共 ${total} 条预约` }} /></Card>
+    <Card className="qiyu-card"><div className="qiyu-toolbar"><Input allowClear prefix={<SearchOutlined />} placeholder="搜索客户、手机号或预约编号" style={{ width: 260 }} onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))} /><Select allowClear placeholder="全部门店" options={visibleStores} style={{ width: 145 }} onChange={(store) => setFilters((current) => ({ ...current, store }))} /><Select allowClear placeholder="订单状态" options={options.statuses} style={{ width: 145 }} onChange={(status) => setFilters((current) => ({ ...current, status: status as BookingStatus | undefined }))} /><DatePicker prefix={<CalendarOutlined />} onChange={(date) => setFilters((current) => ({ ...current, date: date ? dayjs(date).format('YYYY-MM-DD') : undefined }))} /><Button icon={<ReloadOutlined />} onClick={() => void reload()}>刷新</Button></div><Table rowKey="id" columns={columns} dataSource={rows} scroll={{ x: 1200 }} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 条预约` }} /></Card>
     <Drawer title={editing ? '修改预约' : '创建预约'} width={460} open={drawerOpen} onClose={() => setDrawerOpen(false)} extra={<Space><Button onClick={() => setDrawerOpen(false)}>取消</Button><Button type="primary" loading={saving} onClick={save}>{editing ? '保存修改' : '确认创建'}</Button></Space>}>
       {conflictMessage && <Alert type="error" showIcon message="资源冲突" description={conflictMessage} style={{ marginBottom: 16 }} />}
-      <Form form={form} layout="vertical"><Form.Item name="customerName" label="客户姓名" rules={[{ required: true, message: '请输入客户姓名' }]}><Input disabled={!!editing} /></Form.Item><Form.Item name="phone" label="手机号"><Input disabled={!!editing} /></Form.Item><Form.Item name="store" label="预约门店" rules={[{ required: true }]}><Select options={visibleStores} disabled={!!editing} /></Form.Item><Form.Item name="service" label="服务项目" rules={[{ required: true }]}><Select options={options.services} disabled={!!editing} /></Form.Item><Form.Item name="therapist" label="服务技师" rules={[{ required: true }]}><Select options={options.therapists} /></Form.Item><Form.Item name="room" label="服务房间" rules={[{ required: true }]}><Select options={options.rooms} /></Form.Item><Form.Item name="scheduledAt" label="预约时间" rules={[{ required: true }]}><Input placeholder="例如：2026-08-04 16:00" /></Form.Item><Form.Item name="status" label="订单状态"><Select options={options.statuses} /></Form.Item>{can(session, 'booking:change_amount') && <Form.Item name="amount" label="预约金额"><Input type="number" prefix="¥" /></Form.Item>}</Form>
+      <Form form={form} layout="vertical"><Form.Item name="customerName" label="客户姓名" rules={[{ required: true, message: '请输入客户姓名' }]}><Input disabled={!!editing} /></Form.Item><Form.Item name="phone" label="手机号"><Input disabled={!!editing} /></Form.Item><Form.Item name="store" label="预约门店" rules={[{ required: true }]}><Select options={visibleStores} disabled={!!editing} style={{ width: '100%' }} /></Form.Item><Form.Item name="service" label="服务项目" rules={[{ required: true }]}><Select options={options.services} disabled={!!editing} style={{ width: '100%' }} /></Form.Item><Form.Item name="therapist" label="服务技师" rules={[{ required: true }]}><Select options={options.therapists} style={{ width: '100%' }} /></Form.Item><Form.Item name="room" label="服务房间" rules={[{ required: true }]}><Select options={options.rooms} style={{ width: '100%' }} /></Form.Item><Form.Item name="scheduledAt" label="预约时间" rules={[{ required: true }]}><DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: '100%' }} /></Form.Item><Form.Item name="status" label="订单状态"><Select options={options.statuses} style={{ width: '100%' }} /></Form.Item>{can(session, 'booking:change_amount') && <Form.Item name="amount" label="预约金额"><Input type="number" prefix="¥" /></Form.Item>}</Form>
     </Drawer>
   </div>;
 }

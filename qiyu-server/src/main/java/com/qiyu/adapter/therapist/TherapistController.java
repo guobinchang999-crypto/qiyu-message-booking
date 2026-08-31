@@ -2,7 +2,7 @@ package com.qiyu.adapter.therapist;
 
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.catalog.CatalogQueryService;
-import com.qiyu.application.catalog.CatalogResourceVO;
+import com.qiyu.application.catalog.dto.CatalogResourceVO;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;

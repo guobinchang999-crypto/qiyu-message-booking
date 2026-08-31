@@ -1,10 +1,12 @@
 package com.qiyu.application.admin;
 
+import com.qiyu.application.admin.dto.AdminResponseModels;
+
 import com.qiyu.application.auth.AuthAppService;
 import com.qiyu.application.auth.AuthPrincipal;
 import com.qiyu.application.auth.DataPermissionService;
-import com.qiyu.application.booking.BookingAppService;
-import com.qiyu.application.booking.BookingVO;
+import com.qiyu.application.booking.BookingQueryService;
+import com.qiyu.application.booking.dto.BookingVO;
 import com.qiyu.domain.catalog.gateway.CatalogGateway;
 import com.qiyu.domain.catalog.Store;
 import com.qiyu.domain.auth.DataScopeType;
@@ -34,13 +36,13 @@ public class AdminQueryService {
     private final MemberProfileMapper memberProfileMapper;
     private final CatalogMapper catalogMapper;
     private final ObjectProvider<AdminOperationsReadRepository> operationsReadRepository;
-    private final BookingAppService bookingAppService;
+    private final BookingQueryService bookingQueryService;
 
     public AdminQueryService(CatalogGateway catalogProvider, AuthAppService authAppService,
                              DataPermissionService dataPermissionService, BookingMapper bookingMapper,
                              MemberProfileMapper memberProfileMapper, CatalogMapper catalogMapper,
                              ObjectProvider<AdminOperationsReadRepository> operationsReadRepository,
-                             BookingAppService bookingAppService) {
+                             BookingQueryService bookingQueryService) {
         this.catalogProvider = catalogProvider;
         this.authAppService = authAppService;
         this.dataPermissionService = dataPermissionService;
@@ -48,7 +50,7 @@ public class AdminQueryService {
         this.memberProfileMapper = memberProfileMapper;
         this.catalogMapper = catalogMapper;
         this.operationsReadRepository = operationsReadRepository;
-        this.bookingAppService = bookingAppService;
+        this.bookingQueryService = bookingQueryService;
     }
 
     /** Returns customer profiles available to the current staff principal. */
@@ -146,7 +148,7 @@ public class AdminQueryService {
     /** Returns a scoped booking page for the administration table. */
     public AdminResponseModels.BookingPage bookings(String pageNum, String pageSize, String status) {
         authAppService.requirePermission("booking:read");
-        List<BookingVO> list = bookingAppService.list(status);
+        List<BookingVO> list = bookingQueryService.list(status);
         return new AdminResponseModels.BookingPage(list, list.size(), pageNum == null ? 1 : Integer.parseInt(pageNum), pageSize == null ? 10 : Integer.parseInt(pageSize));
     }
 

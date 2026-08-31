@@ -31,33 +31,15 @@ public final class Booking {
     private String verificationCode;
     private BookingTimeRange timeRange;
     private BookingStatus status;
+    private final long version;
+    private final String requestId;
 
-    public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
-                   String customerName, String mobile, LocalDate date, LocalTime startTime, int durationMinutes,
-                   BookingStatus status) {
-        this(id, storeId, serviceId, therapistId, roomId, customerName, mobile, "customer-demo", date, startTime, durationMinutes, status);
-    }
-
-    public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
-                   String customerName, String mobile, String customerId, LocalDate date, LocalTime startTime,
-                   int durationMinutes, BookingStatus status) {
-        this(id, storeId, serviceId, therapistId, roomId, customerName, mobile, customerId, date, startTime,
-                durationMinutes, status, generateVerificationCode());
-    }
-
-    public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
-                   String customerName, String mobile, String customerId, LocalDate date, LocalTime startTime,
-                   int durationMinutes, BookingStatus status, String verificationCode) {
-        this(id, storeId, serviceId, therapistId, roomId, customerName, mobile, customerId, date, startTime,
-                durationMinutes, status, verificationCode, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
-    }
-
-    public Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
-                   String customerName, String mobile, String customerId, LocalDate date, LocalTime startTime,
-                   int durationMinutes, BookingStatus status, String verificationCode, BigDecimal itemAmount,
-                   BigDecimal therapistFeeAmount, BigDecimal discountAmount, BigDecimal balanceDeductionAmount,
-                   BigDecimal depositDueAmount, BigDecimal paidAmount) {
+    /** Build aggregates through {@link BookingFactory}; this constructor is package-private on purpose. */
+    Booking(String id, String storeId, String serviceId, String therapistId, String roomId,
+            String customerName, String mobile, String customerId, LocalDate date, LocalTime startTime,
+            int durationMinutes, BookingStatus status, String verificationCode, BigDecimal itemAmount,
+            BigDecimal therapistFeeAmount, BigDecimal discountAmount, BigDecimal balanceDeductionAmount,
+            BigDecimal depositDueAmount, BigDecimal paidAmount, long version, String requestId) {
         this.id = id;
         this.storeId = storeId;
         this.serviceId = serviceId;
@@ -75,6 +57,18 @@ public final class Booking {
         this.verificationCode = verificationCode == null || verificationCode.isBlank() ? generateVerificationCode() : verificationCode;
         this.timeRange = BookingTimeRange.of(date, startTime, durationMinutes, 10, 10);
         this.status = status;
+        this.version = version;
+        this.requestId = requestId;
+    }
+
+    /**
+     * Builds a detached candidate with alternative placement for conflict validation.
+     * The original booking is never mutated by a failed conflict check.
+     */
+    public Booking candidate(String therapistId, String roomId, LocalDate date, LocalTime startTime, int durationMinutes) {
+        return BookingFactory.restore(id, storeId, serviceId, therapistId, roomId, customerName, mobile, customerId,
+                date, startTime, durationMinutes, status, verificationCode, itemAmount, therapistFeeAmount,
+                discountAmount, balanceDeductionAmount, depositDueAmount, paidAmount, version, requestId);
     }
 
     public void checkIn() {
@@ -177,6 +171,8 @@ public final class Booking {
     public String verificationCode() { return verificationCode; }
     public BookingTimeRange timeRange() { return timeRange; }
     public BookingStatus status() { return status; }
+    public long version() { return version; }
+    public String requestId() { return requestId; }
 
     private static String generateVerificationCode() {
         return String.valueOf(ThreadLocalRandom.current().nextInt(100000, 1000000));

@@ -161,7 +161,7 @@ export default function MembersPage() {
         onCancel={() => setSelectedMember(undefined)}
         destroyOnHidden
       >
-        <Form form={form} layout="vertical" preserve={false} initialValues={initialValues} style={{ marginTop: 20 }}>
+        <Form form={form} layout="vertical" preserve={false} initialValues={initialValues} style={{ marginTop: 24 }}>
           <Form.Item label="当前余额">
             <Input value={`¥${Number(selectedMember?.balance ?? 0).toFixed(2)}`} disabled />
           </Form.Item>

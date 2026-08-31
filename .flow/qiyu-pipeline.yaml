@@ -1,0 +1,104 @@
+# 云效 Flow 流水线：栖愈预约系统 CI/CD
+#
+# 使用说明：
+# 1. 在云效 Flow 中「新建流水线 → YAML 模式」导入本文件。
+# 2. 编辑器会自动校验任务名；如任务类型名与当前 Flow 版本不一致，按编辑器提示修正。
+# 3. 在流水线变量页配置：
+#    - 普通变量：IMAGE_REGISTRY、IMAGE_NAMESPACE、IMAGE_REPO、DEPLOY_HOST_GROUP
+#    - 密文变量：QIYU_DB_URL、QIYU_DB_USERNAME、QIYU_DB_PASSWORD、
+#               QIYU_REDIS_HOST、QIYU_REDIS_PASSWORD、ADMIN_INITIAL_PASSWORD
+# 4. 「主机部署」需要先在目标自有主机上安装 Flow Agent 并加入 DEPLOY_HOST_GROUP 主机组。
+
+version: v1.0
+name: qiyu-pipeline
+
+variables:
+  IMAGE_REGISTRY: registry.cn-hangzhou.aliyuncs.com
+  IMAGE_NAMESPACE: qiyu
+  IMAGE_REPO: qiyu-server
+  DEPLOY_HOST_GROUP: qiyu-prod-hosts
+
+stages:
+  - name: 后端构建
+    jobs:
+      - name: Maven 测试与打包
+        steps:
+          - name: 检出代码
+            task: checkout
+          - name: 单元测试
+            task: maven
+            with:
+              jdk: '21'
+              goals: '-B test'
+              workingDir: qiyu-server
+          - name: 打包
+            task: maven
+            with:
+              jdk: '21'
+              goals: '-B -DskipTests package'
+              workingDir: qiyu-server
+          - name: 上传产物
+            task: artifact-upload
+            with:
+              paths:
+                - qiyu-server/target/qiyu-server-0.1.0-SNAPSHOT.jar
+
+  - name: 前端构建
+    jobs:
+      - name: 管理后台
+        steps:
+          - name: 检出代码
+            task: checkout
+          - name: 类型检查与构建
+            task: npm
+            with:
+              node: '20'
+              command: 'run typecheck && run build'
+              workingDir: qiyu-admin
+      - name: 小程序
+        steps:
+          - name: 检出代码
+            task: checkout
+          - name: 类型检查与冒烟
+            task: npm
+            with:
+              node: '20'
+              command: 'run verify'
+              workingDir: qiyu-client
+
+  - name: 镜像构建与部署
+    needs:
+      - 后端构建
+    jobs:
+      - name: 构建镜像
+        steps:
+          - name: 检出代码
+            task: checkout
+          - name: Docker 构建
+            task: docker-build
+            with:
+              dockerfile: qiyu-server/Dockerfile
+              context: qiyu-server
+              tags:
+                - '${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/${IMAGE_REPO}:${CI_COMMIT_SHA}'
+                - '${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/${IMAGE_REPO}:latest'
+          - name: 推送镜像
+            task: docker-push
+      - name: 主机部署
+        steps:
+          - name: 部署到自有主机组
+            task: host-deploy
+            with:
+              hostGroup: ${DEPLOY_HOST_GROUP}
+              image: '${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/${IMAGE_REPO}:latest'
+              deployScript: |
+                set -e
+                echo "QIYU_IMAGE_REPOSITORY=${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/${IMAGE_REPO}" > .env
+                echo "QIYU_IMAGE_TAG=latest" >> .env
+                echo "QIYU_DB_URL=${QIYU_DB_URL}" >> .env
+                echo "QIYU_DB_USERNAME=${QIYU_DB_USERNAME}" >> .env
+                echo "QIYU_DB_PASSWORD=${QIYU_DB_PASSWORD}" >> .env
+                echo "QIYU_REDIS_HOST=${QIYU_REDIS_HOST}" >> .env
+                echo "QIYU_REDIS_PASSWORD=${QIYU_REDIS_PASSWORD}" >> .env
+                echo "ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD}" >> .env
+                docker compose up -d

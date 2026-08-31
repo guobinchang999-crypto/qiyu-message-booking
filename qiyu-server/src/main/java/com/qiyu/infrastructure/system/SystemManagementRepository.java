@@ -1,6 +1,7 @@
 package com.qiyu.infrastructure.system;
 
-import com.qiyu.application.system.SystemModels;
+import com.qiyu.application.system.dto.SystemModels;
+import com.qiyu.application.system.SystemManagementGateway;
 import com.qiyu.infrastructure.persistence.entity.SystemAuditEntity;
 import com.qiyu.infrastructure.persistence.entity.SystemDictionaryEntity;
 import com.qiyu.infrastructure.persistence.entity.SystemMenuEntity;
@@ -33,7 +34,7 @@ import java.util.UUID;
  * converted here so database details never leak into controllers or application services.</p>
  */
 @Repository
-public class SystemManagementRepository {
+public class SystemManagementRepository implements SystemManagementGateway {
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final List<String> SCOPED_RESOURCES = List.of(
             "store", "booking", "service_order", "schedule", "therapist", "room",
@@ -227,6 +228,50 @@ public class SystemManagementRepository {
         List<SystemModels.ScopeOption> regions = mapper.dataScopeRegionOptions().stream()
                 .map(row -> new SystemModels.ScopeOption(row.id(), row.name())).toList();
         return new SystemModels.DataScopeOptions(stores, regions);
+    }
+
+    /** Returns the persisted user-level permission overrides for one user. */
+    public List<SystemModels.UserPermission> userPermissions(long userId) {
+        ensureUser(userId);
+        return mapper.userPermissions(userId).stream()
+                .map(row -> new SystemModels.UserPermission(string(row.permissionCode()), string(row.effect())))
+                .toList();
+    }
+
+    /** Replaces a user's direct ALLOW/DENY overrides after validating every referenced permission. */
+    @Transactional
+    public List<SystemModels.UserPermission> saveUserPermissions(
+            long userId, SystemModels.UserPermissionCommand command, long operatorId) {
+        ensureUser(userId);
+        List<String> allowedCodes = safe(command == null ? null : command.allowedCodes());
+        List<String> deniedCodes = safe(command == null ? null : command.deniedCodes());
+        Set<String> overlap = new java.util.LinkedHashSet<>(allowedCodes);
+        overlap.retainAll(deniedCodes);
+        if (!overlap.isEmpty()) {
+            throw new IllegalArgumentException("权限不能同时允许和禁止：" + String.join(",", overlap));
+        }
+        List<Long> allowedIds = permissionIds(allowedCodes);
+        List<Long> deniedIds = permissionIds(deniedCodes);
+        mapper.deleteUserPermissions(userId);
+        for (Long permissionId : allowedIds) mapper.insertUserPermission(userId, permissionId, "ALLOW", operatorId);
+        for (Long permissionId : deniedIds) mapper.insertUserPermission(userId, permissionId, "DENY", operatorId);
+        audit(operatorId, "system:user:permission", "SYSTEM_USER", userId);
+        return userPermissions(userId);
+    }
+
+    /** Removes all direct overrides so the user inherits role permissions again. */
+    @Transactional
+    public List<SystemModels.UserPermission> clearUserPermissions(long userId, long operatorId) {
+        ensureUser(userId);
+        mapper.deleteUserPermissions(userId);
+        audit(operatorId, "system:user:permission:clear", "SYSTEM_USER", userId);
+        return userPermissions(userId);
+    }
+
+    /** Returns the enabled permission catalog for the direct-permission editor. */
+    public List<SystemModels.PermissionOption> permissionOptions() {
+        return mapper.permissionOptions().stream()
+                .map(row -> new SystemModels.PermissionOption(string(row.code()), string(row.name()))).toList();
     }
 
     /** Replaces the persisted password hash and records the privileged operation. */

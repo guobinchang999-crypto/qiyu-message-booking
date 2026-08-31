@@ -155,18 +155,29 @@ interface RemoteBusinessReport {
 
 const toNumber = (value: number | string): number => typeof value === 'number' ? value : Number.parseFloat(value.replace(/[^\d.]/g, '')) || 0;
 
+const newRequestId = (): string => typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+  ? crypto.randomUUID()
+  : `booking-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 export const adminRemoteApi = {
   async createAppointment(appointment: Appointment): Promise<void> {
     await adminRequest('/admin/bookings', { method: 'POST', data: {
       storeId: appointment.storeId || appointment.store, serviceId: appointment.serviceId || appointment.service,
       therapistId: appointment.therapistId || appointment.therapist,
       roomId: appointment.roomId || appointment.room, date: appointment.scheduledAt.slice(0, 10), startTime: appointment.scheduledAt.slice(11, 16),
-      customerName: appointment.customerName, mobile: appointment.phone
+      customerName: appointment.customerName, mobile: appointment.phone, requestId: newRequestId()
     } });
   },
   async rescheduleAppointment(appointment: Appointment): Promise<void> {
     await adminRequest(`/admin/bookings/${encodeURIComponent(appointment.id)}/reschedule`, { method: 'POST', data: {
       date: appointment.scheduledAt.slice(0, 10), startTime: appointment.scheduledAt.slice(11, 16)
+    } });
+  },
+  async updateAppointment(appointment: Appointment): Promise<void> {
+    await adminRequest(`/admin/bookings/${encodeURIComponent(appointment.id)}`, { method: 'PUT', data: {
+      date: appointment.scheduledAt.slice(0, 10), startTime: appointment.scheduledAt.slice(11, 16),
+      therapistId: appointment.therapistId || appointment.therapist,
+      roomId: appointment.roomId || appointment.room
     } });
   },
   async changeTherapist(id: string, therapistId: string): Promise<void> {

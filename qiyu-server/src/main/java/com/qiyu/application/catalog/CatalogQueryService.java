@@ -1,5 +1,12 @@
 package com.qiyu.application.catalog;
 
+import com.qiyu.application.catalog.dto.ClientCatalogPayload;
+
+import com.qiyu.application.catalog.dto.CatalogResourceVO;
+import com.qiyu.application.catalog.dto.DictionaryCollectionVO;
+import com.qiyu.application.catalog.dto.DictionaryItemVO;
+import com.qiyu.application.catalog.dto.ResourceOptionVO;
+
 import com.qiyu.domain.booking.BookingStatus;
 import com.qiyu.domain.payment.PaymentStatus;
 import com.qiyu.domain.room.RoomStatus;

@@ -5,8 +5,8 @@ import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.admin.AdminExportService;
 import com.qiyu.application.admin.AdminQueryService;
 import com.qiyu.domain.catalog.Store;
-import com.qiyu.application.booking.BookingVO;
-import com.qiyu.application.admin.AdminResponseModels;
+import com.qiyu.application.booking.dto.BookingVO;
+import com.qiyu.application.admin.dto.AdminResponseModels;
 import com.qiyu.application.admin.StoreManagementService;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
 import com.qiyu.application.booking.BookingAppService;
-import com.qiyu.application.booking.BookingCreateCommand;
+import com.qiyu.application.booking.dto.BookingCreateCommand;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -46,12 +47,19 @@ public class AdminController {
 
     @PostMapping("/bookings")
     public ApiResponse<BookingVO> createBooking(@Valid @RequestBody AdminBookingCreateRequest request) {
-        return ApiResponse.success(bookingAppService.createForAdmin(new BookingCreateCommand(request.storeId(), request.serviceId(), request.therapistId(), request.roomId(), request.date(), request.startTime(), request.customerName(), request.mobile(), request.couponId())));
+        return ApiResponse.success(bookingAppService.createForAdmin(new BookingCreateCommand(request.storeId(), request.serviceId(), request.therapistId(), request.roomId(), request.date(), request.startTime(), request.customerName(), request.mobile(), request.couponId(), request.requestId())));
     }
 
     @PostMapping("/bookings/{id}/reschedule")
     public ApiResponse<BookingVO> rescheduleBooking(@PathVariable String id, @Valid @RequestBody AdminBookingRescheduleRequest request) {
         return ApiResponse.success(bookingAppService.reschedule(id, request.date(), request.startTime()));
+    }
+
+    /** Atomic update replacing the previous three-request schedule/therapist/room flow. */
+    @PutMapping("/bookings/{id}")
+    public ApiResponse<BookingVO> updateBooking(@PathVariable String id, @Valid @RequestBody AdminBookingUpdateRequest request) {
+        return ApiResponse.success(bookingAppService.updateBooking(id, request.date(), request.startTime(),
+                request.therapistId(), request.roomId()));
     }
 
     @PostMapping("/bookings/{id}/therapist")

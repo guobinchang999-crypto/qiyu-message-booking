@@ -29,7 +29,9 @@ Page({
                 booking_service_1.bookingService.getPageStateDictionaries()
             ]);
             const viewSlots = slots.map((slot) => ({ ...slot, statusText: dictionaries.statusLabel[slot.status] || '' }));
-            const availableDates = dateValues(dictionaries.dates.length);
+            // Dates come from the server so the client clock cannot drift ahead of the store calendar;
+            // the client-side fallback only covers legacy backends that omit dateValues.
+            const availableDates = dictionaries.dateValues?.length ? dictionaries.dateValues : dateValues(dictionaries.dates.length);
             const selectedDateIndex = Math.max(0, availableDates.indexOf(draft.appointmentDate));
             const draftSlot = viewSlots.find((slot) => slot.id === draft.slotId && slot.status !== 'full');
             const period = draftSlot?.period || dictionaries.defaultPeriod;

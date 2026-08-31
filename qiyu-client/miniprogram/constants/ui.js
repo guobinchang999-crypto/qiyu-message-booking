@@ -25,10 +25,11 @@ exports.defaultActionStateCopy = {
     reviewSubmitErrorMessage: '评价未能提交，请重试'
 };
 const resolvePageError = (error, configuredMessage = '') => {
-    if (configuredMessage)
-        return configuredMessage;
+    // Backend business reasons win so users learn why an action failed; configured copy is the fallback.
     if (error instanceof Error && error.message)
         return error.message;
+    if (configuredMessage)
+        return configuredMessage;
     return exports.defaultPageStateCopy.errorMessage;
 };
 exports.resolvePageError = resolvePageError;

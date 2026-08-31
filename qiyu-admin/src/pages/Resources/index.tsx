@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, LeftOutlined, PlusOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons';
-import { Button, Card, DatePicker, Empty, Form, Input, Modal, Popconfirm, Select, Space, Table, Tabs, Tag, TimePicker, message } from 'antd';
+import { Button, Card, Col, DatePicker, Empty, Form, Input, Modal, Popconfirm, Row, Select, Space, Table, Tabs, Tag, TimePicker, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -117,9 +117,9 @@ export default function ResourcesPage() {
     <Card className="qiyu-card"><div className="qiyu-toolbar"><Space><Button icon={<LeftOutlined />} onClick={() => setWeekStart((value) => value.subtract(7, 'day'))} title="上一周" /><DatePicker value={weekStart} onChange={(value) => value && setWeekStart(monday(value))} allowClear={false} /><Button icon={<RightOutlined />} onClick={() => setWeekStart((value) => value.add(7, 'day'))} title="下一周" /></Space><span>{weekStart.format('YYYY-MM-DD')} 至 {weekStart.add(6, 'day').format('YYYY-MM-DD')}</span></div>
       <Tabs items={[{ key: 'schedule', label: `技师排班 (${scopedSchedules.length})`, children: <Table rowKey="id" loading={loading} columns={scheduleColumns} dataSource={scopedSchedules} locale={{ emptyText: <Empty description="本周暂无排班" /> }} pagination={false} /> }, { key: 'room', label: `房间状态 (${scopedRooms.length})`, children: <Table rowKey="id" loading={loading} columns={roomColumns} dataSource={scopedRooms} pagination={false} /> }]} />
     </Card>
-    <Modal title={editing ? '编辑排班' : '新增排班'} open={open} confirmLoading={saving} onOk={submit} onCancel={() => setOpen(false)} destroyOnHidden><Form form={form} layout="vertical" preserve={false} style={{ marginTop: 20 }}>
+    <Modal title={editing ? '编辑排班' : '新增排班'} open={open} confirmLoading={saving} onOk={submit} onCancel={() => setOpen(false)} width={640} destroyOnHidden><Form form={form} layout="vertical" preserve={false} style={{ marginTop: 24 }}>
       <Form.Item name="therapistId" label="技师" rules={[{ required: true, message: '请选择技师' }]}><Select options={scopedTherapists.map((item) => ({ label: item.name, value: item.id }))} /></Form.Item>
-      <Space align="start" style={{ display: 'flex' }}><Form.Item name="workDate" label="日期" rules={[{ required: true }]} style={{ flex: 1 }}><DatePicker style={{ width: '100%' }} /></Form.Item><Form.Item name="status" label="状态" rules={[{ required: true }]} style={{ flex: 1 }}><Select options={statusOptions.map(({ value, label }) => ({ value, label }))} /></Form.Item></Space>
+      <Row gutter={16}><Col span={12}><Form.Item name="workDate" label="日期" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item></Col><Col span={12}><Form.Item name="status" label="状态" rules={[{ required: true }]}><Select options={statusOptions.map(({ value, label }) => ({ value, label }))} /></Form.Item></Col></Row>
       <Form.Item name="timeRange" label="时段" rules={[{ required: true, message: '请选择排班时段' }]}><TimePicker.RangePicker format="HH:mm" minuteStep={10} style={{ width: '100%' }} /></Form.Item>
       <Form.Item name="remark" label="备注"><Input.TextArea rows={3} maxLength={255} showCount /></Form.Item>
     </Form></Modal>

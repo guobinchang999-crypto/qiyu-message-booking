@@ -2,7 +2,7 @@ package com.qiyu.infrastructure.catalog;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiyu.application.catalog.ClientCatalogGateway;
-import com.qiyu.application.catalog.ClientCatalogPayload;
+import com.qiyu.application.catalog.dto.ClientCatalogPayload;
 import com.qiyu.infrastructure.mock.MockCatalogProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;

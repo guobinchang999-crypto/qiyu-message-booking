@@ -1,6 +1,6 @@
 package com.qiyu.infrastructure.system;
 
-import com.qiyu.application.system.SystemModels.RoleCommand;
+import com.qiyu.application.system.dto.SystemModels.RoleCommand;
 import com.qiyu.infrastructure.persistence.entity.SystemRoleEntity;
 import com.qiyu.infrastructure.persistence.mapper.SystemManagementMapper;
 import com.qiyu.infrastructure.persistence.mapper.SystemRoleProjection;

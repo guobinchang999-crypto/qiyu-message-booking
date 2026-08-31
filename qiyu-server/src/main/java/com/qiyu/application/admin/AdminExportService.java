@@ -1,9 +1,11 @@
 package com.qiyu.application.admin;
 
+import com.qiyu.application.admin.dto.AdminResponseModels;
+
 import com.qiyu.application.auth.AuthAppService;
 import com.qiyu.application.auth.DataPermissionService;
-import com.qiyu.application.booking.BookingAppService;
-import com.qiyu.application.booking.BookingVO;
+import com.qiyu.application.booking.BookingQueryService;
+import com.qiyu.application.booking.dto.BookingVO;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -22,20 +24,20 @@ public class AdminExportService {
     private final DataPermissionService dataPermissionService;
     private final AuthAppService authAppService;
     private final AdminQueryService adminQueryService;
-    private final BookingAppService bookingAppService;
+    private final BookingQueryService bookingQueryService;
 
     public AdminExportService(DataPermissionService dataPermissionService, AuthAppService authAppService,
-                              AdminQueryService adminQueryService, BookingAppService bookingAppService) {
+                              AdminQueryService adminQueryService, BookingQueryService bookingQueryService) {
         this.dataPermissionService = dataPermissionService;
         this.authAppService = authAppService;
         this.adminQueryService = adminQueryService;
-        this.bookingAppService = bookingAppService;
+        this.bookingQueryService = bookingQueryService;
     }
 
     /** Exports bookings inside the operator's booking data scope. */
     public String exportBookings() {
         dataPermissionService.requirePermission("booking:export");
-        List<BookingVO> rows = bookingAppService.list(null);
+        List<BookingVO> rows = bookingQueryService.list(null);
         return csv(List.of("预约编号", "状态", "门店", "服务", "技师", "客户", "手机号", "日期", "开始", "结束", "金额"),
                 rows.stream().map(this::bookingRow).toList());
     }

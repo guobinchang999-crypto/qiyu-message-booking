@@ -1,78 +1,87 @@
 package com.qiyu.application.booking;
 
+import com.qiyu.application.booking.dto.BookingCreateCommand;
+import com.qiyu.application.booking.dto.BookingOperationVO;
+import com.qiyu.application.booking.dto.BookingVO;
+
+import com.qiyu.application.auth.AuditLogService;
+import com.qiyu.application.auth.AuthAppService;
+import com.qiyu.application.auth.AuthPrincipal;
 import com.qiyu.domain.booking.Booking;
+import com.qiyu.domain.booking.BookingDomainService;
+import com.qiyu.domain.booking.BookingFactory;
+import com.qiyu.domain.booking.BookingNo;
 import com.qiyu.domain.booking.BookingStatus;
 import com.qiyu.domain.booking.gateway.BookingGateway;
-import com.qiyu.application.auth.AuthPrincipal;
-import com.qiyu.application.auth.AuthAppService;
-import com.qiyu.application.auth.AuditLogService;
-import com.qiyu.application.auth.DataPermissionService;
-import com.qiyu.application.auth.AuthContext;
-import com.qiyu.domain.schedule.ScheduleConflictChecker;
-import com.qiyu.domain.catalog.gateway.CatalogGateway;
 import com.qiyu.domain.catalog.Room;
 import com.qiyu.domain.catalog.ServiceItem;
-import com.qiyu.domain.catalog.Store;
 import com.qiyu.domain.catalog.Therapist;
+import com.qiyu.domain.catalog.gateway.CatalogGateway;
 import com.qiyu.domain.customer.gateway.CustomerLookupGateway;
-import com.qiyu.domain.coupon.gateway.CouponGateway;
 import com.qiyu.domain.payment.gateway.PaymentGateway;
-import org.springframework.stereotype.Service;
+import com.qiyu.domain.schedule.ScheduleConflictChecker;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Orchestrates booking use cases across authentication, catalog validation, resource conflict
- * detection, persistence and audit logging. State-transition rules themselves stay in the
- * {@link Booking} aggregate.
+ * Command-side booking use cases: creation, state transitions and resource reassignment.
+ * Query flows live in {@link BookingQueryService}; shared mapping and authorization live in
+ * {@link BookingAssembler} and {@link BookingAuthorizer}.
  */
 @Service
 public class BookingAppService {
     private final BookingGateway bookingGateway;
     private final CatalogGateway catalogProvider;
     private final AuthAppService authAppService;
-    private final DataPermissionService dataPermissionService;
     private final AuditLogService auditLogService;
+    private final CustomerLookupGateway customerLookupGateway;
+    private final PaymentGateway paymentGateway;
+    private final BookingAuthorizer authorizer;
+    private final BookingAssembler assembler;
+    private final BookingPricingCalculator pricingCalculator;
     private final ScheduleConflictChecker conflictChecker = new ScheduleConflictChecker();
+    private final BookingDomainService bookingDomain = new BookingDomainService();
     private final AtomicInteger sequence = new AtomicInteger(1003);
     private final boolean persistenceEnabled;
-    private final CustomerLookupGateway customerLookupGateway;
-    private final CouponGateway couponGateway;
-    private final PaymentGateway paymentGateway;
+    private final int paymentTimeoutMinutes;
 
     public BookingAppService(BookingGateway bookingGateway, CatalogGateway catalogProvider,
-                             AuthAppService authAppService,
-                             DataPermissionService dataPermissionService, AuditLogService auditLogService,
-                             @Value("${qiyu.auth.persistence:false}") boolean persistenceEnabled, CustomerLookupGateway customerLookupGateway,
-                             CouponGateway couponGateway, PaymentGateway paymentGateway) {
+                             AuthAppService authAppService, AuditLogService auditLogService,
+                             @Value("${qiyu.auth.persistence:false}") boolean persistenceEnabled,
+                             CustomerLookupGateway customerLookupGateway, PaymentGateway paymentGateway,
+                             BookingAuthorizer authorizer, BookingAssembler assembler,
+                             BookingPricingCalculator pricingCalculator,
+                             @Value("${qiyu.booking.payment-timeout-minutes:15}") int paymentTimeoutMinutes) {
         this.bookingGateway = bookingGateway;
         this.catalogProvider = catalogProvider;
         this.authAppService = authAppService;
-        this.dataPermissionService = dataPermissionService;
         this.auditLogService = auditLogService;
         this.persistenceEnabled = persistenceEnabled;
         this.customerLookupGateway = customerLookupGateway;
-        this.couponGateway = couponGateway;
         this.paymentGateway = paymentGateway;
-        if (!persistenceEnabled) seedBookings();
+        this.authorizer = authorizer;
+        this.assembler = assembler;
+        this.pricingCalculator = pricingCalculator;
+        this.paymentTimeoutMinutes = paymentTimeoutMinutes;
     }
 
     /** Creates a customer-owned booking after catalog validation and conflict checking. */
     public synchronized BookingVO create(BookingCreateCommand command) {
-        // A booking belongs to the authenticated customer; callers cannot inject another owner.
+        // synchronized only guards the in-memory check-then-save window of this single instance.
+        // Multi-instance safety comes from resource row locks and the request_id unique key inside
+        // the persistence gateway.
         AuthPrincipal principal = authAppService.requireCustomer();
         return createForCustomer(command, principal.customerId(), BookingStatus.PENDING_PAYMENT, BigDecimal.ZERO);
     }
 
-    /** Creates a booking for an existing customer from an authorized staff workflow. */
     /** Creates a booking for an existing customer after staff function and store-scope checks. */
     public synchronized BookingVO createForAdmin(BookingCreateCommand command) {
         AuthPrincipal principal = authAppService.requirePermission("booking:create");
@@ -89,121 +98,69 @@ public class BookingAppService {
 
     private BookingVO createForCustomer(BookingCreateCommand command, String customerId,
                                         BookingStatus initialStatus, BigDecimal paidAmountOverride) {
+        // Idempotent creation: a retried submission with the same requestId returns the original
+        // booking instead of creating a duplicate, even when the first response was lost.
+        Booking existing = bookingGateway.findByRequestId(command.requestId()).orElse(null);
+        if (existing != null) return assembler.toView(existing);
         ServiceItem service = catalogProvider.findService(command.serviceId());
         catalogProvider.findStore(command.storeId());
         String therapistId = command.therapistId();
         if (therapistId == null || therapistId.isBlank()) {
-            therapistId = catalogProvider.therapists(command.storeId(), command.serviceId()).stream()
-                    .filter(item -> "AVAILABLE".equals(item.status()))
-                    .map(Therapist::id)
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("当前门店暂无可用技师"));
+            therapistId = bookingDomain.autoAssignTherapist(
+                    catalogProvider.therapists(command.storeId(), command.serviceId())).id();
         }
         Therapist therapist = catalogProvider.findTherapist(therapistId);
-        if (!command.storeId().equals(therapist.storeId())) {
-            throw new IllegalArgumentException("所选技师不属于当前门店");
-        }
+        bookingDomain.ensureTherapistBelongsToStore(command.storeId(), therapist);
         String roomId = command.roomId() == null || command.roomId().isBlank()
-                ? defaultRoomId(command.storeId()) : command.roomId();
-        String bookingNo = persistenceEnabled ? "BK-" + java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").format(java.time.LocalDateTime.now()) : "BK-202608-" + sequence.getAndIncrement();
-        BookingPricing pricing = pricing(service, therapist, customerId, command.couponId(), 1);
-        Booking booking = new Booking(bookingNo, command.storeId(), command.serviceId(),
+                ? bookingDomain.defaultRoomId(command.storeId()) : command.roomId();
+        String bookingNo = persistenceEnabled ? BookingNo.timestamped().value() : BookingNo.demo(sequence.getAndIncrement()).value();
+        BookingPricingCalculator.BookingPricing pricing = pricingCalculator.pricing(service, therapist, customerId, command.couponId(), 1);
+        Booking booking = BookingFactory.create(bookingNo, command.storeId(), command.serviceId(),
                 therapistId, roomId, command.customerName(), command.mobile(), customerId, LocalDate.parse(command.date()),
-                LocalTime.parse(command.startTime()), service.durationMinutes(), initialStatus, null,
+                LocalTime.parse(command.startTime()), service.durationMinutes(), initialStatus,
                 pricing.itemAmount(), pricing.therapistFee(), pricing.discountAmount(), BigDecimal.ZERO,
-                pricing.depositDue(), paidAmountOverride == null ? pricing.depositDue() : paidAmountOverride);
+                pricing.depositDue(), paidAmountOverride == null ? pricing.depositDue() : paidAmountOverride,
+                command.requestId());
         // Validate the complete occupied window, including preparation and cleanup buffers,
         // before any state is persisted.
         conflictChecker.ensureAvailable(booking, bookingGateway.findAll());
-        return toView(bookingGateway.save(booking));
-    }
-
-    /** Calculates the confirmation-page amount breakdown without mutating a booking. */
-    public BookingOperationVO.Confirmation confirmation(String storeId, String serviceId, String therapistId, String date,
-                                            String startTime, Integer guestCount, String couponId) {
-        authAppService.requireCustomer();
-        Store store = catalogProvider.findStore(storeId);
-        ServiceItem service = catalogProvider.findService(serviceId);
-        Therapist therapist = therapistId == null || therapistId.isBlank() ? null : catalogProvider.findTherapist(therapistId);
-        int safeGuestCount = guestCount == null || guestCount < 1 ? 1 : guestCount;
-        BookingPricing pricing = pricing(service, therapist, AuthContext.current().customerId(), couponId, safeGuestCount);
-
-        return new BookingOperationVO.Confirmation("确认预约",
-                new BookingOperationVO.EditActions("修改门店", "修改项目", "修改技师", "修改时间"),
-                new BookingOperationVO.ServiceCardMeta("分钟", "已服务", "次"), store, service, therapist,
-                therapist == null ? "系统自动分配技师" : therapist.name(), date + " " + startTime,
-                new BookingOperationVO.PaymentSummary(money(pricing.itemAmount()), money(pricing.therapistFee()), money(pricing.discountAmount()), 0, money(pricing.depositDue()), money(pricing.depositDue())),
-                new BookingOperationVO.FormCopy("服务人数", "预约人", "请输入姓名", "备注", "选填", "请填写预约人姓名", "确认预约"),
-                "会员权益 · 全门店通用", (couponId == null || couponId.isBlank() ? "不使用优惠" : couponId) + " ›", "费用明细",
-                List.of(new BookingOperationVO.PaymentLine("item", "服务项目", "¥" + money(pricing.itemAmount()), null),
-                        new BookingOperationVO.PaymentLine("therapist", "指定技师", "¥" + money(pricing.therapistFee()), null),
-                        new BookingOperationVO.PaymentLine("discount", "优惠", "-¥" + money(pricing.discountAmount()), "discount")),
-                "应付订金", "我已阅读并同意取消预约规则", "请先阅读并同意取消预约规则", "确认并支付订金 ¥" + money(pricing.depositDue()), safeGuestCount);
-    }
-
-    /** Loads one booking only after applying row-level permission checks. */
-    public BookingVO detail(String bookingId) {
-        Booking booking = authorized(bookingId, "booking:read", "READ");
-        recordPhoneReveal(booking.storeId(), booking.id());
-        return toView(booking);
-    }
-
-    /** Returns the typed success-page payload for an authorized booking. */
-    public BookingOperationVO.Success success(String bookingId) {
-        return new BookingOperationVO.Success(detail(bookingId), new BookingOperationVO.SuccessCopy(
-                "预约成功", "已为你保留安静的放松时光", "预约编号", "到店后可在预约详情或签到页出示预约码。",
-                "导航", "联系门店", "到店前 30 分钟将再次提醒你，请提前 10 分钟到店。", "查看预约详情", "返回首页"));
-    }
-
-    /** Builds a new-booking draft from an authorized historical booking. */
-    public BookingOperationVO.DraftResult rebookDraft(String bookingId) {
-        Booking booking = authorized(bookingId, "booking:read", "READ");
-        return new BookingOperationVO.DraftResult(booking.id(), new BookingOperationVO.Draft(booking.storeId(), booking.serviceId(), "auto", null, null, 1, booking.customerName(), "", "", "create", null));
-    }
-
-    /** Builds a rescheduling draft and rejects bookings in non-reschedulable states. */
-    public BookingOperationVO.DraftResult rescheduleDraft(String bookingId) {
-        Booking booking = authorized(bookingId, "booking:update", "UPDATE");
-        if (booking.status() != BookingStatus.BOOKED) {
-            throw new IllegalArgumentException("当前预约状态不可改期");
-        }
-        return new BookingOperationVO.DraftResult(booking.id(), new BookingOperationVO.Draft(booking.storeId(), booking.serviceId(), "specified", booking.therapistId(), null, 1, booking.customerName(), "", "", "reschedule", booking.id()));
+        return assembler.toView(bookingGateway.save(booking));
     }
 
     /** Checks in a booking and records the state transition in the audit log. */
     public BookingVO checkIn(String bookingId) {
         // Authorization precedes mutation so forbidden requests cannot reveal transition details.
-        Booking booking = authorized(bookingId, "booking:checkin", "CHECKIN");
+        Booking booking = authorizer.loadAuthorized(bookingId, "booking:checkin", "CHECKIN");
         String beforeStatus = booking.status().name();
         booking.checkIn();
         bookingGateway.save(booking);
         auditLogService.record("booking:checkin", "booking", booking.id(), booking.storeId(),
                 Map.of("status", beforeStatus), Map.of("status", booking.status().name()));
-        return toView(booking);
+        return assembler.toView(booking);
     }
 
     /** Refreshes the check-in code after verifying booking visibility. */
     public BookingVO refreshVerificationCode(String bookingId) {
-        Booking booking = authorized(bookingId, "booking:read", "READ");
+        Booking booking = authorizer.loadAuthorized(bookingId, "booking:read", "READ");
         booking.refreshVerificationCode();
         bookingGateway.save(booking);
-        return toView(booking);
+        return assembler.toView(booking);
     }
 
     /** Cancels an authorized booking, releases its occupied resources and audits the change. */
     public BookingVO cancel(String bookingId) {
-        Booking booking = authorized(bookingId, "booking:cancel", "CANCEL");
+        Booking booking = authorizer.loadAuthorized(bookingId, "booking:cancel", "CANCEL");
         String beforeStatus = booking.status().name();
         booking.cancel();
         bookingGateway.save(booking);
         auditLogService.record("booking:cancel", "booking", booking.id(), booking.storeId(),
                 Map.of("status", beforeStatus), Map.of("status", booking.status().name()));
-        return toView(booking);
+        return assembler.toView(booking);
     }
 
     /** Creates provider payment parameters; an unavailable provider fails closed instead of faking success. */
     public BookingOperationVO.Payment preparePayment(String bookingId, String requestId) {
-        Booking booking = authorized(bookingId, "booking:read", "READ");
+        Booking booking = authorizer.loadAuthorized(bookingId, "booking:read", "READ");
         PaymentGateway.PaymentPreparation payment = paymentGateway.prepareDeposit(booking, requestId);
         PaymentGateway.PaymentParameters parameters = payment.parameters();
         return new BookingOperationVO.Payment(booking.id(), payment.amount(), payment.paymentNo(),
@@ -213,235 +170,134 @@ public class BookingAppService {
 
     /** Applies the deposit-paid state transition for a customer-owned booking. */
     public BookingVO payDeposit(String bookingId, String requestId) {
-        Booking booking = authorized(bookingId, "booking:update", "UPDATE");
+        Booking booking = authorizer.loadAuthorized(bookingId, "booking:update", "UPDATE");
         paymentGateway.verifyDepositConfirmation(booking, requestId);
         booking.payDeposit();
         bookingGateway.save(booking);
-        return toView(booking);
+        return assembler.toView(booking);
     }
 
     /** Starts service after staff authentication and row-level authorization. */
     public BookingVO startService(String bookingId) {
-        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
+        Booking booking = authorizer.loadAuthorizedStaff(bookingId, "booking:update", "UPDATE");
         booking.startService();
         bookingGateway.save(booking);
-        return toView(booking);
+        return assembler.toView(booking);
     }
 
     /** Finishes service after staff authentication and row-level authorization. */
     public BookingVO finishService(String bookingId) {
-        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
+        Booking booking = authorizer.loadAuthorizedStaff(bookingId, "booking:update", "UPDATE");
         booking.finishService();
         bookingGateway.save(booking);
-        return toView(booking);
+        return assembler.toView(booking);
     }
 
     /** Completes settlement after staff authentication and row-level authorization. */
     public BookingVO completeSettlement(String bookingId) {
-        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
+        Booking booking = authorizer.loadAuthorizedStaff(bookingId, "booking:update", "UPDATE");
         booking.completeSettlement();
         bookingGateway.save(booking);
-        return toView(booking);
+        return assembler.toView(booking);
+    }
+
+    /** Applies schedule, therapist and room changes atomically in one transaction for staff workflows. */
+    public synchronized BookingVO updateBooking(String bookingId, String date, String startTime,
+                                                String therapistId, String roomId) {
+        Booking booking = authorizer.loadAuthorizedStaff(bookingId, "booking:update", "UPDATE");
+        return applyChanges(booking, date, startTime, therapistId, roomId);
     }
 
     /** Reschedules through a detached candidate so failed conflict checks do not mutate state. */
     public synchronized BookingVO reschedule(String bookingId, String date, String startTime) {
-        Booking booking = authorized(bookingId, "booking:update", "UPDATE");
-        String beforeScheduledAt = booking.timeRange().serviceFrom().toString();
-        ServiceItem service = catalogProvider.findService(booking.serviceId());
-        // Build a detached candidate first. A failed conflict check must leave the aggregate's
-        // original schedule unchanged.
-        Booking candidate = new Booking(booking.id(), booking.storeId(), booking.serviceId(), booking.therapistId(), booking.roomId(),
-                booking.customerName(), booking.mobile(), booking.customerId(), LocalDate.parse(date), LocalTime.parse(startTime),
-                service.durationMinutes(), booking.status(), booking.verificationCode(), booking.itemAmount(), booking.therapistFeeAmount(),
-                booking.discountAmount(), booking.balanceDeductionAmount(), booking.depositDueAmount(), booking.paidAmount());
-        conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
-                .filter(existing -> !existing.id().equals(booking.id()))
-                .toList());
-        booking.reschedule(LocalDate.parse(date), LocalTime.parse(startTime), service.durationMinutes());
-        bookingGateway.save(booking);
-        auditLogService.record("booking:update", "booking", booking.id(), booking.storeId(),
-                Map.of("scheduledAt", beforeScheduledAt), Map.of("scheduledAt", booking.timeRange().serviceFrom().toString()));
-        return toView(booking);
+        Booking booking = authorizer.loadAuthorized(bookingId, "booking:update", "UPDATE");
+        return applyChanges(booking, date, startTime, null, null);
     }
 
     /** Reassigns the therapist for an existing booking after store and conflict validation. */
     public synchronized BookingVO changeTherapist(String bookingId, String therapistId) {
-        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
-        Therapist therapist = catalogProvider.findTherapist(therapistId);
-        if (!booking.storeId().equals(therapist.storeId())) {
-            throw new IllegalArgumentException("所选技师不属于当前门店");
-        }
-        Booking candidate = new Booking(booking.id(), booking.storeId(), booking.serviceId(), therapistId, booking.roomId(),
-                booking.customerName(), booking.mobile(), booking.customerId(), booking.timeRange().serviceFrom().toLocalDate(),
-                booking.timeRange().serviceFrom().toLocalTime(), catalogProvider.findService(booking.serviceId()).durationMinutes(),
-                booking.status(), booking.verificationCode(), booking.itemAmount(), booking.therapistFeeAmount(),
-                booking.discountAmount(), booking.balanceDeductionAmount(), booking.depositDueAmount(), booking.paidAmount());
-        conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
-                .filter(existing -> !existing.id().equals(booking.id()))
-                .toList());
-        String before = booking.therapistId();
-        booking.changeTherapist(therapistId);
-        bookingGateway.save(booking);
-        auditLogService.record("booking:update", "booking", booking.id(), booking.storeId(),
-                Map.of("therapistId", before == null ? "" : before), Map.of("therapistId", therapistId));
-        return toView(booking);
+        Booking booking = authorizer.loadAuthorizedStaff(bookingId, "booking:update", "UPDATE");
+        return applyChanges(booking, null, null, therapistId, null);
     }
 
     /** Assigns or swaps the service room after store and conflict validation. */
     public synchronized BookingVO assignRoom(String bookingId, String roomId) {
-        Booking booking = authorizedStaff(bookingId, "booking:update", "UPDATE");
-        Room room = catalogProvider.findRoom(roomId);
-        if (!booking.storeId().equals(room.storeId())) {
-            throw new IllegalArgumentException("所选房间不属于当前门店");
-        }
-        Booking candidate = new Booking(booking.id(), booking.storeId(), booking.serviceId(), booking.therapistId(), roomId,
-                booking.customerName(), booking.mobile(), booking.customerId(), booking.timeRange().serviceFrom().toLocalDate(),
-                booking.timeRange().serviceFrom().toLocalTime(), catalogProvider.findService(booking.serviceId()).durationMinutes(),
-                booking.status(), booking.verificationCode(), booking.itemAmount(), booking.therapistFeeAmount(),
-                booking.discountAmount(), booking.balanceDeductionAmount(), booking.depositDueAmount(), booking.paidAmount());
-        conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
-                .filter(existing -> !existing.id().equals(booking.id()))
-                .toList());
-        String before = booking.roomId();
-        booking.assignRoom(roomId);
-        bookingGateway.save(booking);
-        auditLogService.record("booking:update", "booking", booking.id(), booking.storeId(),
-                Map.of("roomId", before == null ? "" : before), Map.of("roomId", roomId));
-        return toView(booking);
-    }
-
-    /** Returns only bookings allowed by the current principal and optional status filter. */
-    public List<BookingVO> list(String status) {
-        AuthPrincipal principal = dataPermissionService.requirePermission("booking:read");
-        // Data scope is applied before mapping, so list, statistics and sensitive-field handling
-        // never receive rows outside the principal's accessible stores or therapist identity.
-        List<BookingVO> rows = bookingGateway.findAll().stream()
-                .filter(booking -> dataPermissionService.canAccessBooking(principal, booking, "READ"))
-                .filter(booking -> status == null || status.isBlank() || booking.status().name().equals(status))
-                .map(this::toView)
-                .toList();
-        // Phone reveal is a request-level capability, not a per-row event; one audit entry avoids
-        // flooding the log for a single list that exposes N customer numbers.
-        if (!rows.isEmpty()) {
-            recordPhoneReveal(null, "LIST");
-        }
-        return rows;
+        Booking booking = authorizer.loadAuthorizedStaff(bookingId, "booking:update", "UPDATE");
+        return applyChanges(booking, null, null, null, roomId);
     }
 
     /**
-     * Audits the reveal capability once per request for staff principals who hold the
-     * {@code customer:reveal_phone} permission, instead of once per booking row.
+     * Validates all requested resource changes against a detached candidate first, then applies
+     * them to the aggregate and persists once. A failed conflict check leaves the original
+     * schedule, therapist and room unchanged.
      */
-    private void recordPhoneReveal(String storeId, String resourceId) {
-        AuthPrincipal principal = AuthContext.current();
-        if (principal.userType() == com.qiyu.domain.auth.UserType.CUSTOMER
-                || !principal.hasPermission("customer:reveal_phone")) {
-            return;
+    private BookingVO applyChanges(Booking booking, String date, String startTime, String therapistId, String roomId) {
+        boolean reschedule = date != null && !date.isBlank() && startTime != null && !startTime.isBlank();
+        if ((date == null || date.isBlank()) != (startTime == null || startTime.isBlank())) {
+            throw new IllegalArgumentException("预约日期和时间必须同时修改");
         }
-        auditLogService.record("customer:reveal_phone", "booking", resourceId, storeId, Map.of(), Map.of("field", "mobile"));
-    }
-
-    /** Maps a domain booking while applying sensitive-field permissions before serialization. */
-    private BookingVO toView(Booking booking) {
+        boolean changeTherapist = therapistId != null && !therapistId.isBlank();
+        boolean changeRoom = roomId != null && !roomId.isBlank();
+        if (!reschedule && !changeTherapist && !changeRoom) {
+            throw new IllegalArgumentException("没有需要修改的内容");
+        }
         ServiceItem service = catalogProvider.findService(booking.serviceId());
-        Store store = catalogProvider.findStore(booking.storeId());
-        // Automatically assigned bookings may legitimately remain without a therapist until
-        // store staff completes resource assignment.
-        Therapist therapist = booking.therapistId() == null ? null : catalogProvider.findTherapist(booking.therapistId());
-        // Field permission is independent of row permission: broad store access does not imply
-        // access to a customer's full mobile number.
-        boolean revealPhone = dataPermissionService.canRevealCustomerPhone(AuthContext.current(), booking);
-        return new BookingVO(booking.id(), booking.status().name(), booking.status().label(),
-                com.qiyu.application.catalog.CatalogResourceVO.store(store),
-                com.qiyu.application.catalog.CatalogResourceVO.service(service),
-                therapist == null ? null : com.qiyu.application.catalog.CatalogResourceVO.therapist(therapist), booking.roomId(),
-                booking.customerName(), revealPhone ? booking.mobile() : maskMobile(booking.mobile()),
-                booking.customerId(), booking.timeRange().serviceFrom().toLocalDate().toString(),
-                booking.timeRange().serviceFrom().toLocalTime().toString(),
-                booking.timeRange().serviceTo().toLocalTime().toString(), booking.itemAmount(), booking.therapistFeeAmount(),
-                booking.discountAmount(), booking.balanceDeductionAmount(), booking.depositDueAmount(), booking.paidAmount(),
-                "会员权益全门店通用", booking.verificationCode(), null, availableActions(booking.status()));
+        if (changeTherapist) {
+            Therapist therapist = catalogProvider.findTherapist(therapistId);
+            bookingDomain.ensureTherapistBelongsToStore(booking.storeId(), therapist);
+        }
+        if (changeRoom) {
+            Room room = catalogProvider.findRoom(roomId);
+            bookingDomain.ensureRoomBelongsToStore(booking.storeId(), room);
+        }
+        LocalDate nextDate = reschedule ? LocalDate.parse(date) : booking.timeRange().serviceFrom().toLocalDate();
+        LocalTime nextStart = reschedule ? LocalTime.parse(startTime) : booking.timeRange().serviceFrom().toLocalTime();
+        String nextTherapistId = changeTherapist ? therapistId : booking.therapistId();
+        String nextRoomId = changeRoom ? roomId : booking.roomId();
+        Booking candidate = booking.candidate(nextTherapistId, nextRoomId, nextDate, nextStart, service.durationMinutes());
+        conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
+                .filter(existing -> !existing.id().equals(booking.id()))
+                .toList());
+        Map<String, Object> before = new LinkedHashMap<>();
+        Map<String, Object> after = new LinkedHashMap<>();
+        if (reschedule) {
+            before.put("scheduledAt", booking.timeRange().serviceFrom().toString());
+            booking.reschedule(nextDate, nextStart, service.durationMinutes());
+            after.put("scheduledAt", booking.timeRange().serviceFrom().toString());
+        }
+        if (changeTherapist) {
+            before.put("therapistId", nonNull(booking.therapistId()));
+            booking.changeTherapist(therapistId);
+            after.put("therapistId", nonNull(booking.therapistId()));
+        }
+        if (changeRoom) {
+            before.put("roomId", nonNull(booking.roomId()));
+            booking.assignRoom(roomId);
+            after.put("roomId", nonNull(booking.roomId()));
+        }
+        bookingGateway.save(booking);
+        auditLogService.record("booking:update", "booking", booking.id(), booking.storeId(), before, after);
+        return assembler.toView(booking);
     }
 
-    private void seedBookings() {
-        Booking booked = new Booking("BK-202608-1000", "store-jingan", "service-neck", "therapist-anran", "room-jingan-02",
-                "林女士", "13800001234", LocalDate.of(2026, 8, 8), LocalTime.of(10, 0), 60, BookingStatus.BOOKED);
-        bookingGateway.save(booked);
-        Booking pendingPayment = new Booking("BK-202608-1001", "store-jingan", "service-spa", "therapist-anran", "room-jingan-01",
-                "林女士", "13800001234", LocalDate.of(2026, 8, 9), LocalTime.of(19, 0), 90, BookingStatus.PENDING_PAYMENT);
-        bookingGateway.save(pendingPayment);
-        Booking reschedulable = new Booking("BK-202608-1002", "store-jingan", "service-neck", "therapist-anran", "room-jingan-01",
-                "林女士", "13800001234", LocalDate.of(2026, 8, 11), LocalTime.of(10, 0), 60, BookingStatus.BOOKED);
-        bookingGateway.save(reschedulable);
-        Booking otherStore = new Booking("BK-202608-1999", "store-xujiahui", "service-tui-na", "therapist-yuanyuan", "room-xujiahui-01",
-                "周女士", "13900005678", "customer-other", LocalDate.of(2026, 8, 12), LocalTime.of(15, 0), 90, BookingStatus.BOOKED);
-        bookingGateway.save(otherStore);
+    /** Cancels unpaid bookings whose payment window expired and returns how many were released. */
+    public int releaseExpiredPendingPayments() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(paymentTimeoutMinutes);
+        int released = 0;
+        for (Booking booking : bookingGateway.findPendingPaymentBefore(cutoff)) {
+            try {
+                String beforeStatus = booking.status().name();
+                booking.cancel();
+                bookingGateway.save(booking);
+                auditLogService.record("booking:timeout", "booking", booking.id(), booking.storeId(),
+                        Map.of("status", beforeStatus), Map.of("status", booking.status().name()));
+                released++;
+            } catch (IllegalArgumentException ignored) {
+                // Payment or another action changed the booking concurrently; skip it this round.
+            }
+        }
+        return released;
     }
 
-    /** Loads and authorizes a booking for the current customer or staff principal. */
-    private Booking authorized(String bookingId, String permissionCode, String actionCode) {
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
-        // One guard combines functional permission, explicit deny and row-level data scope.
-        dataPermissionService.requireBooking(AuthContext.current(), booking, permissionCode, actionCode);
-        return booking;
-    }
-
-    /** Loads and authorizes a booking specifically for a staff workflow. */
-    private Booking authorizedStaff(String bookingId, String permissionCode, String actionCode) {
-        AuthPrincipal principal = authAppService.requireAdmin();
-        Booking booking = bookingGateway.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("预约不存在"));
-        dataPermissionService.requireBooking(principal, booking, permissionCode, actionCode);
-        return booking;
-    }
-
-    private static String maskMobile(String mobile) {
-        return mobile.length() < 7 ? mobile : mobile.substring(0, 3) + "****" + mobile.substring(mobile.length() - 4);
-    }
-
-    private static String defaultRoomId(String storeId) {
-        String suffix = storeId == null ? "default" : storeId.replaceFirst("^store-", "");
-        return "room-" + suffix + "-01";
-    }
-
-    /** Uses the authenticated customer's coupon ownership as the only source of a booking discount. */
-    private BigDecimal resolveDiscount(String customerId, String couponNo, BigDecimal subtotal) {
-        if (couponNo == null || couponNo.isBlank()) return BigDecimal.ZERO;
-        return couponGateway.findApplicable(customerId, couponNo)
-                .map(coupon -> coupon.discountFor(subtotal))
-                .orElseThrow(() -> new IllegalArgumentException("优惠券不可用"));
-    }
-
-    private BookingPricing pricing(ServiceItem service, Therapist therapist, String customerId, String couponNo, int guestCount) {
-        BigDecimal itemAmount = decimal(service.memberPrice()).multiply(BigDecimal.valueOf(guestCount));
-        BigDecimal therapistFee = (therapist == null ? BigDecimal.ZERO : decimal(therapist.extraFee())).multiply(BigDecimal.valueOf(guestCount));
-        BigDecimal discountAmount = resolveDiscount(customerId, couponNo, itemAmount.add(therapistFee));
-        BigDecimal totalAmount = itemAmount.add(therapistFee).subtract(discountAmount).max(BigDecimal.ZERO);
-        return new BookingPricing(itemAmount, therapistFee, discountAmount, totalAmount.min(BigDecimal.valueOf(50L * guestCount)));
-    }
-
-    /** Server-owned actions keep the client from deriving permissions from a booking status. */
-    private static List<String> availableActions(BookingStatus status) {
-        return switch (status) {
-            case PENDING_PAYMENT -> List.of("pay", "cancel", "view_detail");
-            case BOOKED -> List.of("show_code", "refresh_code", "reschedule", "contact", "view_detail");
-            case CHECKED_IN -> List.of("refresh_code", "contact", "view_detail");
-            case WAITING_SERVICE, IN_SERVICE, PENDING_SETTLEMENT -> List.of("contact", "view_detail");
-            case COMPLETED -> List.of("review", "rebook", "view_detail");
-            case CANCELLED -> List.of("rebook", "view_detail");
-        };
-    }
-
-    private static int money(BigDecimal value) {
-        return value.setScale(0, RoundingMode.HALF_UP).intValueExact();
-    }
-
-    private static BigDecimal decimal(Number value) {
-        return value instanceof BigDecimal decimal ? decimal : new BigDecimal(value.toString());
-    }
-
-    private record BookingPricing(BigDecimal itemAmount, BigDecimal therapistFee, BigDecimal discountAmount,
-                                  BigDecimal depositDue) {}
+    private static String nonNull(String value) { return value == null ? "" : value; }
 }

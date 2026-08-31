@@ -1,5 +1,7 @@
 package com.qiyu.application.member;
 
+import com.qiyu.application.member.dto.MemberProfileVO;
+
 import com.qiyu.application.auth.AuthContext;
 import com.qiyu.application.auth.AuthPrincipal;
 import com.qiyu.application.auth.AuthAppService;
