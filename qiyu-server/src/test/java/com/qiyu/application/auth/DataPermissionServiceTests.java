@@ -47,6 +47,65 @@ class DataPermissionServiceTests {
         assertThat(service.canRevealCustomerPhone(deniedManager, jinganBooking)).isFalse();
     }
 
+    @Test
+    void primaryStoreManagerCanReadOwnStoreBookingDetail() {
+        AuthPrincipal manager = principal(null, Set.of("booking:read"), Set.of(),
+                scope("booking", "READ", DataScopeType.PRIMARY_STORE, Set.of("store-jingan")));
+
+        assertThat(service.canAccessBooking(manager, jinganBooking, "READ")).isTrue();
+    }
+
+    @Test
+    void primaryStoreManagerCannotReadCrossStoreBookingDetail() {
+        AuthPrincipal manager = principal(null, Set.of("booking:read"), Set.of(),
+                scope("booking", "READ", DataScopeType.PRIMARY_STORE, Set.of("store-xujiahui")));
+
+        assertThat(service.canAccessBooking(manager, jinganBooking, "READ")).isFalse();
+    }
+
+    @Test
+    void selfScopedTherapistCannotReadBookingOfAnotherTherapistForReports() {
+        AuthPrincipal therapist = principal("therapist-other", Set.of("booking:read", "report:read"), Set.of(),
+                scope("booking", "READ", DataScopeType.SELF, Set.of()));
+
+        assertThat(service.canAccessBooking(therapist, jinganBooking, "READ")).isFalse();
+    }
+
+    @Test
+    void missingScopeFailsClosedInsteadOfGrantingAccess() {
+        AuthPrincipal manager = principal(null, Set.of("booking:read"), Set.of(), DataAccessScope.none("booking", "READ"));
+
+        assertThat(service.canAccessBooking(manager, jinganBooking, "READ")).isFalse();
+    }
+
+    @Test
+    void managerWithoutRevealPermissionSeesMaskedPhone() {
+        AuthPrincipal manager = principal(null, Set.of("booking:read"), Set.of(),
+                scope("booking", "READ", DataScopeType.ALL_STORES, Set.of()));
+
+        assertThat(service.canRevealCustomerPhone(manager, jinganBooking)).isFalse();
+    }
+
+    @Test
+    void managerWithRevealPermissionSeesFullPhone() {
+        AuthPrincipal manager = principal(null, Set.of("booking:read", "customer:reveal_phone"), Set.of(),
+                scope("booking", "READ", DataScopeType.ALL_STORES, Set.of()));
+
+        assertThat(service.canRevealCustomerPhone(manager, jinganBooking)).isTrue();
+    }
+
+    @Test
+    void customerCanRevealOwnPhoneButNotAnotherCustomers() {
+        AuthPrincipal owner = new AuthPrincipal(9002L, UserType.CUSTOMER, "customer-1", null, Set.of(),
+                Set.of(), DataScopeType.SELF, Set.of(), Set.of(), List.of(), Set.of(), "顾客甲", null);
+        AuthPrincipal stranger = new AuthPrincipal(9003L, UserType.CUSTOMER, "customer-2", null, Set.of(),
+                Set.of(), DataScopeType.SELF, Set.of(), Set.of(), List.of(), Set.of(), "顾客乙", null);
+
+        assertThat(owner.hasPermission("customer:reveal_phone")).isFalse();
+        assertThat(service.canRevealCustomerPhone(owner, jinganBooking)).isTrue();
+        assertThat(service.canRevealCustomerPhone(stranger, jinganBooking)).isFalse();
+    }
+
     private static AuthPrincipal principal(String therapistId, Set<String> permissions, Set<String> denied, DataAccessScope scope) {
         return new AuthPrincipal(9001L, UserType.STAFF, null, therapistId, Set.of("TEST"), permissions,
                 scope.scopeTypes().iterator().next(), scope.storeIds(), scope.regionIds(), List.of(scope), denied, "测试人员", null);

@@ -22,11 +22,27 @@ export interface SystemUserRecord {
   lastLoginAt?: string;
 }
 
+export type UserDataScopeType = 'NONE' | 'SELF' | 'PRIMARY_STORE' | 'ASSIGNED_STORES' | 'REGION_STORES' | 'ALL_STORES';
+
+export interface UserDataScope {
+  userId: string;
+  scopeType: UserDataScopeType;
+  storeIds: string[];
+  regionIds: string[];
+  validFrom?: string;
+  validUntil?: string;
+  inherited: boolean;
+}
+
+export interface ScopeOption { id: string; name: string; }
+export interface DataScopeOptions { stores: ScopeOption[]; regions: ScopeOption[]; }
+
 export interface SystemRoleRecord {
   id: string;
   code: string;
   name: string;
   permissionCodes: string[];
+  deniedPermissionCodes: string[];
   dataScope: string;
   userCount: number;
   status: SystemStatus;

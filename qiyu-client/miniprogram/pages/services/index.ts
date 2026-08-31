@@ -86,7 +86,8 @@ Page({
     wx.navigateTo({ url: pageRoutes.stores });
   },
   goService(event: WechatMiniprogram.CustomEvent<{ id?: string }>) {
-    const serviceId = String(event.detail.id || 'neck');
+    const serviceId = String(event.detail.id || '');
+    if (!serviceId) return;
     bookingStore.selectService(serviceId);
     wx.navigateTo({ url: pageUrls.serviceDetail(serviceId) });
   }

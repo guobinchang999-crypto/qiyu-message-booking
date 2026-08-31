@@ -12,16 +12,18 @@ const assert = (condition, message) => {
 
 bookingStore.reset();
 const initialDraft = bookingStore.get();
-assert(initialDraft.storeId === 'jingan', 'default store should be jingan');
-assert(initialDraft.serviceId === 'neck', 'default service should be neck');
-assert(initialDraft.therapistMode === 'specified', 'default therapist mode should be specified');
-assert(initialDraft.therapistId === 'zhang', 'default therapist should be zhang');
-assert(initialDraft.slotId === '1400', 'default slot should be 1400');
+assert(initialDraft.storeId === '', 'default store must come from a real API selection');
+assert(initialDraft.serviceId === '', 'default service must come from a real API selection');
+assert(initialDraft.therapistMode === 'auto', 'default therapist mode should be automatic');
+assert(initialDraft.therapistId === undefined, 'default draft must not contain a fixture therapist');
+assert(initialDraft.slotId === undefined, 'default draft must not contain a fixture slot');
+assert(initialDraft.contact === '', 'default draft must not contain fixture customer data');
+assert(initialDraft.benefitSelection === '', 'default draft must not contain a fixture benefit');
 
 bookingStore.selectStore('jingan');
 const unchangedStoreDraft = bookingStore.get();
-assert(unchangedStoreDraft.therapistId === 'zhang', 'selecting same store should keep therapist');
-assert(unchangedStoreDraft.slotId === '1400', 'selecting same store should keep slot');
+assert(unchangedStoreDraft.therapistId === undefined, 'selecting a store should not invent a therapist');
+assert(unchangedStoreDraft.slotId === undefined, 'selecting a store should not invent a slot');
 
 bookingStore.selectStore('xujiahui');
 const changedStoreDraft = bookingStore.get();
@@ -30,6 +32,8 @@ assert(changedStoreDraft.therapistMode === 'auto', 'selectStore should reset the
 assert(changedStoreDraft.therapistId === undefined, 'selectStore should clear therapist');
 assert(changedStoreDraft.slotId === undefined, 'selectStore should clear slot');
 
+bookingStore.update({ therapistMode:'specified', therapistId:'li', slotId:'1600' });
+bookingStore.selectService('neck');
 bookingStore.update({ therapistMode:'specified', therapistId:'li', slotId:'1600' });
 bookingStore.selectService('neck');
 const unchangedServiceDraft = bookingStore.get();

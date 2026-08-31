@@ -13,10 +13,10 @@ public interface ReviewMapper extends BaseMapper<ServiceReviewEntity> {
             SELECT r.id,
                    CONCAT('store-', LOWER(REPLACE(REPLACE(s.store_code, 'STORE_', ''), '_', '-'))) storeId,
                    CASE si.service_code
-                     WHEN 'SERVICE_NECK_60' THEN 'service-neck'
-                     WHEN 'SERVICE_TUINA_90' THEN 'service-tui-na'
-                     WHEN 'SERVICE_AROMA_90' THEN 'service-spa'
-                     ELSE CONCAT('service-', LOWER(REPLACE(REPLACE(si.service_code, 'SERVICE_', ''), '_', '-')))
+                     WHEN 'NECK_60' THEN 'service-neck'
+                     WHEN 'TUINA_90' THEN 'service-tui-na'
+                     WHEN 'AROMA_90' THEN 'service-spa'
+                     ELSE CONCAT('service-', LOWER(REPLACE(si.service_code, '_', '-')))
                    END serviceId,
                    CASE WHEN r.anonymous = 1 THEN '匿名用户' ELSE b.contact_name END userName,
                    r.service_rating rating, r.content, DATE_FORMAT(r.created_at, '%Y-%m-%d') createdAt
@@ -30,10 +30,10 @@ public interface ReviewMapper extends BaseMapper<ServiceReviewEntity> {
             </if>
             <if test="serviceId != null and serviceId != ''">
               AND (CASE si.service_code
-                     WHEN 'SERVICE_NECK_60' THEN 'service-neck'
-                     WHEN 'SERVICE_TUINA_90' THEN 'service-tui-na'
-                     WHEN 'SERVICE_AROMA_90' THEN 'service-spa'
-                     ELSE CONCAT('service-', LOWER(REPLACE(REPLACE(si.service_code, 'SERVICE_', ''), '_', '-')))
+                     WHEN 'NECK_60' THEN 'service-neck'
+                     WHEN 'TUINA_90' THEN 'service-tui-na'
+                     WHEN 'AROMA_90' THEN 'service-spa'
+                     ELSE CONCAT('service-', LOWER(REPLACE(si.service_code, '_', '-')))
                    END) = #{serviceId}
             </if>
             ORDER BY r.created_at DESC, r.id DESC LIMIT #{offset}, #{pageSize}
@@ -54,10 +54,10 @@ public interface ReviewMapper extends BaseMapper<ServiceReviewEntity> {
             </if>
             <if test="serviceId != null and serviceId != ''">
               AND (CASE si.service_code
-                     WHEN 'SERVICE_NECK_60' THEN 'service-neck'
-                     WHEN 'SERVICE_TUINA_90' THEN 'service-tui-na'
-                     WHEN 'SERVICE_AROMA_90' THEN 'service-spa'
-                     ELSE CONCAT('service-', LOWER(REPLACE(REPLACE(si.service_code, 'SERVICE_', ''), '_', '-')))
+                     WHEN 'NECK_60' THEN 'service-neck'
+                     WHEN 'TUINA_90' THEN 'service-tui-na'
+                     WHEN 'AROMA_90' THEN 'service-spa'
+                     ELSE CONCAT('service-', LOWER(REPLACE(si.service_code, '_', '-')))
                    END) = #{serviceId}
             </if>
             </script>

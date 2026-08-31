@@ -7,7 +7,7 @@ export interface HomeCopy { locationText: string; heroTitle: string; searchPlace
 export interface HomePayload { frequentStores: Store[]; nearbyStores: Store[]; featuredServices: ServiceItem[]; featuredTherapists: Therapist[]; copy: HomeCopy; }
 export interface PageResult<T> { items: T[]; page: number; pageSize: number; total: number; hasMore: boolean; }
 export interface PaymentLine { key: string; label: string; amountText: string; tone?: 'discount' | 'default'; }
-export interface WechatPaymentParameters { timeStamp: string; nonceStr: string; package: string; signType: 'RSA' | 'MD5' | 'HMAC-SHA256'; paySign: string; mockPayment?: boolean; }
+export interface WechatPaymentParameters { timeStamp: string; nonceStr: string; package: string; signType: 'RSA' | 'MD5' | 'HMAC-SHA256'; paySign: string; }
 export interface BookingPaymentPayload { bookingId: string; amount: number; paymentNo: string; parameters: WechatPaymentParameters; }
 export interface ConfirmationFormCopy { guestCountLabel: string; contactLabel: string; contactPlaceholder: string; remarkLabel: string; remarkPlaceholder: string; contactRequiredMessage: string; submitFallbackText: string; }
 export interface ConfirmationEditActionCopy { store: string; service: string; therapist: string; time: string; }
@@ -37,7 +37,24 @@ export interface LoginPayload { accessToken: string; tokenType: 'Bearer'; expire
 export interface ProfilePayload { user: ProfileUser; title: string; settingsIcon: string; memberTitle: string; memberSubtitle: string; memberStats: string[]; shortcuts: HomeQuickAction[]; recentBookingTitle: string; recentBookingActionText: string; menuItems: Array<{ key: string; label: string; valueText: string }>; logoutText: string; logoutModalTitle: string; logoutModalContent: string; logoutConfirmText: string; logoutCancelText: string; }
 export interface CheckinDictionaryPayload { title: string; qrTitle: string; refreshText: string; steps: string[]; pendingButtonText: string; checkingButtonText: string; checkedButtonText: string; successToastText: string; failureToastText: string; bottomActions: Array<{ key: string; label: string }>; }
 export interface StoreDetailDictionaryPayload { actions: Array<{ key: string; label: string }>; recommendedServiceTitle: string; allServiceText: string; primaryButtonText: string; loadingTitle: string; loadingDescription: string; errorTitle: string; errorMessage: string; retryText: string; loadMoreText: string; favoriteActiveText: string; favoriteAddedToast: string; favoriteRemovedToast: string; panels: { facilities: string; businessHours: string; notice: string }; expandText: string; collapseText: string; businessHoursText: string; noticeText: string; tabs: Array<{ key: 'services' | 'therapists' | 'reviews'; label: string }>; reviewTitle: string; reviewSummarySuffix: string; storeCardMeta: StoreCardMetaCopy; serviceCardMeta: ServiceCardMetaCopy; }
-export interface ActionFeedbackDictionaryPayload { supportUnavailable: string; genericMockAction: string; distanceSorted: string; mapUnavailable: string; navigationUnavailable: string; contactPlaceholder: string; shareUnavailable: string; therapistUnavailable: string; slotFull: string; checkinRepeated: string; codeRefreshed: string; codeRefreshHint: string; codeRefreshFailed: string; minGuestCount: string; maxGuestCount: string; cancelUnavailable: string; }
+export interface ActionFeedbackDictionaryPayload {
+  supportUnavailable: string;
+  genericUnavailable: string;
+  distanceSorted: string;
+  mapUnavailable: string;
+  navigationUnavailable: string;
+  contactPlaceholder: string;
+  shareUnavailable: string;
+  therapistUnavailable: string;
+  slotFull: string;
+  checkinRepeated: string;
+  codeRefreshed: string;
+  codeRefreshHint: string;
+  codeRefreshFailed: string;
+  minGuestCount: string;
+  maxGuestCount: string;
+  cancelUnavailable: string;
+}
 export interface PageStateCopy { loadingTitle: string; loadingDescription: string; errorTitle: string; errorMessage: string; retryText: string; emptyTitle?: string; emptyDescription?: string; }
 export interface StoreListStateCopy extends PageStateCopy { pageTitle: string; searchPlaceholder: string; businessOnlyText: string; sortOptions: Array<SortOption<'frequent' | 'distance' | 'rating'>>; cardMeta: StoreCardMetaCopy; mapEntryText: string; locationReadyText: string; locateActionText: string; locationDeniedWarning: string; locationFailedWarning: string; }
 export interface ConfirmStateCopy extends PageStateCopy { submitErrorTitle: string; submitErrorMessage: string; paymentRefreshErrorMessage: string; }
@@ -47,3 +64,10 @@ export interface CheckinStateCopy extends PageStateCopy { submitErrorTitle: stri
 export interface ReviewStateCopy extends PageStateCopy { submitErrorTitle: string; submitErrorMessage: string; }
 export interface PageStateDictionaryPayload { home: PageStateCopy; stores: StoreListStateCopy; services: PageStateCopy; orders: PageStateCopy; confirm: ConfirmStateCopy; bookingDetail: PageStateCopy; therapist: TherapistStateCopy; time: TimeStateCopy; checkin: CheckinStateCopy; review: ReviewStateCopy; success: PageStateCopy; profile: PageStateCopy; }
 export interface BookingService { getHome():Promise<HomePayload>; getStores():Promise<Store[]>; getServices():Promise<ServiceItem[]>; getStore(id:string):Promise<Store>; getService(id:string):Promise<ServiceItem>; getTherapists(serviceId:string):Promise<Therapist[]>; getTimeSlots(draft?:BookingDraft):Promise<TimeSlot[]>; getBookingConfirmation(draft:BookingDraft):Promise<BookingConfirmationPayload>; getOrderDictionaries():Promise<OrderDictionaryPayload>; getReviewDictionaries():Promise<ReviewDictionaryPayload>; getServiceDictionaries():Promise<ServiceDictionaryPayload>; getStoreDetailDictionaries():Promise<StoreDetailDictionaryPayload>; getTimeDictionaries():Promise<TimeDictionaryPayload>; getTherapistDictionaries():Promise<TherapistDictionaryPayload>; getSuccessCopy():Promise<SuccessCopy>; getLoginCopy():Promise<LoginCopyPayload>; sendLoginCode(mobile:string):Promise<LoginCodePayload>; login(mobile:string, code:string):Promise<LoginPayload>; getBookingSuccess(id:string):Promise<BookingSuccessPayload>; getBookingRebookDraft(id:string):Promise<BookingRebookPayload>; getBookingRescheduleDraft(id:string):Promise<BookingReschedulePayload>; getProfile():Promise<ProfilePayload>; getCheckinDictionaries():Promise<CheckinDictionaryPayload>; getActionFeedbackDictionaries():Promise<ActionFeedbackDictionaryPayload>; getPageStateDictionaries():Promise<PageStateDictionaryPayload>; createBooking(draft:BookingDraft, requestId:string):Promise<Booking>; rescheduleBooking(draft:BookingDraft, requestId:string):Promise<Booking>; getBookings():Promise<Booking[]>; getBooking(id:string):Promise<Booking>; getStoreReviews(storeId:string, serviceId?:string, page?:number, pageSize?:number):Promise<PageResult<StoreReview>>; checkinBooking(id:string, requestId:string):Promise<Booking>; refreshBookingCode(id:string, requestId:string):Promise<Booking>; cancelBooking(id:string, requestId:string):Promise<Booking>; prepareBookingPayment(id:string, requestId:string):Promise<BookingPaymentPayload>; payBooking(id:string, requestId:string):Promise<Booking>; uploadReviewImage(tempFilePath:string, requestId:string):Promise<ReviewImageUploadPayload>; submitReview(request:ReviewSubmitRequest, requestId:string):Promise<Booking>; }
+
+export type FavoriteResourceType = 'stores' | 'services';
+export interface FavoritePayload { resourceType: FavoriteResourceType; resourceId: string; favorite: boolean; }
+export interface BookingService {
+  getFavorite(resourceType: FavoriteResourceType, resourceId: string): Promise<FavoritePayload>;
+  setFavorite(resourceType: FavoriteResourceType, resourceId: string, favorite: boolean): Promise<FavoritePayload>;
+}

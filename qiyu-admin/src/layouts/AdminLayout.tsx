@@ -51,7 +51,7 @@ const systemMenuItems = [
 
 const menuPermission: Record<string, string> = {
   '/dashboard': 'dashboard:read', '/stores': 'store:read', '/appointments': 'booking:read', '/checkin': 'booking:checkin', '/service-orders': 'service_order:read', '/schedule': 'schedule:read', '/therapists': 'therapist:read', '/services': 'service:read', '/rooms': 'room:read', '/customers': 'customer:read', '/members': 'member:read', '/coupons': 'coupon:read', '/reports': 'report:read',
-  '/system/organizations': 'system:organization:read', '/system/users': 'system:user:read', '/system/roles': 'system:role:read', '/system/menus': 'system:menu:read', '/system/dictionaries': 'system:dictionary:read', '/system/audit-logs': 'system:audit:read'
+  '/system/organizations': 'system:org:manage', '/system/users': 'system:user:manage', '/system/roles': 'system:role:manage', '/system/menus': 'system:menu:manage', '/system/dictionaries': 'system:dict:manage', '/system/audit-logs': 'audit:read'
 };
 
 export default function AdminLayout() {

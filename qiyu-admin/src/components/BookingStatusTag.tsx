@@ -1,5 +1,4 @@
 import { Tag } from 'antd';
-import { statusText } from '@/mock/data';
 import type { BookingStatus } from '@/types';
 
 const colorMap: Record<BookingStatus, string> = {
@@ -7,6 +6,6 @@ const colorMap: Record<BookingStatus, string> = {
   IN_SERVICE: 'processing', PENDING_SETTLEMENT: 'orange', COMPLETED: 'green', CANCELLED: 'default'
 };
 
-export default function BookingStatusTag({ status }: { status: BookingStatus }) {
-  return <Tag color={colorMap[status]}>{statusText[status]}</Tag>;
+export default function BookingStatusTag({ status, label }: { status: BookingStatus; label?: string }) {
+  return <Tag color={colorMap[status]}>{label || status}</Tag>;
 }

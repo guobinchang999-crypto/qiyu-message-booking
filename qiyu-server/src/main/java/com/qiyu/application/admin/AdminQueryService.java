@@ -1,52 +1,74 @@
 package com.qiyu.application.admin;
 
-import com.qiyu.application.booking.BookingAppService;
 import com.qiyu.application.auth.AuthAppService;
 import com.qiyu.application.auth.AuthPrincipal;
 import com.qiyu.application.auth.DataPermissionService;
+import com.qiyu.application.booking.BookingAppService;
+import com.qiyu.application.booking.BookingVO;
 import com.qiyu.domain.catalog.gateway.CatalogGateway;
 import com.qiyu.domain.catalog.Store;
-import com.qiyu.application.booking.BookingVO;
+import com.qiyu.domain.auth.DataScopeType;
 import com.qiyu.infrastructure.persistence.mapper.BookingMapper;
 import com.qiyu.infrastructure.persistence.mapper.MemberProfileMapper;
 import com.qiyu.infrastructure.persistence.mapper.CatalogMapper;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedHashMap;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class AdminQueryService {
-    private final BookingAppService bookingAppService;
     private final CatalogGateway catalogProvider;
     private final AuthAppService authAppService;
     private final DataPermissionService dataPermissionService;
     private final BookingMapper bookingMapper;
     private final MemberProfileMapper memberProfileMapper;
     private final CatalogMapper catalogMapper;
+    private final ObjectProvider<AdminOperationsReadRepository> operationsReadRepository;
+    private final BookingAppService bookingAppService;
 
-    public AdminQueryService(BookingAppService bookingAppService, CatalogGateway catalogProvider, AuthAppService authAppService,
-                             DataPermissionService dataPermissionService, BookingMapper bookingMapper, MemberProfileMapper memberProfileMapper, CatalogMapper catalogMapper) {
-        this.bookingAppService = bookingAppService;
+    public AdminQueryService(CatalogGateway catalogProvider, AuthAppService authAppService,
+                             DataPermissionService dataPermissionService, BookingMapper bookingMapper,
+                             MemberProfileMapper memberProfileMapper, CatalogMapper catalogMapper,
+                             ObjectProvider<AdminOperationsReadRepository> operationsReadRepository,
+                             BookingAppService bookingAppService) {
         this.catalogProvider = catalogProvider;
         this.authAppService = authAppService;
         this.dataPermissionService = dataPermissionService;
         this.bookingMapper = bookingMapper;
         this.memberProfileMapper = memberProfileMapper;
         this.catalogMapper = catalogMapper;
+        this.operationsReadRepository = operationsReadRepository;
+        this.bookingAppService = bookingAppService;
     }
 
     /** Returns customer profiles available to the current staff principal. */
     public List<AdminResponseModels.Customer> customers() {
-        authAppService.requirePermission("customer:read");
-        return bookingMapper.customerProfiles().stream().map(row -> new AdminResponseModels.Customer(row.id(), row.name(), row.phone(), row.memberLevel(), row.lastVisitAt(), row.totalBookings(), row.totalSpend())).toList();
+        AuthPrincipal principal = authAppService.requirePermission("customer:read");
+        AdminOperationsReadRepository.StoreAccess access = storeAccess(principal, "customer", "READ");
+        boolean revealPhone = principal.hasPermission("customer:reveal_phone");
+        return bookingMapper.customerProfiles(access.allStores(), access.storeIds(), principal.therapistId()).stream()
+                .map(row -> new AdminResponseModels.Customer(row.id(), row.name(),
+                        revealPhone ? row.phone() : maskPhone(row.phone()), row.memberLevel(), row.lastVisitAt(),
+                        row.totalBookings(), row.totalSpend())).toList();
     }
 
     /** Returns member accounts available to the current staff principal. */
     public List<AdminResponseModels.Member> members() {
-        authAppService.requirePermission("customer:read");
-        return memberProfileMapper.memberAccounts().stream().map(row -> new AdminResponseModels.Member(row.id(), row.customerName(), row.level(), row.balance(), row.packageBalance(), row.couponCount(), row.scope())).toList();
+        AuthPrincipal principal = authAppService.requirePermission("member:read");
+        AdminOperationsReadRepository.StoreAccess access = storeAccess(principal, "member", "READ");
+        return memberProfileMapper.memberAccounts(access.allStores(), access.storeIds(), principal.therapistId()).stream()
+                .map(row -> new AdminResponseModels.Member(row.id(), row.customerName(), row.level(), row.balance(),
+                        row.packageBalance(), row.couponCount(), row.scope())).toList();
     }
 
     /** Returns coupon campaigns available to the current staff principal. */
@@ -55,28 +77,70 @@ public class AdminQueryService {
         return catalogMapper.coupons().stream().map(row -> new AdminResponseModels.Coupon(row.id(), row.name(), row.discount(), row.scope(), row.validUntil(), row.issuedCount(), row.usedCount(), row.displayStatus())).toList();
     }
 
+    /** Returns real store profiles limited by the principal's store READ data scope. */
+    public List<AdminResponseModels.StoreProfile> stores() {
+        AuthPrincipal principal = dataPermissionService.requirePermission("store:read");
+        AdminOperationsReadRepository repository = operationsReadRepository.getIfAvailable();
+        if (repository == null) {
+            return List.of();
+        }
+        return repository.stores(storeAccess(principal, "store", "READ")).stream()
+                .map(row -> new AdminResponseModels.StoreProfile(row.id(), row.code(), row.regionId(), row.name(),
+                        row.phone(), row.province(), row.city(), row.district(), row.address(), row.longitude(),
+                        row.latitude(), row.businessHours(), row.manager(), row.roomCount(), row.therapistCount(),
+                        row.status(), row.rating(), row.sortOrder(), row.enabled()))
+                .toList();
+    }
+
+    /**
+     * Returns store-level operating results for an inclusive date range after applying the
+     * principal's report READ data scope. Request dates can narrow time, never store access.
+     */
+    public List<AdminResponseModels.BusinessReport> businessReports(LocalDate startDate, LocalDate endDate) {
+        AuthPrincipal principal = dataPermissionService.requirePermission("report:read");
+        LocalDate resolvedStart = startDate == null ? LocalDate.now() : startDate;
+        LocalDate resolvedEnd = endDate == null ? resolvedStart : endDate;
+        if (resolvedEnd.isBefore(resolvedStart)) {
+            throw new IllegalArgumentException("报表结束日期不能早于开始日期");
+        }
+        AdminOperationsReadRepository repository = operationsReadRepository.getIfAvailable();
+        if (repository == null) {
+            return List.of();
+        }
+        return repository.businessReports(storeAccess(principal, "report", "READ"), resolvedStart, resolvedEnd).stream()
+                .map(row -> new AdminResponseModels.BusinessReport(row.id(), row.store(), row.bookingCount(),
+                        row.completionRate(), row.revenue(), row.averageTicket(), row.topService()))
+                .toList();
+    }
+
+    /** Returns therapist rows and today's booking load inside the effective therapist READ scope. */
+    public List<AdminResponseModels.TherapistProfile> therapists() {
+        AuthPrincipal principal = dataPermissionService.requirePermission("therapist:read");
+        AdminOperationsReadRepository repository = operationsReadRepository.getIfAvailable();
+        if (repository == null) {
+            return List.of();
+        }
+        return repository.therapists(storeAccess(principal, "therapist", "READ")).stream()
+                .map(row -> new AdminResponseModels.TherapistProfile(row.id(), row.name(), row.store(), row.level(),
+                        row.skills(), row.status(), row.rating(), row.todayBookings(), row.code(), row.storeId(),
+                        row.mobile(), row.specifyFee(), row.enabled()))
+                .toList();
+    }
+
     /** Builds dashboard metrics only from rows already restricted by the current data scope. */
     public AdminResponseModels.Dashboard dashboard() {
         AuthPrincipal principal = authAppService.requirePermission("dashboard:read");
-        List<BookingVO> bookings = principal.hasPermission("booking:read") ? bookingAppService.list(null) : List.of();
-        long booked = bookings.stream().filter(item -> !"CANCELLED".equals(item.status())).count();
-        long waiting = bookings.stream().filter(item -> "BOOKED".equals(item.status())).count();
-        long inService = bookings.stream().filter(item -> "IN_SERVICE".equals(item.status())).count();
-        int expectedRevenue = bookings.stream().filter(item -> !"CANCELLED".equals(item.status()))
-                .mapToInt(item -> item.amount().intValue()).sum();
+        AdminOperationsReadRepository.DashboardSnapshot snapshot = operationsReadRepository.getIfAvailable() == null
+                ? emptyDashboard() : operationsReadRepository.getObject().dashboard(storeAccess(principal, "dashboard", "READ"));
         return new AdminResponseModels.Dashboard(List.of(
-                metric("今日预约", booked, null), metric("待到店", waiting, null),
-                metric("服务中", inService, null), metric("预计营业额", "¥" + expectedRevenue, null)), List.of(
-                metric("08-03", 21580, null), metric("08-04", 24200, null), metric("08-05", 22980, null),
-                metric("08-06", 26700, null), metric("08-07", 25120, null), metric("08-08", 28680, null)), List.of(
-                metric("静安寺店", 10280, "92"), metric("徐家汇店", 9460, "86"), metric("陆家嘴店", 8940, "78")
-        ), List.of(
-                utilization("林知夏", 92, "7 单服务中 / 已排 8 单"),
-                utilization("沈安然", 86, "6 单服务中 / 已排 7 单"),
-                utilization("周语宁", 74, "5 单服务中 / 已排 7 单")), List.of(
-                alert("warning", "2 位客户即将超过预约时间"),
-                alert("error", "静安寺店 2 号房 14:00 存在资源冲突"),
-                alert("processing", "1 位技师请假，受影响预约待处理")));
+                statistic("今日预约", snapshot.bookingCount() + " 单"),
+                statistic("待到店", snapshot.waitingCount() + " 单"),
+                statistic("服务中", snapshot.inServiceCount() + " 单"),
+                statistic("预计营业额", money(snapshot.expectedRevenue()))),
+                snapshot.revenueTrend().stream().map(AdminQueryService::metric).toList(),
+                snapshot.storeRanking().stream().map(AdminQueryService::metric).toList(),
+                snapshot.therapistUtilization().stream().map(AdminQueryService::utilization).toList(),
+                snapshot.conflicts().stream().map(AdminQueryService::conflictAlert).toList());
     }
 
     /** Returns a scoped booking page for the administration table. */
@@ -89,14 +153,22 @@ public class AdminQueryService {
     /** Returns schedule resources restricted to stores visible to the current operator. */
     public AdminResponseModels.ScheduleResources scheduleResources() {
         AuthPrincipal principal = dataPermissionService.requirePermission("schedule:read");
-        List<AdminResponseModels.ScheduleTherapist> therapists = catalogProvider.therapists().stream()
-                .filter(therapist -> principal.canAccessStore("schedule", "READ", therapist.storeId()))
-                .map(therapist -> new AdminResponseModels.ScheduleTherapist(therapist.id(), therapist.name(), therapist.storeId(), therapist.status(), therapist.statusLabel(), List.of("上班 10:00-22:00", "上班 10:00-22:00", "休息", "已预约 14:00", "请假", "上班 10:00-22:00", "上班 10:00-22:00"))).toList();
-        List<AdminResponseModels.ScheduleRoom> rooms = catalogProvider.rooms().stream()
-                .filter(room -> principal.canAccessStore("schedule", "READ", room.storeId()))
-                .map(room -> new AdminResponseModels.ScheduleRoom(room.id(), room.name(), room.storeId(), room.status(), room.statusLabel(), room.type(), room.note())).toList();
-        List<String> conflicts = List.of("静安寺店 · 2 号房 14:00 需确认排班", "安然 14:00 后无可延长时间").stream()
-                .filter(ignored -> principal.canAccessStore("schedule", "READ", "store-jingan")).toList();
+        LocalDate weekStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate weekEnd = weekStart.plusDays(6);
+        AdminOperationsReadRepository.ScheduleSnapshot snapshot = operationsReadRepository.getIfAvailable() == null
+                ? emptySchedule() : operationsReadRepository.getObject().schedule(storeAccess(principal, "schedule", "READ"), weekStart, weekEnd);
+        Map<String, List<AdminOperationsReadRepository.ScheduleEntrySnapshot>> entriesByTherapist = snapshot.entries().stream()
+                .collect(Collectors.groupingBy(AdminOperationsReadRepository.ScheduleEntrySnapshot::therapistId));
+        List<AdminResponseModels.ScheduleTherapist> therapists = snapshot.therapists().stream()
+                .filter(therapist -> entriesByTherapist.containsKey(therapist.id()))
+                .map(therapist -> new AdminResponseModels.ScheduleTherapist(therapist.id(), therapist.name(), therapist.storeId(),
+                        therapist.status(), therapist.statusLabel(), therapist.skills(),
+                        weekEntries(entriesByTherapist.get(therapist.id()), weekStart)))
+                .toList();
+        List<AdminResponseModels.ScheduleRoom> rooms = snapshot.rooms().stream()
+                .map(room -> new AdminResponseModels.ScheduleRoom(room.id(), room.name(), room.storeId(), room.status(),
+                        room.statusLabel(), room.type(), room.note())).toList();
+        List<String> conflicts = snapshot.conflicts().stream().map(AdminQueryService::conflictText).toList();
         return new AdminResponseModels.ScheduleResources(therapists, rooms, conflicts);
     }
 
@@ -109,20 +181,79 @@ public class AdminQueryService {
                 .toList();
     }
 
-    private static AdminResponseModels.Metric metric(String name, Object value, String comparison) {
-        return new AdminResponseModels.Metric(name, value, comparison);
+    private static AdminOperationsReadRepository.StoreAccess storeAccess(AuthPrincipal principal, String resource, String action) {
+        var scope = principal.scopeFor(resource, action);
+        String therapistId = scope.scopeTypes().contains(DataScopeType.SELF) ? principal.therapistId() : null;
+        return new AdminOperationsReadRepository.StoreAccess(scope.allowsAllStores(), scope.storeIds(), therapistId);
     }
 
-    private static AdminResponseModels.Alert alert(String level, String message) {
-        return new AdminResponseModels.Alert(level, message);
+    private static AdminOperationsReadRepository.DashboardSnapshot emptyDashboard() {
+        return new AdminOperationsReadRepository.DashboardSnapshot(0, 0, 0, BigDecimal.ZERO,
+                List.of(), List.of(), List.of(), List.of());
     }
 
-    private static AdminResponseModels.Utilization utilization(String name, int rate, String text) {
-        return new AdminResponseModels.Utilization(name, rate, text);
+    private static AdminOperationsReadRepository.ScheduleSnapshot emptySchedule() {
+        return new AdminOperationsReadRepository.ScheduleSnapshot(List.of(), List.of(), List.of(), List.of());
     }
 
-    private static String text(Map<String, Object> row, String key) { Object value = row.get(key); return value == null ? null : String.valueOf(value); }
-    private static long number(Map<String, Object> row, String key) { Object value = row.get(key); return value instanceof Number number ? number.longValue() : 0; }
-    private static Number value(Map<String, Object> row, String key) { Object value = row.get(key); return value instanceof Number number ? number : null; }
+    private static AdminResponseModels.Statistic statistic(String name, String value) {
+        return new AdminResponseModels.Statistic(name, value, null);
+    }
+
+    private static AdminResponseModels.Metric metric(AdminOperationsReadRepository.MetricSnapshot value) {
+        return new AdminResponseModels.Metric(value.name(), value.value(), value.comparison());
+    }
+
+    private static AdminResponseModels.Utilization utilization(AdminOperationsReadRepository.UtilizationSnapshot value) {
+        int rate = value.scheduledMinutes() == 0 ? 0
+                : BigDecimal.valueOf(value.bookedMinutes()).multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(value.scheduledMinutes()), 0, RoundingMode.HALF_UP).min(BigDecimal.valueOf(100)).intValue();
+        return new AdminResponseModels.Utilization(value.name(), rate,
+                value.bookingCount() + " 单已排 / " + value.scheduledMinutes() + " 分钟");
+    }
+
+    private static AdminResponseModels.Alert conflictAlert(AdminOperationsReadRepository.ConflictSnapshot value) {
+        return new AdminResponseModels.Alert("error", conflictText(value));
+    }
+
+    private static String conflictText(AdminOperationsReadRepository.ConflictSnapshot value) {
+        String time = value.conflictAt() == null ? "" : " " + value.conflictAt();
+        return value.storeName() + " · " + value.resourceName() + time + " 存在资源冲突";
+    }
+
+    private static List<String> weekEntries(List<AdminOperationsReadRepository.ScheduleEntrySnapshot> entries, LocalDate weekStart) {
+        Map<LocalDate, List<AdminOperationsReadRepository.ScheduleEntrySnapshot>> entriesByDate = entries.stream()
+                .collect(Collectors.groupingBy(AdminOperationsReadRepository.ScheduleEntrySnapshot::workDate));
+        List<String> values = new ArrayList<>(7);
+        for (int offset = 0; offset < 7; offset++) {
+            List<AdminOperationsReadRepository.ScheduleEntrySnapshot> dayEntries = entriesByDate.getOrDefault(weekStart.plusDays(offset), List.of());
+            values.add(dayEntries.stream().sorted(Comparator.comparing(AdminOperationsReadRepository.ScheduleEntrySnapshot::startTime))
+                    .map(AdminQueryService::scheduleLabel).collect(Collectors.joining(" / ")));
+        }
+        return List.copyOf(values);
+    }
+
+    private static String scheduleLabel(AdminOperationsReadRepository.ScheduleEntrySnapshot entry) {
+        String label = switch (entry.status()) {
+            case "WORK" -> "上班";
+            case "REST" -> "休息";
+            case "LEAVE" -> "请假";
+            default -> entry.status();
+        };
+        if (entry.startTime() == null || entry.endTime() == null) {
+            return label;
+        }
+        return label + " " + entry.startTime() + "-" + entry.endTime();
+    }
+
+    private static String money(BigDecimal value) {
+        return "¥" + value.setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    /** Masks customer mobile numbers unless a separate field permission grants disclosure. */
+    private static String maskPhone(String phone) {
+        if (phone == null || phone.length() < 7) return phone;
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
 
 }

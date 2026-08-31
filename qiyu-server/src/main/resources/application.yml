@@ -4,13 +4,8 @@ server:
 spring:
   application:
     name: qiyu-server
-  datasource:
-    url: jdbc:h2:mem:qiyu_mock;MODE=MySQL;DB_CLOSE_DELAY=-1
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
-  flyway:
-    enabled: false
+  profiles:
+    default: local
 
 springdoc:
   swagger-ui:
@@ -33,8 +28,3 @@ sa-token:
   is-concurrent: false
   is-share: false
   is-log: false
-
-qiyu:
-  auth:
-    mock-admin-password: ${QIYU_ADMIN_INITIAL_PASSWORD:123456}
-    persistence: false

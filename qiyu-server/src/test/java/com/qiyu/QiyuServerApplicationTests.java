@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
@@ -12,6 +13,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -21,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @AutoConfigureMockMvc
 @SpringBootTest
+@ActiveProfiles("mock")
 class QiyuServerApplicationTests {
     @Autowired
     private MockMvc mockMvc;
@@ -133,25 +137,53 @@ class QiyuServerApplicationTests {
     }
 
     @Test
-    void adminDashboardContractExposesArrivalRateForRemoteMapping() throws Exception {
+    void adminDashboardReturnsHonestEmptyAggregatesWithoutPersistentData() throws Exception {
         adminPerform(get("/admin/dashboard"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.statistics", hasSize(4)))
-                .andExpect(jsonPath("$.data.storeRanking[0].name").value("静安寺店"))
-                .andExpect(jsonPath("$.data.storeRanking[0].comparison").value("92"))
-                .andExpect(jsonPath("$.data.therapistUtilization", hasSize(3)))
-                .andExpect(jsonPath("$.data.therapistUtilization[0].rate").value(92))
-                .andExpect(jsonPath("$.data.revenueTrend", hasSize(6)));
+                .andExpect(jsonPath("$.data.storeRanking", hasSize(0)))
+                .andExpect(jsonPath("$.data.therapistUtilization", hasSize(0)))
+                .andExpect(jsonPath("$.data.revenueTrend", hasSize(0)));
     }
 
     @Test
-    void adminScheduleResourcesContractExposesWeeklySchedulesAndRooms() throws Exception {
+    void adminScheduleResourcesReturnHonestEmptyCollectionsWithoutPersistentData() throws Exception {
         adminPerform(get("/admin/schedule-resources"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.therapistSchedules", hasSize(4)))
-                .andExpect(jsonPath("$.data.therapistSchedules[0].week", hasSize(7)))
-                .andExpect(jsonPath("$.data.rooms", hasSize(4)))
-                .andExpect(jsonPath("$.data.rooms[0].status").value("AVAILABLE"));
+                .andExpect(jsonPath("$.data.therapistSchedules", hasSize(0)))
+                .andExpect(jsonPath("$.data.rooms", hasSize(0)))
+                .andExpect(jsonPath("$.data.conflicts", hasSize(0)));
+    }
+
+    @Test
+    void adminStoreAndReportEndpointsReturnHonestEmptyCollectionsWithoutPersistentData() throws Exception {
+        adminPerform(get("/admin/stores"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(0)));
+        adminPerform(get("/admin/reports"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(0)));
+        adminPerform(get("/admin/therapists"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(0)));
+    }
+
+    @Test
+    void customerCannotReadAdministrationStoresOrReports() throws Exception {
+        clientPerform(get("/admin/stores"))
+                .andExpect(status().isForbidden());
+        clientPerform(get("/admin/reports"))
+                .andExpect(status().isForbidden());
+        clientPerform(get("/admin/therapists"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void reportRejectsAnInvertedDateRange() throws Exception {
+        adminPerform(get("/admin/reports")
+                        .param("startDate", "2026-08-29")
+                        .param("endDate", "2026-08-01"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -170,6 +202,37 @@ class QiyuServerApplicationTests {
 
         mockMvc.perform(get("/bookings/BK-202608-1999").header("Authorization", "Bearer " + employeeToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void storeManagerBookingListContainsOnlyThePrimaryStore() throws Exception {
+        String managerToken = issueToken("{\"clientType\":\"ADMIN_WEB\",\"grantType\":\"PASSWORD\",\"identifier\":\"manager\",\"credential\":\"123456\"}");
+
+        mockMvc.perform(get("/admin/bookings").header("Authorization", "Bearer " + managerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(3))
+                .andExpect(jsonPath("$.data.list[*].store.id", everyItem(is("store-jingan"))));
+    }
+
+    @Test
+    void employeeBookingListContainsOnlyOwnRowsAndMasksCustomerMobile() throws Exception {
+        String employeeToken = issueToken("{\"clientType\":\"ADMIN_WEB\",\"grantType\":\"PASSWORD\",\"identifier\":\"employee\",\"credential\":\"123456\"}");
+
+        mockMvc.perform(get("/admin/bookings").header("Authorization", "Bearer " + employeeToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(3))
+                .andExpect(jsonPath("$.data.list[*].therapist.id", everyItem(is("therapist-anran"))))
+                .andExpect(jsonPath("$.data.list[*].mobile", everyItem(matchesPattern("^1\\d{2}\\*{4}\\d{4}$"))));
+    }
+
+    @Test
+    void storeManagerCannotMutateAnotherStoreBooking() throws Exception {
+        String managerToken = issueToken("{\"clientType\":\"ADMIN_WEB\",\"grantType\":\"PASSWORD\",\"identifier\":\"manager\",\"credential\":\"123456\"}");
+
+        mockMvc.perform(post("/bookings/BK-202608-1999/cancel")
+                        .header("Authorization", "Bearer " + managerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
     }
 
     @Test
@@ -523,7 +586,7 @@ class QiyuServerApplicationTests {
     }
 
     @Test
-    void payBookingChangesPendingPaymentToBooked() throws Exception {
+    void paymentFailsClosedWhenNoProviderIsConfigured() throws Exception {
         clientPerform(post("/bookings/BK-202608-1001/payment")
                         .contentType(APPLICATION_JSON)
                         .content("""
@@ -531,17 +594,15 @@ class QiyuServerApplicationTests {
                                   "requestId": "pay-test"
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.bookingId").value("BK-202608-1001"))
-                .andExpect(jsonPath("$.data.paymentNo").value("PAY-BK-202608-1001-pay-test"))
-                .andExpect(jsonPath("$.data.parameters.package").value("prepay_id=mock-BK-202608-1001"))
-                .andExpect(jsonPath("$.data.parameters.mockPayment").value(true));
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.message").value("微信支付服务尚未配置，不能确认订金支付"));
 
         clientPerform(post("/bookings/BK-202608-1001/pay"))
+                .andExpect(status().isServiceUnavailable());
+
+        clientPerform(get("/bookings/BK-202608-1001"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value("BK-202608-1001"))
-                .andExpect(jsonPath("$.data.status").value("BOOKED"))
-                .andExpect(jsonPath("$.data.statusLabel").value("已预约"));
+                .andExpect(jsonPath("$.data.status").value("PENDING_PAYMENT"));
     }
 
     @Test
@@ -550,6 +611,6 @@ class QiyuServerApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value("BK-202608-1002"))
                 .andExpect(jsonPath("$.data.verificationCode", matchesPattern("\\d{6}")))
-                .andExpect(jsonPath("$.data.verificationQrImageUrl", matchesPattern("https://mock-cdn\\.qiyu\\.local/checkin/\\d{6}\\.png")));
+                .andExpect(jsonPath("$.data.verificationQrImageUrl").isEmpty());
     }
 }

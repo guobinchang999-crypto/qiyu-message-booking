@@ -45,13 +45,17 @@ Page({
         checked: false
     },
     async onLoad(query) {
-        await this.loadBooking(query.id || 'booking-1001');
+        if (!query.id) {
+            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            return;
+        }
+        await this.loadBooking(query.id);
     },
     async loadBooking(id) {
         this.setData({ loading: true, error: '' });
         try {
             const [booking, dictionaries, feedback, pageStates] = await Promise.all([
-                booking_service_1.bookingService.getBooking(id || this.data.booking?.id || 'booking-1001'),
+                booking_service_1.bookingService.getBooking(id || this.data.booking?.id || ''),
                 booking_service_1.bookingService.getCheckinDictionaries(),
                 booking_service_1.bookingService.getActionFeedbackDictionaries(),
                 booking_service_1.bookingService.getPageStateDictionaries()
@@ -130,6 +134,6 @@ Page({
             (0, store_actions_1.callStore)(this.data.booking?.store || null, this.data.feedback);
             return;
         }
-        wx.showToast({ title: this.data.feedback.genericMockAction, icon: 'none' });
+        wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
     }
 });

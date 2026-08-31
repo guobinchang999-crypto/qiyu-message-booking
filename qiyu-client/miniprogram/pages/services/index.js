@@ -88,7 +88,9 @@ Page({
         wx.navigateTo({ url: navigation_1.pageRoutes.stores });
     },
     goService(event) {
-        const serviceId = String(event.detail.id || 'neck');
+        const serviceId = String(event.detail.id || '');
+        if (!serviceId)
+            return;
         booking_1.bookingStore.selectService(serviceId);
         wx.navigateTo({ url: navigation_1.pageUrls.serviceDetail(serviceId) });
     }

@@ -5,7 +5,11 @@ import com.qiyu.domain.auth.DataAccessScope;
 import com.qiyu.domain.auth.DataScopeType;
 import com.qiyu.domain.auth.GrantType;
 import com.qiyu.domain.auth.UserType;
+import com.qiyu.domain.auth.gateway.SmsVerificationGateway;
 import com.qiyu.infrastructure.persistence.mapper.AuthAccessMapper;
+import com.qiyu.infrastructure.persistence.mapper.AuthPrincipalRow;
+import com.qiyu.infrastructure.persistence.mapper.DataScopeRow;
+import com.qiyu.infrastructure.persistence.mapper.PermissionGrantRow;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataAccessException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,23 +31,25 @@ import java.util.Set;
 @ConditionalOnProperty(name = "qiyu.auth.persistence", havingValue = "true")
 public class DbAuthPrincipalProvider {
     private final AuthAccessMapper authAccessMapper;
+    private final SmsVerificationGateway smsVerificationGateway;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public DbAuthPrincipalProvider(AuthAccessMapper authAccessMapper) {
+    public DbAuthPrincipalProvider(AuthAccessMapper authAccessMapper, SmsVerificationGateway smsVerificationGateway) {
         this.authAccessMapper = authAccessMapper;
+        this.smsVerificationGateway = smsVerificationGateway;
     }
 
     public AuthPrincipal authenticate(ClientType clientType, GrantType grantType, String identifier, String credential) {
         try {
             String identityType = grantType == GrantType.PASSWORD ? "PASSWORD" : "MOBILE";
-            List<Map<String, Object>> identities = authAccessMapper.findIdentity(identityType, identifier);
+            List<AuthPrincipalRow> identities = authAccessMapper.findIdentity(identityType, identifier);
             if (identities.isEmpty()) return null;
 
-            Map<String, Object> identity = identities.getFirst();
-            String hash = (String) identity.get("credential_hash");
+            AuthPrincipalRow identity = identities.getFirst();
+            String hash = identity.credentialHash();
             boolean valid = grantType == GrantType.PASSWORD
                     ? hash != null && passwordEncoder.matches(credential, hash)
-                    : "123456".equals(credential);
+                    : smsVerificationGateway.verify(identifier, credential);
             if (!valid) throw new IllegalArgumentException("登录凭证不正确");
 
             return buildPrincipal(identity, identifier);
@@ -57,15 +63,15 @@ public class DbAuthPrincipalProvider {
     public AuthPrincipal reload(long userId, String mobile) {
         // Reload uses the stable user ID so renamed login identifiers do not invalidate active sessions.
         try {
-            List<Map<String, Object>> users = authAccessMapper.findUser(userId);
+            List<AuthPrincipalRow> users = authAccessMapper.findUser(userId);
             return users.isEmpty() ? null : buildPrincipal(users.getFirst(), mobile);
         } catch (DataAccessException exception) {
             throw new IllegalStateException("认证权限服务暂时不可用", exception);
         }
     }
 
-    private AuthPrincipal buildPrincipal(Map<String, Object> identity, String mobile) {
-        long userId = ((Number) identity.get("user_id")).longValue();
+    private AuthPrincipal buildPrincipal(AuthPrincipalRow identity, String mobile) {
+        long userId = identity.userId();
         Set<String> roles = new LinkedHashSet<>(authAccessMapper.roleCodes(userId));
 
         PermissionSet permissionSet = loadPermissions(userId);
@@ -76,19 +82,18 @@ public class DbAuthPrincipalProvider {
                             && (scope.actionCode().equals("READ") || scope.actionCode().equals("*")))
                     .findFirst().orElse(DataAccessScope.none("booking", "READ"));
 
-        UserType userType = UserType.valueOf((String) identity.get("user_type"));
-        return new AuthPrincipal(userId, userType, value(identity.get("customer_id")), therapistApiId(identity.get("therapist_code")),
+        UserType userType = UserType.valueOf(identity.userType());
+        return new AuthPrincipal(userId, userType, value(identity.customerId()), therapistApiId(identity.therapistCode()),
                     roles, permissionSet.allowed(), preferredScope(bookingRead), bookingRead.storeIds(), bookingRead.regionIds(),
-                    scopes, permissionSet.denied(), (String) identity.get("display_name"), mobile);
+                    scopes, permissionSet.denied(), identity.displayName(), mobile);
     }
 
     private PermissionSet loadPermissions(long userId) {
         Set<String> allowed = new LinkedHashSet<>();
         Set<String> denied = new LinkedHashSet<>();
-        List<Map<String, Object>> grants = authAccessMapper.permissionGrants(userId);
-        for (Map<String, Object> grant : grants) {
-            String code = String.valueOf(grant.get("permission_code"));
-            if ("DENY".equals(grant.get("effect"))) denied.add(code); else allowed.add(code);
+        List<PermissionGrantRow> grants = authAccessMapper.permissionGrants(userId);
+        for (PermissionGrantRow grant : grants) {
+            if ("DENY".equals(grant.effect())) denied.add(grant.permissionCode()); else allowed.add(grant.permissionCode());
         }
         // Explicit user or role denies take precedence over every accumulated allow grant.
         allowed.removeAll(denied);
@@ -180,9 +185,8 @@ public class DbAuthPrincipalProvider {
         };
     }
 
-    private static ScopeSource scopeSource(Map<String, Object> row, boolean userOverride) {
-        return new ScopeSource(String.valueOf(row.get("resource_code")), String.valueOf(row.get("action_code")),
-                DataScopeType.valueOf(String.valueOf(row.get("scope_type"))), userOverride);
+    private static ScopeSource scopeSource(DataScopeRow row, boolean userOverride) {
+        return new ScopeSource(row.resourceCode(), row.actionCode(), DataScopeType.valueOf(row.scopeType()), userOverride);
     }
 
     private static String value(Object value) { return value == null ? null : String.valueOf(value); }

@@ -20,8 +20,7 @@ const paymentParameters = {
   nonceStr: 'nonce',
   package: 'prepay_id=test',
   signType: 'RSA',
-  paySign: 'sign',
-  mockPayment: false
+  paySign: 'sign'
 };
 const paidBooking = { id:'booking-1001', status:'BOOKED' };
 
@@ -35,31 +34,9 @@ const resetService = () => {
 try {
   Date.now = () => 1786630000000;
 
-  let requestPaymentCalled = false;
   let preparedRequestId = '';
   let paidRequestId = '';
-  bookingService.prepareBookingPayment = async (_bookingId, requestId) => {
-    preparedRequestId = requestId;
-    return { bookingId:_bookingId, parameters:{ ...paymentParameters, mockPayment:true } };
-  };
-  bookingService.payBooking = async (_bookingId, requestId) => {
-    paidRequestId = requestId;
-    return paidBooking;
-  };
-  global.wx = {
-    requestPayment: () => {
-      requestPaymentCalled = true;
-    }
-  };
-  const mockResult = await payBookingDeposit('booking-1001');
-  assert(mockResult === paidBooking, 'mock payment should return payBooking result');
-  assert(preparedRequestId === 'pay-1786630000000', 'mock payment should prepare with deterministic request id');
-  assert(paidRequestId === preparedRequestId, 'mock payment should confirm with same request id');
-  assert(!requestPaymentCalled, 'mock payment should skip wx.requestPayment');
-
   let receivedPaymentPayload = null;
-  preparedRequestId = '';
-  paidRequestId = '';
   bookingService.prepareBookingPayment = async (_bookingId, requestId) => {
     preparedRequestId = requestId;
     return { bookingId:_bookingId, parameters:paymentParameters };

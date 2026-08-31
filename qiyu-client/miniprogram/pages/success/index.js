@@ -13,12 +13,16 @@ Page({
         copy: emptySuccessCopy,
         feedback: emptyFeedback,
         stateCopy: emptyState,
-        bookingId: 'booking-1001',
+        bookingId: '',
         loading: true,
         error: ''
     },
     async onLoad(query) {
-        this.setData({ bookingId: query.id || 'booking-1001' });
+        if (!query.id) {
+            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            return;
+        }
+        this.setData({ bookingId: query.id });
         await this.loadBooking();
     },
     async loadBooking() {

@@ -7,6 +7,7 @@ interface ApiEnvelope<T> {
 }
 
 const buildUrl = (path: string, query?: Record<string, string | undefined>): string => {
+  if (!apiConfig.baseUrl) throw new Error('生产接口地址尚未配置');
   const url = `${apiConfig.baseUrl}${path}`;
   const entries = Object.entries(query || {}).filter(([, value]) => value);
   if (entries.length === 0) return url;
@@ -21,7 +22,7 @@ const authHeader = (): Record<string, string> => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-export const request = <T>(path: string, options: { method?: 'GET' | 'POST'; data?: RequestData; query?: Record<string, string | undefined> } = {}): Promise<T> => {
+export const request = <T>(path: string, options: { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; data?: RequestData; query?: Record<string, string | undefined> } = {}): Promise<T> => {
   return new Promise((resolve, reject) => {
     wx.request<ApiEnvelope<T>>({
       url: buildUrl(path, options.query),

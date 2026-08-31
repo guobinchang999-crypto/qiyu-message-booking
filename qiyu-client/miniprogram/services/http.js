@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.upload = exports.request = void 0;
 const config_1 = require("./config");
 const buildUrl = (path, query) => {
+    if (!config_1.apiConfig.baseUrl)
+        throw new Error('生产接口地址尚未配置');
     const url = `${config_1.apiConfig.baseUrl}${path}`;
     const entries = Object.entries(query || {}).filter(([, value]) => value);
     if (entries.length === 0)

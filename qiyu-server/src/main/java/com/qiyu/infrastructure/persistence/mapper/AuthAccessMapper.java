@@ -5,7 +5,6 @@ import org.apache.ibatis.annotations.Select;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 /** Read model for effective authentication and authorization snapshots. */
 public interface AuthAccessMapper {
@@ -18,15 +17,16 @@ public interface AuthAccessMapper {
             WHERE i.identity_type=#{identityType} AND i.identifier=#{identifier} AND i.status='ENABLED' AND i.deleted=0
               AND u.status='ENABLED' AND u.deleted=0
             """)
-    List<Map<String, Object>> findIdentity(@Param("identityType") String identityType, @Param("identifier") String identifier);
+    List<AuthPrincipalRow> findIdentity(@Param("identityType") String identityType, @Param("identifier") String identifier);
 
     @Select("""
-            SELECT u.id user_id,u.user_type,u.display_name,c.id customer_id,t.therapist_code
+            SELECT u.id user_id,u.user_type,u.display_name,NULL AS credential_hash,
+                   c.id customer_id,t.therapist_code
             FROM sys_user u LEFT JOIN customer c ON c.user_id=u.id AND c.deleted=0
             LEFT JOIN staff s ON s.user_id=u.id AND s.deleted=0 LEFT JOIN therapist t ON t.staff_id=s.id AND t.deleted=0
             WHERE u.id=#{userId} AND u.status='ENABLED' AND u.deleted=0
             """)
-    List<Map<String, Object>> findUser(long userId);
+    List<AuthPrincipalRow> findUser(long userId);
 
     @Select("SELECT r.role_code FROM sys_user_role ur JOIN sys_role r ON r.id=ur.role_id WHERE ur.user_id=#{userId} AND r.status='ENABLED' AND r.deleted=0")
     List<String> roleCodes(long userId);
@@ -40,13 +40,13 @@ public interface AuthAccessMapper {
               WHERE up.user_id=#{userId} AND p.status='ENABLED' AND p.deleted=0
                 AND (up.valid_from IS NULL OR up.valid_from<=NOW()) AND (up.valid_until IS NULL OR up.valid_until>NOW())
             """)
-    List<Map<String, Object>> permissionGrants(long userId);
+    List<PermissionGrantRow> permissionGrants(long userId);
 
     @Select("SELECT resource_code,action_code,scope_type FROM sys_user_data_scope WHERE user_id=#{userId} AND (valid_from IS NULL OR valid_from<=NOW()) AND (valid_until IS NULL OR valid_until>NOW())")
-    List<Map<String, Object>> userScopes(long userId);
+    List<DataScopeRow> userScopes(long userId);
 
     @Select("SELECT ds.resource_code,ds.action_code,ds.scope_type FROM sys_user_role ur JOIN sys_role_data_scope ds ON ds.role_id=ur.role_id WHERE ur.user_id=#{userId}")
-    List<Map<String, Object>> roleScopes(long userId);
+    List<DataScopeRow> roleScopes(long userId);
 
     @Select("SELECT CONCAT('store-',LOWER(REPLACE(s.store_code,'_','-'))) FROM staff f JOIN store s ON s.id=f.primary_store_id WHERE f.user_id=#{userId} AND f.deleted=0 AND s.deleted=0")
     List<String> primaryStores(long userId);

@@ -125,7 +125,7 @@ public record ClientCatalogPayload(
                                       String successToastText, String failureToastText,
                                       List<KeyLabel> bottomActions) {}
 
-    public record ActionFeedbackDictionaries(String supportUnavailable, String genericMockAction,
+    public record ActionFeedbackDictionaries(String supportUnavailable, String genericUnavailable,
                                             String distanceSorted, String mapUnavailable,
                                             String navigationUnavailable, String contactPlaceholder,
                                             String shareUnavailable, String therapistUnavailable, String slotFull,

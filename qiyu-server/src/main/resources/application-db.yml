@@ -17,3 +17,4 @@ spring:
 qiyu:
   auth:
     persistence: true
+    initial-admin-password: ${ADMIN_INITIAL_PASSWORD:}

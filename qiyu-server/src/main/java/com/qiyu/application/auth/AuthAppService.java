@@ -7,6 +7,7 @@ import com.qiyu.domain.auth.DataAccessScope;
 import com.qiyu.domain.auth.DataScopeType;
 import com.qiyu.domain.auth.GrantType;
 import com.qiyu.domain.auth.UserType;
+import com.qiyu.domain.auth.gateway.SmsVerificationGateway;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
@@ -15,9 +16,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Unified authentication entry point for the admin web application and customer mini program.
@@ -25,22 +25,22 @@ import java.util.concurrent.ConcurrentMap;
  */
 @Service
 public class AuthAppService {
-    private static final String MOCK_CODE = "123456";
-    private final ConcurrentMap<String, String> verificationCodes = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, AuthPrincipal> principals = new ConcurrentHashMap<>();
     private final DbAuthPrincipalProvider dbAuthPrincipalProvider;
-    @Value("${qiyu.auth.mock-admin-password}")
+    private final SmsVerificationGateway smsVerificationGateway;
+    @Value("${qiyu.auth.mock-admin-password:}")
     private String mockAdminPassword;
 
-    public AuthAppService(ObjectProvider<DbAuthPrincipalProvider> dbAuthPrincipalProvider) {
+    public AuthAppService(ObjectProvider<DbAuthPrincipalProvider> dbAuthPrincipalProvider,
+                          SmsVerificationGateway smsVerificationGateway) {
         this.dbAuthPrincipalProvider = dbAuthPrincipalProvider.getIfAvailable();
+        this.smsVerificationGateway = smsVerificationGateway;
     }
 
     /** Issues a verification code and returns its request metadata. */
     public SendCodeResponse sendCode(String mobile) {
-        String requestId = "LOGIN-" + UUID.randomUUID();
-        verificationCodes.put(mobile, MOCK_CODE);
-        return new SendCodeResponse(mobile, requestId, 60, MOCK_CODE, true);
+        SmsVerificationGateway.SendResult result = smsVerificationGateway.send(mobile);
+        return new SendCodeResponse(mobile, result.requestId(), result.expiresIn(), result.debugCode(), result.mock());
     }
 
     /** Authenticates one client type and creates the common bearer-token response. */
@@ -123,8 +123,7 @@ public class AuthAppService {
         }
         // Mock identities are available only when the application explicitly runs in mock mode.
         if (clientType == ClientType.MINI_PROGRAM && grantType == GrantType.SMS_CODE) {
-            String expected = verificationCodes.getOrDefault(identifier, MOCK_CODE);
-            if (!expected.equals(credential)) throw new IllegalArgumentException("验证码不正确");
+            if (!smsVerificationGateway.verify(identifier, credential)) throw new IllegalArgumentException("验证码不正确");
             return new AuthPrincipal(1001L, UserType.CUSTOMER, "customer-demo", null,
                     Set.of("CUSTOMER"), Set.of("booking:read", "booking:create", "booking:cancel", "booking:update", "booking:checkin"),
                     DataScopeType.SELF, Set.of(), Set.of(), customerScopes(), Set.of(), "林知夏", identifier);

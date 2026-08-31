@@ -38,7 +38,7 @@ const reviewPageSize = 2;
 Page({
   data: {
     store: null as Store | null,
-    storeId: 'jingan',
+    storeId: '',
     services: [] as ServiceItem[],
     therapists: [] as Therapist[],
     reviews: [] as StoreReview[],
@@ -53,12 +53,17 @@ Page({
     galleryImages: [] as string[],
     galleryTotal: 0,
     favorite: false,
+    favoriteUpdating: false,
     placeholderLabel: imagePlaceholderLabels.brand,
     loading: true,
     error: ''
   },
   async onLoad(query: { id?: string }) {
-    const storeId = query.id || 'jingan';
+    const storeId = query.id || '';
+    if (!storeId) {
+      this.setData({ loading: false, error: emptyDictionaries.errorMessage });
+      return;
+    }
     bookingStore.selectStore(storeId);
     this.setData({ storeId });
     await this.loadStore();
@@ -71,21 +76,23 @@ Page({
         bookingService.getActionFeedbackDictionaries()
       ]);
       this.setData({ dictionaries, feedback });
-      const [store, home, therapists, reviewPage] = await Promise.all([
+      const [store, services, therapists, reviewPage, favorite] = await Promise.all([
         bookingService.getStore(this.data.storeId),
-        bookingService.getHome(),
-        bookingService.getTherapists('neck'),
-        bookingService.getStoreReviews(this.data.storeId, undefined, 1, reviewPageSize)
+        bookingService.getServices(),
+        bookingService.getTherapists(''),
+        bookingService.getStoreReviews(this.data.storeId, undefined, 1, reviewPageSize),
+        bookingService.getFavorite('stores', this.data.storeId)
       ]);
       const galleryImages = store.galleryImageUrls?.length ? store.galleryImageUrls : [store.galleryImageUrl || store.coverImageUrl || ''];
-      this.setData({ store, services: home.featuredServices, therapists, reviews: reviewPage.items, reviewPage: reviewPage.page, reviewHasMore: reviewPage.hasMore, galleryImages, galleryIndex: 1, galleryTotal: galleryImages.length, loading: false });
+      this.setData({ store, services, therapists: therapists.filter((item) => item.storeId === store.id), reviews: reviewPage.items, reviewPage: reviewPage.page, reviewHasMore: reviewPage.hasMore, galleryImages, galleryIndex: 1, galleryTotal: galleryImages.length, favorite: favorite.favorite, loading: false });
     } catch (error) {
       this.setData({ loading: false, error: resolvePageError(error, this.data.dictionaries.errorMessage) });
     }
   },
   goService(event?: WechatMiniprogram.CustomEvent<{ id?: string }>) {
     if (this.data.loading || this.data.error) return;
-    const serviceId = event?.detail?.id || 'neck';
+    const serviceId = event?.detail?.id || '';
+    if (!serviceId) return;
     bookingStore.selectStore(this.data.storeId);
     bookingStore.selectService(serviceId);
     wx.navigateTo({ url: pageUrls.serviceDetail(serviceId) });
@@ -116,12 +123,21 @@ Page({
       this.setData({ reviewLoadingMore: false });
     }
   },
-  onAction(event: WechatMiniprogram.TouchEvent) {
+  async onAction(event: WechatMiniprogram.TouchEvent) {
     const key = String(event.currentTarget.dataset.key || '');
     if (key === 'favorite') {
+      if (this.data.favoriteUpdating) return;
       const favorite = !this.data.favorite;
-      this.setData({ favorite });
-      wx.showToast({ title: favorite ? this.data.dictionaries.favoriteAddedToast : this.data.dictionaries.favoriteRemovedToast, icon: 'none' });
+      this.setData({ favoriteUpdating: true });
+      try {
+        const result = await bookingService.setFavorite('stores', this.data.storeId, favorite);
+        this.setData({ favorite: result.favorite });
+        wx.showToast({ title: result.favorite ? this.data.dictionaries.favoriteAddedToast : this.data.dictionaries.favoriteRemovedToast, icon: 'none' });
+      } catch (error) {
+        wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
+      } finally {
+        this.setData({ favoriteUpdating: false });
+      }
       return;
     }
     if (key === 'navigation') {

@@ -63,7 +63,7 @@ export default function ManagementTablePage<T extends { id: string }>(props: Man
       <Table<T> rowKey="id" rowSelection={props.rowSelection} columns={columns} dataSource={rows} scroll={{ x: 980 }} pagination={{ pageSize: 8, showSizeChanger: false, showTotal: (total) => `共 ${total} 条` }} />
     </Card>
     <Drawer title={props.drawerTitle ?? props.title} width={440} open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-      {props.drawerContent?.(activeRecord) ?? <Typography.Paragraph type="secondary">该能力当前为 Mock 演示入口，真实规则后续接入。</Typography.Paragraph>}
+      {props.drawerContent?.(activeRecord) ?? <Typography.Paragraph type="secondary">该记录暂未提供更多详情。</Typography.Paragraph>}
     </Drawer>
   </div>;
 }

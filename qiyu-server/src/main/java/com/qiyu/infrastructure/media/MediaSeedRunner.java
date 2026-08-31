@@ -24,13 +24,13 @@ public class MediaSeedRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) throws Exception {
         List<SeedAsset> assets = List.of(
-                new SeedAsset("media-seed/stores/jingan.png", "stores/jingan.png", "store", "STORE_JINGAN"),
-                new SeedAsset("media-seed/stores/xujiahui.png", "stores/xujiahui.png", "store", "STORE_XUJIAHUI"),
-                new SeedAsset("media-seed/stores/lujiazui.png", "stores/lujiazui.png", "store", "STORE_LUJIAZUI"),
-                new SeedAsset("media-seed/services/neck.png", "services/neck.png", "service", "SERVICE_NECK"),
-                new SeedAsset("media-seed/services/tuina.png", "services/tuina.png", "service", "SERVICE_TUINA"),
-                new SeedAsset("media-seed/services/aroma.png", "services/aroma.png", "service", "SERVICE_AROMA"),
-                new SeedAsset("media-seed/therapists/lin.png", "therapists/lin.png", "therapist", "THERAPIST_LIN")
+                new SeedAsset("media-seed/stores/jingan.png", "stores/jingan.png", "store", "JINGAN"),
+                new SeedAsset("media-seed/stores/xujiahui.png", "stores/xujiahui.png", "store", "XUJIAHUI"),
+                new SeedAsset("media-seed/stores/lujiazui.png", "stores/lujiazui.png", "store", "LUJIAZUI"),
+                new SeedAsset("media-seed/services/neck.png", "services/neck.png", "service", "NECK_60"),
+                new SeedAsset("media-seed/services/tuina.png", "services/tuina.png", "service", "TUINA_90"),
+                new SeedAsset("media-seed/services/aroma.png", "services/aroma.png", "service", "AROMA_90"),
+                new SeedAsset("media-seed/therapists/lin.png", "therapists/lin.png", "therapist", "TH_LJZ_LIN")
         );
         for (SeedAsset asset : assets) uploadAndPersist(asset);
     }
@@ -42,7 +42,10 @@ public class MediaSeedRunner implements ApplicationRunner {
             url = storageGateway.put(asset.objectName(), "image/png", inputStream, resource.contentLength());
         }
         switch (asset.type()) {
-            case "store" -> mediaResourceMapper.updateStore(asset.code(), url);
+            case "store" -> {
+                mediaResourceMapper.updateStore(asset.code(), url);
+                mediaResourceMapper.updateStoreGallery(asset.code(), url);
+            }
             case "service" -> mediaResourceMapper.updateService(asset.code(), url);
             case "therapist" -> mediaResourceMapper.updateTherapist(asset.code(), url);
             default -> throw new IllegalArgumentException("未知资源类型: " + asset.type());

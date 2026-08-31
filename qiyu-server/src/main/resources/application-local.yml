@@ -23,6 +23,9 @@ spring:
 qiyu:
   auth:
     persistence: true
+    initial-admin-password: ${ADMIN_INITIAL_PASSWORD:}
+    local-sms-enabled: ${QIYU_LOCAL_SMS_ENABLED:true}
+    local-sms-debug-code-enabled: ${QIYU_LOCAL_SMS_DEBUG_CODE_ENABLED:true}
   storage:
     minio:
       enabled: ${QIYU_LOCAL_MINIO_ENABLED:false}
@@ -32,4 +35,5 @@ qiyu:
       secret-key: ${QIYU_LOCAL_MINIO_SECRET_KEY:}
       bucket: ${QIYU_LOCAL_MINIO_BUCKET:qiyu-local}
       public-base-url: ${QIYU_LOCAL_MINIO_PUBLIC_BASE_URL:http://192.168.31.100:9000}
+      public-read: ${QIYU_LOCAL_MINIO_PUBLIC_READ:false}
       seed-enabled: ${QIYU_LOCAL_MINIO_SEED_ENABLED:false}

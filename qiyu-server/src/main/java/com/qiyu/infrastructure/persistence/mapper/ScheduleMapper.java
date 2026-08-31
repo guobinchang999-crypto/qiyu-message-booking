@@ -9,10 +9,10 @@ import java.time.LocalTime;
 
 /** SQL read model for the availability calculation; no ORM type crosses the application boundary. */
 public interface ScheduleMapper {
-    @Select("SELECT open_time openTime, close_time closeTime, business_status businessStatus FROM store WHERE store_code=#{storeCode} AND deleted=0")
+    @Select("SELECT open_time openTime, close_time closeTime, business_status businessStatus, NULL AS dayStatus FROM store WHERE store_code=#{storeCode} AND deleted=0")
     StoreHoursRow storeHours(String storeCode);
 
-    @Select("SELECT d.open_time openTime, d.close_time closeTime, d.day_status dayStatus FROM store_business_day d JOIN store s ON s.id=d.store_id WHERE s.store_code=#{storeCode} AND d.business_date=#{date} AND d.deleted=0")
+    @Select("SELECT d.open_time openTime, d.close_time closeTime, NULL AS businessStatus, d.day_status dayStatus FROM store_business_day d JOIN store s ON s.id=d.store_id WHERE s.store_code=#{storeCode} AND d.business_date=#{date} AND d.deleted=0")
     StoreHoursRow specialDay(@Param("storeCode") String storeCode, @Param("date") LocalDate date);
 
     @Select("SELECT COUNT(*) FROM therapist_schedule t JOIN therapist p ON p.id=t.therapist_id WHERE p.therapist_code=#{therapistCode} AND t.work_date=#{date} AND t.schedule_status='WORK' AND t.deleted=0 AND t.start_time<=#{startTime} AND t.end_time>=#{endTime}")

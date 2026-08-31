@@ -18,18 +18,20 @@ Page({
     if (key === 'booking') { this.goServices(); return; }
     if (key === 'orders') { this.goOrders(); return; }
     if (key === 'benefits' || key === 'coupons' || key === 'packages') { this.goProfile(); return; }
-    wx.showToast({ title:this.data.feedback.genericMockAction, icon:'none' });
+    wx.showToast({ title:this.data.feedback.genericUnavailable, icon:'none' });
   },
   onSupportContactError(){ wx.showToast({ title:this.data.feedback.supportUnavailable, icon:'none' }); },
   goStores(){ wx.navigateTo({ url:pageRoutes.stores }); },
   goServices(){ wx.switchTab({ url:pageRoutes.services }); },
   goStore(event:WechatMiniprogram.CustomEvent<{ id?: string }>){
-    const storeId = event.detail.id || 'jingan';
+    const storeId = event.detail.id || '';
+    if (!storeId) return;
     bookingStore.selectStore(storeId);
     wx.navigateTo({ url:pageUrls.storeDetail(storeId) });
   },
   goService(event:WechatMiniprogram.CustomEvent<{ id?: string }>){
-    const serviceId = event.detail.id || 'neck';
+    const serviceId = event.detail.id || '';
+    if (!serviceId) return;
     bookingStore.selectService(serviceId);
     wx.navigateTo({ url:pageUrls.serviceDetail(serviceId) });
   },

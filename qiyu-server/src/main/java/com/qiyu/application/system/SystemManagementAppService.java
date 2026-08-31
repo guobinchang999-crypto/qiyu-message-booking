@@ -60,6 +60,39 @@ public class SystemManagementAppService {
         repository.deleteUser(userId, principal.userId());
     }
 
+    /** Resets one staff password without exposing either plaintext or the stored hash. */
+    public void resetUserPassword(String id, SystemModels.PasswordResetCommand command) {
+        if (command == null || command.newPassword() == null || command.newPassword().length() < 8) {
+            throw new IllegalArgumentException("新密码至少需要 8 个字符");
+        }
+        repository.resetUserPassword(requiredId(id), command.newPassword(), require("system:user:manage").userId());
+    }
+
+    /** Reads one user-level override after verifying system-user administration permission. */
+    public SystemModels.UserDataScope userDataScope(String id) {
+        require("system:user:manage");
+        return repository.userDataScope(requiredId(id));
+    }
+
+    /** Validates and replaces a user-level data-scope override as one transaction. */
+    public SystemModels.UserDataScope saveUserDataScope(String id, SystemModels.UserDataScopeCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("数据权限参数不能为空");
+        }
+        return repository.saveUserDataScope(requiredId(id), command, require("system:user:manage").userId());
+    }
+
+    /** Clears a user override and restores dynamic inheritance from assigned roles. */
+    public SystemModels.UserDataScope clearUserDataScope(String id) {
+        return repository.clearUserDataScope(requiredId(id), require("system:user:manage").userId());
+    }
+
+    /** Returns authorization selector options without exposing persistence entities. */
+    public SystemModels.DataScopeOptions dataScopeOptions() {
+        require("system:user:manage");
+        return repository.dataScopeOptions();
+    }
+
     public SystemModels.Page<SystemModels.Role> roles(String keyword, int page, int pageSize) {
         require("system:role:manage");
         return repository.roles(text(keyword), page(page), pageSize(pageSize));

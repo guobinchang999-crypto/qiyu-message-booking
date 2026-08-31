@@ -90,7 +90,7 @@
 - Spring Boot 3
 - Spring Web
 - Spring Validation
-- Spring JDBC
+- MyBatis-Plus
 - Flyway
 - MySQL 8
 - Redis
@@ -114,7 +114,7 @@
 - TypeScript
 - TDesign MiniProgram
 - TDesign 主题定制
-- Mock Service
+- Fetch API service with an explicit Mock test mode
 - 轻量状态管理
 
 ## 仓库结构
@@ -162,6 +162,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 后端默认端口为 `8080`，OpenAPI 页面为 `http://localhost:8080/swagger-ui.html`。`local` profile 会连接 MySQL、执行 Flyway，并启用数据库认证和数据权限上下文。
+首次初始化空库时必须设置 `ADMIN_INITIAL_PASSWORD`；启动器只会为尚无哈希的 `admin` 身份写入 BCrypt，后续启动不会覆盖已设置密码。
 
 ### MinIO 资源种子
 
@@ -212,8 +213,8 @@ npm install
 - 前端优先使用设计系统和组件库能力，避免重复硬编码样式。
 - 管理后台保持企业级后台风格，重视信息密度、筛选、表格、状态和批量操作。
 - 小程序客户端保持温暖、自然、克制的 TDesign Mobile 风格。
-- 业务流程尚未确定的部分保留 Mock 接口和事件入口，不擅自补造真实业务规则。
-- 测试环境未搭建完成前，所有接口交互默认使用 Mock 数据。
+- local/dev/prod 默认使用真实后端与持久化数据；Mock 仅作为显式选择的测试模式。
+- 未配置微信支付、短信或对象存储凭据时，相关真实操作失败关闭，不伪造成功结果。
 
 ## 当前阶段
 

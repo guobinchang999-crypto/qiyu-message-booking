@@ -3,6 +3,7 @@ import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Spac
 import type { FormInstance } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { SystemPage } from '@/types/system';
 
 export interface SystemFormField {
@@ -24,6 +25,8 @@ interface SystemCrudPageProps<T extends { id: string }> {
   save: (payload: Partial<T> & { id?: string }) => Promise<T>;
   remove: (id: string) => Promise<void>;
   initialValues?: Partial<T>;
+  extraActions?: (record: T) => ReactNode;
+  children?: ReactNode;
 }
 
 const FieldControl = ({ field }: { field: SystemFormField }) => {
@@ -77,9 +80,10 @@ export default function SystemCrudPage<T extends { id: string }>(props: SystemCr
     catch (error) { message.error(error instanceof Error ? error.message : '删除失败'); }
   };
   const columns: ColumnsType<T> = [...props.columns, {
-    title: '操作', key: 'actions', width: 130, fixed: 'right',
+    title: '操作', key: 'actions', width: props.extraActions ? 180 : 130, fixed: 'right',
     render: (_, record) => <Space size={4}>
       <Button type="text" size="small" icon={<EditOutlined />} onClick={() => showForm(record)}>编辑</Button>
+      {props.extraActions?.(record)}
       <Popconfirm title="确认删除该记录？" description="删除后无法恢复，请确认没有业务数据引用。" onConfirm={() => remove(record.id)}><Button type="text" danger size="small" icon={<DeleteOutlined />} /></Popconfirm>
     </Space>
   }];
@@ -94,5 +98,6 @@ export default function SystemCrudPage<T extends { id: string }>(props: SystemCr
         {props.fields.map((field) => <Form.Item key={field.name} name={field.name} label={field.label} valuePropName={field.type === 'switch' ? 'checked' : 'value'} rules={field.required ? [{ required: true, message: `请填写${field.label}` }] : undefined}><FieldControl field={field} /></Form.Item>)}
       </Form>
     </Modal>
+    {props.children}
   </div>;
 }

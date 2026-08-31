@@ -7,7 +7,7 @@ const authSource = readFileSync(resolve(rootDir, 'src/services/admin-auth.ts'), 
 const requiredPatterns = [
   [/readAdminSession\(\)/, 'layout should read the structured admin auth session'],
   [/window\.location\.replace\('\/login'\)/, 'unauthenticated users should be redirected to login'],
-  [/roleMenuPaths\[session\.role\]/, 'layout should filter menu items by session role'],
+  [/\.filter\(\(item\) => can\(session, menuPermission\[item\.key\]\)\)/, 'layout should filter menu items by effective permissions'],
   [/authenticated\)/, 'layout should defer business content until auth is checked'],
   [/expiresAt <= Date\.now\(\)/, 'auth service should reject expired sessions'],
   [/clearAdminSession\(\)/, 'logout should clear the structured session']

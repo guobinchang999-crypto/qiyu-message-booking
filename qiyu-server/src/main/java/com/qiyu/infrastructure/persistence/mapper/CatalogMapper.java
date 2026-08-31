@@ -9,6 +9,14 @@ import java.util.List;
 
 /** Database read model for customer and administration catalog resources. */
 public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
+    @Select("SELECT id FROM region WHERE region_code=#{code} AND deleted=0 LIMIT 1")
+    Long regionId(String code);
+    @Select("""
+            SELECT (SELECT COUNT(*) FROM therapist WHERE store_id=#{storeId} AND deleted=0)
+                 + (SELECT COUNT(*) FROM room WHERE store_id=#{storeId} AND deleted=0)
+                 + (SELECT COUNT(*) FROM booking WHERE store_id=#{storeId} AND deleted=0)
+            """)
+    Long storeDependencyCount(@Param("storeId") long storeId);
     @Select("""
             SELECT id, coupon_name AS name,
               CASE WHEN discount_type='FIXED' THEN CONCAT('减 ¥', discount_amount) ELSE CONCAT(discount_percent, '% 折扣') END AS discount,
@@ -24,7 +32,18 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
                    '' AS distance, s.rating, s.business_status AS businessStatusCode,
                    COALESCE(di.item_label, s.business_status) AS businessStatusLabel,
                    '近期可约' AS nextAvailableAt, s.business_hours AS businessHours,
-                   FALSE AS frequent, s.cover_url AS coverImageUrl
+                   FALSE AS frequent, s.cover_url AS coverImageUrl,
+                   COALESCE((SELECT sg.image_url FROM store_gallery sg
+                     WHERE sg.store_id=s.id AND sg.deleted=0 ORDER BY sg.sort_order, sg.id LIMIT 1), s.cover_url) AS galleryImageUrl,
+                   COALESCE((SELECT GROUP_CONCAT(sg.image_url ORDER BY sg.sort_order, sg.id SEPARATOR ',')
+                     FROM store_gallery sg WHERE sg.store_id=s.id AND sg.deleted=0), s.cover_url) AS galleryImageUrls,
+                   COALESCE((SELECT GROUP_CONCAT(sf.facility_name ORDER BY sf.sort_order, sf.id SEPARATOR ',')
+                     FROM store_facility sf WHERE sf.store_id=s.id AND sf.deleted=0), '') AS facilities,
+                   COALESCE((SELECT GROUP_CONCAT(feature.service_name ORDER BY feature.sort_order, feature.id SEPARATOR ',')
+                     FROM (SELECT id, service_name, sort_order FROM service_item
+                       WHERE status='ON_SHELF' AND deleted=0 ORDER BY sort_order, id LIMIT 3) feature), '') AS highlights,
+                   COALESCE((SELECT JSON_UNQUOTE(config_json) FROM client_catalog_config
+                     WHERE config_code='storeMemberBenefitText' AND enabled=1 AND deleted=0 LIMIT 1), '') AS memberBenefitText
             FROM store s
             LEFT JOIN dict_item di ON di.type_code='business_status'
               AND di.item_value=s.business_status AND di.enabled=1 AND di.deleted=0
@@ -41,9 +60,9 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
                    si.preparation_minutes AS preparationMinutes, si.cleanup_minutes AS cleanupMinutes,
                    si.price_amount AS price, si.member_price_amount AS memberPrice,
                    sc.category_name AS category, si.sales_count AS salesCount,
+                   GROUP_CONCAT(DISTINCT sit.tag_name ORDER BY sit.sort_order SEPARATOR ',') AS tags,
                    si.description, si.service_steps AS processSteps, si.suitable_people AS suitableFor,
-                   si.notices, si.cover_url AS coverImageUrl, si.cover_url AS bannerImageUrl,
-                   GROUP_CONCAT(DISTINCT sit.tag_name ORDER BY sit.sort_order SEPARATOR ',') AS tags
+                   si.notices, si.cover_url AS coverImageUrl, si.cover_url AS bannerImageUrl
             FROM service_item si
             JOIN service_category sc ON sc.id=si.category_id AND sc.enabled=1 AND sc.deleted=0
             LEFT JOIN service_item_tag sit ON sit.service_item_id=si.id AND sit.deleted=0
@@ -61,11 +80,12 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
                    t.therapist_name AS name,
                    CONCAT('store-', LOWER(REPLACE(s.store_code, '_', '-'))) AS storeId,
                    t.level_name AS level, t.rating, t.experience_years AS experienceYears,
-                   t.specify_fee_amount AS extraFee, t.status,
-                   COALESCE(di.item_label, t.status) AS statusLabel,
-                   '请查看可约时间' AS nextAvailable, t.avatar_url AS avatarUrl,
-                   t.portrait_url AS portraitUrl, t.introduction,
-                   GROUP_CONCAT(DISTINCT ts.skill_name ORDER BY ts.sort_order SEPARATOR ',') AS skills
+                   t.service_count AS serviceCount,
+                   GROUP_CONCAT(DISTINCT ts.skill_name ORDER BY ts.sort_order SEPARATOR ',') AS skills,
+                   t.specify_fee_amount AS extraFee,
+                   '请查看可约时间' AS nextAvailable, t.status,
+                   COALESCE(di.item_label, t.status) AS statusLabel, t.avatar_url AS avatarUrl,
+                   t.portrait_url AS portraitUrl, t.introduction
             FROM therapist t
             JOIN store s ON s.id=t.store_id AND s.enabled=1 AND s.deleted=0
             LEFT JOIN therapist_skill ts ON ts.therapist_id=t.id AND ts.deleted=0
@@ -93,7 +113,8 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
     @Select("""
             <script>
             SELECT CONCAT('room-', LOWER(REPLACE(s.store_code, '_', '-')), '-',
-                          LPAD(TRIM(LEADING 'R' FROM r.room_code), 2, '0')) AS id,
+                          CASE WHEN r.room_code REGEXP '^R[0-9]+$' THEN LPAD(SUBSTRING(r.room_code, 2), 2, '0')
+                               ELSE LOWER(REPLACE(r.room_code, '_', '-')) END) AS id,
                    CONCAT(s.store_name, ' · ', r.room_name) AS name,
                    CONCAT('store-', LOWER(REPLACE(s.store_code, '_', '-'))) AS storeId,
                    r.status, COALESCE(di.item_label, r.status) AS statusLabel,

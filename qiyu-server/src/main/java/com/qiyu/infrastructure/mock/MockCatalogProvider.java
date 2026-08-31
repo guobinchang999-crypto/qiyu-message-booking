@@ -1,6 +1,7 @@
 package com.qiyu.infrastructure.mock;
 
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -8,20 +9,27 @@ import java.util.Map;
 
 /** In-memory catalog used until the test environment and persistence are available. */
 @Component
+@ConditionalOnProperty(name = "qiyu.auth.persistence", havingValue = "false", matchIfMissing = true)
 public class MockCatalogProvider {
     private final List<Map<String, Object>> stores = List.of(
             map("id", "store-jingan", "name", "静安寺店", "address", "静安区愚园路 168 号",
                     "phone", "021-6288-1688", "latitude", 31.225349, "longitude", 121.438384,
                     "distance", "1.2km", "rating", 4.9, "businessStatusCode", "OPEN", "businessStatusLabel", "营业中",
-                    "nextAvailableAt", "今日 14:00", "businessHours", "10:00-22:30", "frequent", true),
+                    "nextAvailableAt", "今日 14:00", "businessHours", "10:00-22:30", "frequent", true,
+                    "galleryImageUrls", List.of("/stores/jingan/cover.webp"), "facilities", List.of("独立理疗房", "茶歇区"),
+                    "highlights", List.of("肩颈舒缓", "中式推拿"), "memberBenefitText", "会员权益 · 全门店通用"),
             map("id", "store-xujiahui", "name", "徐家汇店", "address", "徐汇区天钥桥路 88 号",
                     "phone", "021-6428-3288", "latitude", 31.191982, "longitude", 121.438010,
                     "distance", "3.8km", "rating", 4.8, "businessStatusCode", "OPEN", "businessStatusLabel", "营业中",
-                    "nextAvailableAt", "今日 15:30", "businessHours", "10:00-22:30", "frequent", false),
+                    "nextAvailableAt", "今日 15:30", "businessHours", "10:00-22:30", "frequent", false,
+                    "galleryImageUrls", List.of("/stores/xujiahui/cover.webp"), "facilities", List.of("独立理疗房", "茶歇区"),
+                    "highlights", List.of("肩颈舒缓", "精油 SPA"), "memberBenefitText", "会员权益 · 全门店通用"),
             map("id", "store-lujiazui", "name", "陆家嘴店", "address", "浦东新区陆家嘴环路 1000 号",
                     "phone", "021-5888-0088", "latitude", 31.235530, "longitude", 121.502893,
                     "distance", "5.6km", "rating", 4.9, "businessStatusCode", "OPEN", "businessStatusLabel", "营业中",
-                    "nextAvailableAt", "今日 16:00", "businessHours", "10:00-22:30", "frequent", false)
+                    "nextAvailableAt", "今日 16:00", "businessHours", "10:00-22:30", "frequent", false,
+                    "galleryImageUrls", List.of("/stores/lujiazui/cover.webp"), "facilities", List.of("独立理疗房", "休息区"),
+                    "highlights", List.of("中式推拿", "精油 SPA"), "memberBenefitText", "会员权益 · 全门店通用")
     );
 
     private final List<Map<String, Object>> services = List.of(
@@ -47,16 +55,16 @@ public class MockCatalogProvider {
 
     private final List<Map<String, Object>> therapists = List.of(
             map("id", "therapist-anran", "name", "安然", "storeId", "store-jingan", "level", "金牌技师",
-                    "rating", 4.9, "experienceYears", 8, "skills", List.of("肩颈舒缓", "中式推拿"), "extraFee", 30,
+                    "rating", 4.9, "experienceYears", 8, "serviceCount", 1280, "skills", List.of("肩颈舒缓", "中式推拿"), "extraFee", 30,
                     "nextAvailable", "今天 14:00", "status", "AVAILABLE", "statusLabel", "可预约"),
             map("id", "therapist-ziwei", "name", "紫薇", "storeId", "store-jingan", "level", "资深技师",
-                    "rating", 4.8, "experienceYears", 6, "skills", List.of("精油 SPA", "肩颈舒缓"), "extraFee", 20,
+                    "rating", 4.8, "experienceYears", 6, "serviceCount", 860, "skills", List.of("精油 SPA", "肩颈舒缓"), "extraFee", 20,
                     "nextAvailable", "今天 15:30", "status", "AVAILABLE", "statusLabel", "可预约"),
             map("id", "therapist-yuanyuan", "name", "媛媛", "storeId", "store-xujiahui", "level", "金牌技师",
-                    "rating", 4.9, "experienceYears", 9, "skills", List.of("中式推拿", "精油 SPA"), "extraFee", 30,
+                    "rating", 4.9, "experienceYears", 9, "serviceCount", 1560, "skills", List.of("中式推拿", "精油 SPA"), "extraFee", 30,
                     "nextAvailable", "今天 13:30", "status", "BUSY", "statusLabel", "服务中"),
             map("id", "therapist-jingjing", "name", "静静", "storeId", "store-lujiazui", "level", "资深技师",
-                    "rating", 4.8, "experienceYears", 5, "skills", List.of("肩颈舒缓", "中式推拿"), "extraFee", 20,
+                    "rating", 4.8, "experienceYears", 5, "serviceCount", 720, "skills", List.of("肩颈舒缓", "中式推拿"), "extraFee", 20,
                     "nextAvailable", "今天 16:00", "status", "ON_LEAVE", "statusLabel", "请假")
     );
 
@@ -341,7 +349,7 @@ public class MockCatalogProvider {
     public Map<String, Object> actionFeedbackDictionaries() {
         return map(
                 "supportUnavailable", "客服入口将在接入企微后开放",
-                "genericMockAction", "该入口为 Mock 演示",
+                "genericUnavailable", "该入口暂不可用",
                 "distanceSorted", "已按距离展示附近门店",
                 "mapUnavailable", "地图暂不可用，请稍后重试",
                 "navigationUnavailable", "导航能力将在接入定位后开放",

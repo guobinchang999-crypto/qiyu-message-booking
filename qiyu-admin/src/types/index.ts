@@ -3,6 +3,10 @@ export type RoomStatus = 'FREE' | 'BOOKED' | 'IN_USE' | 'CLEANING';
 
 export interface Appointment {
   id: string;
+  storeId?: string;
+  serviceId?: string;
+  therapistId?: string;
+  roomId?: string;
   customerName: string;
   phone: string;
   store: string;
@@ -11,6 +15,7 @@ export interface Appointment {
   room: string;
   scheduledAt: string;
   status: BookingStatus;
+  statusLabel?: string;
   amount: number;
 }
 
@@ -58,7 +63,7 @@ export interface StoreProfile {
   id: string;
   name: string;
   address: string;
-  manager: string;
+  manager: string | null;
   phone: string;
   businessHours: string;
   roomCount: number;
@@ -121,12 +126,14 @@ export interface CouponCampaign {
 
 export interface CheckinTask {
   id: string;
+  storeId?: string;
   code: string;
   customerName: string;
   store: string;
   service: string;
   scheduledAt: string;
   status: BookingStatus;
+  statusLabel?: string;
 }
 
 export interface ServiceOrder {
@@ -138,6 +145,7 @@ export interface ServiceOrder {
   therapist: string;
   room: string;
   status: BookingStatus;
+  statusLabel?: string;
   paidAmount: number;
 }
 
@@ -159,5 +167,5 @@ export interface BusinessReportRow {
   completionRate: number;
   revenue: number;
   averageTicket: number;
-  topService: string;
+  topService: string | null;
 }

@@ -12,9 +12,9 @@ exports.services = [
     { id: 'spa', name: '精油 SPA', category: 'SPA', durationMinutes: 90, price: 398, memberPrice: 358, salesCount: 960, tags: ['芳香疗愈', '舒缓睡眠'], description: '温润精油搭配舒缓手法，帮助身心慢下来。', processSteps: ['香氛选择', '精油舒缓', '背部护理', '静息放松'], suitableFor: '适合压力较大、睡眠浅或希望获得舒缓护理体验的人。', coverImageUrl: '', bannerImageUrl: '' }
 ];
 exports.therapists = [
-    { id: 'zhang', name: '张雨薇', level: '高级技师', experienceYears: 6, skills: ['肩颈舒缓', '精油 SPA', '经络调理'], rating: 4.9, serviceCount: 2268, specifyFee: 30, nextAvailableAt: '今日 14:00', availability: 'available', avatarUrl: '' },
-    { id: 'lin', name: '林安然', level: '资深技师', experienceYears: 8, skills: ['中式推拿', '体态舒缓'], rating: 4.9, serviceCount: 3196, specifyFee: 40, nextAvailableAt: '今日 15:30', availability: 'available', avatarUrl: '' },
-    { id: 'zhou', name: '周静', level: '专业技师', experienceYears: 4, skills: ['肩颈舒缓', '足部放松'], rating: 4.8, serviceCount: 1560, specifyFee: 0, nextAvailableAt: '今日 16:00', availability: 'busy', avatarUrl: '' }
+    { id: 'zhang', name: '张雨薇', storeId: 'jingan', level: '高级技师', experienceYears: 6, skills: ['肩颈舒缓', '精油 SPA', '经络调理'], rating: 4.9, serviceCount: 2268, specifyFee: 30, nextAvailableAt: '今日 14:00', availability: 'available', avatarUrl: '' },
+    { id: 'lin', name: '林安然', storeId: 'xujiahui', level: '资深技师', experienceYears: 8, skills: ['中式推拿', '体态舒缓'], rating: 4.9, serviceCount: 3196, specifyFee: 40, nextAvailableAt: '今日 15:30', availability: 'available', avatarUrl: '' },
+    { id: 'zhou', name: '周静', storeId: 'lujiazui', level: '专业技师', experienceYears: 4, skills: ['肩颈舒缓', '足部放松'], rating: 4.8, serviceCount: 1560, specifyFee: 0, nextAvailableAt: '今日 16:00', availability: 'busy', avatarUrl: '' }
 ];
 exports.timeSlots = [
     { id: '1000', startAt: '10:00', period: 'MORNING', status: 'full' }, { id: '1100', startAt: '11:00', period: 'MORNING', status: 'available' }, { id: '1400', startAt: '14:00', period: 'AFTERNOON', status: 'available' }, { id: '1500', startAt: '15:00', period: 'AFTERNOON', status: 'limited' }, { id: '1600', startAt: '16:00', period: 'AFTERNOON', status: 'full' }, { id: '1900', startAt: '19:00', period: 'EVENING', status: 'available' }, { id: '2000', startAt: '20:00', period: 'EVENING', status: 'limited' }

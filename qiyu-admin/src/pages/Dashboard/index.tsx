@@ -19,6 +19,6 @@ export default function DashboardPage() {
       <Col xs={24} xl={14}><Card className="qiyu-card" title="待处理事项"><List dataSource={data.alerts} renderItem={(item) => <List.Item><List.Item.Meta avatar={<Badge status={item.type === 'error' ? 'error' : 'warning'} />} title={item.title} description={item.description} /></List.Item>} /></Card></Col>
       <Col xs={24} xl={10}><Card className="qiyu-card" title="技师利用率"><Space direction="vertical" style={{ width: '100%' }} size="large">{data.utilization.map((item) => <div key={item.name}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.text}</Typography.Text></div><Progress percent={item.rate} strokeColor="#b58c5e" /></div>)}</Space></Card></Col>
     </Row>
-    <Alert style={{ marginTop: 16 }} type="info" showIcon message="数据更新时间" description="看板数据由当前 API 模式提供，切换 Mock、开发环境或生产环境时保持相同页面契约。" />
+    <Alert style={{ marginTop: 16 }} type="info" showIcon message="数据更新时间" description="看板按当前账号的数据权限实时聚合，业务入账后刷新页面即可查看。" />
   </div>;
 }

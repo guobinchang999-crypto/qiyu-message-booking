@@ -1,11 +1,13 @@
-export type AdminApiMode = 'mock' | 'dev' | 'prod';
+export type AdminApiMode = 'dev' | 'prod';
 
 export const ADMIN_API_MODE_STORAGE_KEY = 'qiyu-admin-api-mode';
+export const ADMIN_API_BASE_URL_STORAGE_KEY = 'qiyu-admin-api-base-url';
 const configs: Record<AdminApiMode, { mode: AdminApiMode; baseUrl: string }> = {
-  mock: { mode: 'mock', baseUrl: '' },
   dev: { mode: 'dev', baseUrl: 'http://localhost:8080' },
-  prod: { mode: 'prod', baseUrl: 'https://api.qiyu.example.com' }
+  prod: { mode: 'prod', baseUrl: '' }
 };
-const isMode = (value: unknown): value is AdminApiMode => value === 'mock' || value === 'dev' || value === 'prod';
+const isMode = (value: unknown): value is AdminApiMode => value === 'dev' || value === 'prod';
 const storedMode = typeof localStorage === 'undefined' ? '' : localStorage.getItem(ADMIN_API_MODE_STORAGE_KEY);
-export const adminApiConfig = configs[isMode(storedMode) ? storedMode : 'dev'];
+const mode = isMode(storedMode) ? storedMode : 'dev';
+const storedBaseUrl = typeof localStorage === 'undefined' ? '' : (localStorage.getItem(ADMIN_API_BASE_URL_STORAGE_KEY) || '').replace(/\/$/, '');
+export const adminApiConfig = mode === 'prod' && storedBaseUrl ? { mode, baseUrl: storedBaseUrl } : configs[mode];

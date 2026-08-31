@@ -1,5 +1,5 @@
 import { adminRequest } from './http';
-import type { Appointment, AppointmentAuditRecord, BookingOptionPayload, BookingStatus, CheckinTask, CouponCampaign, CustomerProfile, MemberAccount, RoomResource, ServiceCatalogItem, ServiceOrder, StoreProfile, TherapistProfile } from '@/types';
+import type { Appointment, AppointmentAuditRecord, BookingOptionPayload, BookingStatus, BusinessReportRow, CheckinTask, CouponCampaign, CustomerProfile, MemberAccount, RoomResource, ServiceCatalogItem, ServiceOrder, StoreProfile, TherapistProfile } from '@/types';
 
 export interface DashboardData {
   statistics: Array<{ label: string; value: number | string; suffix: string; change: string }>;
@@ -14,25 +14,153 @@ export interface ResourceData {
   rooms: Array<{ id: string; name: string; type: string; status: 'FREE' | 'BOOKED' | 'IN_USE' | 'CLEANING'; customer?: string; therapist?: string; nextTime: string }>;
 }
 
-export interface BusinessReportRow {
+interface RemoteMetric { name: string; value: number | string; comparison?: string | null; }
+
+interface RemoteCoupon {
+  id: string;
+  name: string;
+  discount: string;
+  scope: string;
+  validUntil: string;
+  issuedCount: number;
+  usedCount: number;
+  displayStatus: CouponCampaign['status'];
+}
+
+interface RemoteMember {
+  id: string;
+  customerName: string;
+  level: string;
+  balance: number;
+  packageBalance: number;
+  couponCount: number;
+  scope: string;
+}
+
+interface RemoteCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  memberLevel: string;
+  lastVisitAt: string;
+  totalBookings: number;
+  totalSpend: number;
+}
+
+interface RemoteCatalogOption {
+  value: string;
+  label: string;
+  storeId?: string | null;
+  status?: string | null;
+  statusLabel?: string | null;
+}
+
+interface RemoteDictionaryCollection {
+  bookingStatus: RemoteCatalogOption[];
+  paymentStatus: RemoteCatalogOption[];
+  roomStatus: RemoteCatalogOption[];
+  therapistStatus: RemoteCatalogOption[];
+  timeSlotStatus: RemoteCatalogOption[];
+}
+
+interface RemoteCatalogStore {
+  id: string;
+  name: string;
+}
+
+interface RemoteCatalogService {
+  id: string;
+  name: string;
+  category: string;
+  durationMinutes: number;
+  price: number;
+  memberPrice: number;
+  salesCount: number;
+}
+
+interface RemoteCatalogTherapist {
+  id: string;
+  name: string;
+  storeId: string;
+  level: string;
+  skills: string[];
+  status: string;
+  rating: number;
+  serviceCount: number;
+}
+
+interface RemoteAdminTherapist {
+  id: string;
+  name: string;
+  store: string;
+  level: string;
+  skills: string[];
+  status: TherapistProfile['status'];
+  rating: number;
+  todayBookings: number;
+}
+
+interface RemoteBooking {
+  id: string;
+  status: BookingStatus;
+  statusLabel: string;
+  store: RemoteCatalogStore;
+  service: RemoteCatalogService;
+  therapist: RemoteCatalogTherapist | null;
+  roomId: string;
+  customerName: string;
+  mobile: string;
+  appointmentDate: string;
+  startTime: string;
+  amount: number;
+}
+
+interface RemoteBookingPage {
+  list: RemoteBooking[];
+  total: number;
+  pageNum: number;
+  pageSize: number;
+}
+
+interface RemoteAuditLog {
+  id: string;
+  action: string;
+  resourceId: string;
+  operatorName: string;
+  detail: string;
+  createdAt: string;
+}
+
+interface RemoteStoreProfile {
+  id: string;
+  name: string;
+  address: string;
+  manager: string | null;
+  phone: string;
+  businessHours: string;
+  roomCount: number;
+  therapistCount: number;
+  status: StoreProfile['status'];
+}
+
+interface RemoteBusinessReport {
   id: string;
   store: string;
   bookingCount: number;
   completionRate: number;
   revenue: number;
   averageTicket: number;
-  topService: string;
+  topService: string | null;
 }
-
-interface RemoteMetric { name: string; value: number | string; comparison?: string | null; }
 
 const toNumber = (value: number | string): number => typeof value === 'number' ? value : Number.parseFloat(value.replace(/[^\d.]/g, '')) || 0;
 
 export const adminRemoteApi = {
   async createAppointment(appointment: Appointment): Promise<void> {
     await adminRequest('/admin/bookings', { method: 'POST', data: {
-      storeId: appointment.store, serviceId: appointment.service, therapistId: appointment.therapist,
-      roomId: appointment.room, date: appointment.scheduledAt.slice(0, 10), startTime: appointment.scheduledAt.slice(11, 16),
+      storeId: appointment.storeId || appointment.store, serviceId: appointment.serviceId || appointment.service,
+      therapistId: appointment.therapistId || appointment.therapist,
+      roomId: appointment.roomId || appointment.room, date: appointment.scheduledAt.slice(0, 10), startTime: appointment.scheduledAt.slice(11, 16),
       customerName: appointment.customerName, mobile: appointment.phone
     } });
   },
@@ -42,94 +170,93 @@ export const adminRemoteApi = {
     } });
   },
   async getCoupons(): Promise<CouponCampaign[]> {
-    const rows = await adminRequest<Array<Record<string, unknown>>>('/admin/coupons');
-    return rows.map((row) => ({ id: String(row.id), name: String(row.name || ''), discount: String(row.discount || ''), scope: '全门店通用', validUntil: String(row.valid_until || '-'), issuedCount: Number(row.issued_count || 0), usedCount: Number(row.used_count || 0), status: String(row.display_status || '草稿') as CouponCampaign['status'] }));
+    const rows = await adminRequest<RemoteCoupon[]>('/admin/coupons');
+    return rows.map((row) => ({ id: row.id, name: row.name, discount: row.discount, scope: '全门店通用', validUntil: row.validUntil, issuedCount: row.issuedCount, usedCount: row.usedCount, status: row.displayStatus }));
   },
   async getMembers(): Promise<MemberAccount[]> {
-    const rows = await adminRequest<Array<Record<string, unknown>>>('/admin/members');
-    return rows.map((row) => ({ id: String(row.id), customerName: String(row.customer_name || ''), level: String(row.level || 'REGULAR'), balance: Number(row.balance || 0), packageBalance: Number(row.package_balance || 0), couponCount: Number(row.coupon_count || 0), scope: '全门店通用' }));
+    const rows = await adminRequest<RemoteMember[]>('/admin/members');
+    return rows.map((row) => ({ id: row.id, customerName: row.customerName, level: row.level, balance: row.balance, packageBalance: row.packageBalance, couponCount: row.couponCount, scope: '全门店通用' }));
   },
   async getCustomers(): Promise<CustomerProfile[]> {
-    const rows = await adminRequest<Array<Record<string, unknown>>>('/admin/customers');
-    return rows.map((row) => ({ id: String(row.id), name: String(row.name || ''), phone: String(row.phone || ''), memberLevel: String(row.member_level || 'REGULAR'), lastVisitAt: String(row.last_visit_at || '-'), totalBookings: Number(row.total_bookings || 0), totalSpend: Number(row.total_spend || 0) }));
+    const rows = await adminRequest<RemoteCustomer[]>('/admin/customers');
+    return rows.map((row) => ({ id: row.id, name: row.name, phone: row.phone, memberLevel: row.memberLevel, lastVisitAt: row.lastVisitAt, totalBookings: row.totalBookings, totalSpend: row.totalSpend }));
   },
   async getServiceOrders(): Promise<ServiceOrder[]> {
     const appointments = await this.getAppointments();
-    return appointments.map((item) => ({ id: `SO-${item.id}`, bookingId: item.id, customerName: item.customerName, store: item.store, service: item.service, therapist: item.therapist, room: item.room, status: item.status, paidAmount: item.amount }));
+    return appointments.map((item) => ({ id: `SO-${item.id}`, bookingId: item.id, customerName: item.customerName, store: item.store, service: item.service, therapist: item.therapist, room: item.room, status: item.status, statusLabel: item.statusLabel, paidAmount: item.amount }));
   },
   async getCheckinTasks(): Promise<CheckinTask[]> {
     const appointments = await this.getAppointments();
-    return appointments.filter((item) => ['BOOKED', 'CHECKED_IN', 'WAITING_SERVICE'].includes(item.status)).map((item) => ({ id: item.id, code: item.id, customerName: item.customerName, store: item.store, service: item.service, scheduledAt: item.scheduledAt, status: item.status }));
+    return appointments.filter((item) => ['BOOKED', 'CHECKED_IN', 'WAITING_SERVICE'].includes(item.status)).map((item) => ({ id: item.id, storeId: item.storeId, code: item.id, customerName: item.customerName, store: item.store, service: item.service, scheduledAt: item.scheduledAt, status: item.status, statusLabel: item.statusLabel }));
   },
   async getAppointmentAuditLogs(bookingId: string): Promise<AppointmentAuditRecord[]> {
-    const payload = await adminRequest<{ records: Array<Record<string, unknown>> }>('/admin/system/audit-logs?keyword=' + encodeURIComponent(bookingId) + '&page=1&pageSize=100');
-    return payload.records.filter((row) => String(row.resourceId || '') === bookingId).map((row) => ({
-      id: String(row.id), appointmentId: bookingId, action: String(row.action || 'STATUS_CHANGED') as AppointmentAuditRecord['action'],
-      fromStatus: row.fromStatus as BookingStatus | undefined, toStatus: row.toStatus as BookingStatus | undefined,
-      operator: String(row.operatorName || ''), detail: String(row.detail || row.action || ''), createdAt: String(row.createdAt || '')
+    const payload = await adminRequest<{ records: RemoteAuditLog[] }>('/admin/system/audit-logs?keyword=' + encodeURIComponent(bookingId) + '&page=1&pageSize=100');
+    return payload.records.filter((row) => row.resourceId === bookingId).map((row) => ({
+      id: row.id, appointmentId: bookingId, action: 'STATUS_CHANGED',
+      operator: row.operatorName, detail: row.detail || row.action, createdAt: row.createdAt
     }));
   },
   async getBookingOptions(): Promise<BookingOptionPayload> {
     const [stores, services, therapists, rooms, dictionaries] = await Promise.all([
-      adminRequest<Array<Record<string, unknown>>>('/catalog/options/stores'),
-      adminRequest<Array<Record<string, unknown>>>('/catalog/options/services'),
-      adminRequest<Array<Record<string, unknown>>>('/catalog/options/therapists'),
-      adminRequest<Array<Record<string, unknown>>>('/catalog/options/rooms'),
-      adminRequest<Record<string, Array<Record<string, unknown>>>>('/catalog/dictionaries')
+      adminRequest<RemoteCatalogOption[]>('/catalog/options/stores'),
+      adminRequest<RemoteCatalogOption[]>('/catalog/options/services'),
+      adminRequest<RemoteCatalogOption[]>('/catalog/options/therapists'),
+      adminRequest<RemoteCatalogOption[]>('/catalog/options/rooms'),
+      adminRequest<RemoteDictionaryCollection>('/catalog/dictionaries')
     ]);
-    const option = (row: Record<string, unknown>) => ({ label: String(row.label || row.name || ''), value: String(row.value || row.id || '') });
+    const option = (row: RemoteCatalogOption) => ({ label: row.label, value: row.value });
     return {
       stores: stores.map(option), services: services.map(option), therapists: therapists.map(option), rooms: rooms.map(option),
-      statuses: (dictionaries.booking_status || []).map(option)
+      statuses: dictionaries.bookingStatus.map(option)
     };
   },
   async getAppointments(status?: BookingStatus): Promise<Appointment[]> {
-    const payload = await adminRequest<{ list: Array<Record<string, unknown>> }>('/admin/bookings', { });
+    const payload = await adminRequest<RemoteBookingPage>('/admin/bookings');
     return payload.list
       .filter((row) => !status || row.status === status)
       .map((row) => ({
-        id: String(row.id), customerName: String(row.customerName || ''), phone: String(row.phone || ''),
-        store: String((row.store as Record<string, unknown> | undefined)?.name || row.storeName || row.storeId || ''),
-        service: String((row.service as Record<string, unknown> | undefined)?.name || row.serviceName || ''),
-        therapist: String((row.therapist as Record<string, unknown> | undefined)?.name || row.therapistName || ''),
-        room: String(row.roomName || row.roomId || ''), scheduledAt: String(row.scheduledAt || `${row.date || ''} ${row.startTime || ''}`).trim(),
-        status: String(row.status) as BookingStatus, amount: Number(row.amount || 0)
+        id: row.id, storeId: row.store.id, serviceId: row.service.id,
+        therapistId: row.therapist?.id, roomId: row.roomId,
+        customerName: row.customerName, phone: row.mobile,
+        store: row.store.name, service: row.service.name, therapist: row.therapist?.name || '待分配',
+        room: row.roomId, scheduledAt: `${row.appointmentDate} ${row.startTime}`,
+        status: row.status, statusLabel: row.statusLabel, amount: row.amount
       }));
   },
   async transitionAppointment(id: string, action: 'checkin' | 'start-service' | 'finish-service' | 'settle' | 'cancel'): Promise<void> {
     await adminRequest(`/bookings/${encodeURIComponent(id)}/${action}`, { method: 'POST' });
   },
   async getStores(): Promise<StoreProfile[]> {
-    const rows = await adminRequest<Array<Record<string, unknown>>>('/stores');
+    const rows = await adminRequest<RemoteStoreProfile[]>('/admin/stores');
     return rows.map((row) => ({
-      id: String(row.id), name: String(row.name), address: String(row.address || ''), phone: String(row.phone || ''),
-      manager: '待配置', businessHours: String(row.businessHours || ''), roomCount: 0, therapistCount: 0,
-      status: row.businessStatusCode === 'OPEN' ? '营业中' : '休息中'
+      id: row.id,
+      name: row.name,
+      address: row.address,
+      phone: row.phone,
+      manager: row.manager,
+      businessHours: row.businessHours,
+      roomCount: row.roomCount,
+      therapistCount: row.therapistCount,
+      status: row.status
     }));
   },
   async getServices(): Promise<ServiceCatalogItem[]> {
-    const rows = await adminRequest<Array<Record<string, unknown>>>('/services');
+    const rows = await adminRequest<RemoteCatalogService[]>('/services');
     return rows.map((row) => ({
-      id: String(row.id), name: String(row.name), category: String(row.category || ''),
-      durationMinutes: Number(row.durationMinutes || 0), price: Number(row.price || 0),
-      memberPrice: Number(row.memberPrice || 0), status: '上架', bookingCount: Number(row.salesCount || 0)
+      id: row.id, name: row.name, category: row.category,
+      durationMinutes: row.durationMinutes, price: row.price,
+      memberPrice: row.memberPrice, status: '上架', bookingCount: row.salesCount
     }));
   },
   async getTherapists(): Promise<TherapistProfile[]> {
-    const rows = await adminRequest<Array<Record<string, unknown>>>('/therapists');
-    return rows.map((row) => ({
-      id: String(row.id), name: String(row.name), store: String(row.storeId || ''), level: String(row.level || ''),
-      skills: Array.isArray(row.skills) ? row.skills.map(String) : [],
-      status: row.status === 'AVAILABLE' ? '可预约' : row.status === 'ON_LEAVE' ? '休假' : '服务中',
-      rating: Number(row.rating || 0), todayBookings: 0
-    }));
+    return adminRequest<RemoteAdminTherapist[]>('/admin/therapists');
   },
   async getRooms(): Promise<RoomResource[]> {
-    const rows = await adminRequest<Array<Record<string, unknown>>>('/catalog/options/rooms');
-    return rows.map((row) => ({
-      id: String(row.value || row.id), name: String(row.label || row.name), type: String(row.type || ''),
+    const payload = await adminRequest<{ rooms: Array<{ id: string; name: string; type: string; status: string; note: string | null }> }>('/admin/schedule-resources');
+    return payload.rooms.map((row) => ({
+      id: row.id, name: row.name, type: row.type,
       status: row.status === 'AVAILABLE' ? 'FREE' : row.status === 'IN_USE' ? 'IN_USE' : row.status === 'CLEANING' ? 'CLEANING' : 'BOOKED',
-      nextTime: String(row.note || '当前可安排服务')
+      nextTime: row.note || '-'
     }));
   },
   async getDashboard(): Promise<DashboardData> {
@@ -152,19 +279,7 @@ export const adminRemoteApi = {
     };
   },
   async getBusinessReports(): Promise<BusinessReportRow[]> {
-    // The dashboard endpoint is the existing server contract that exposes
-    // store-level operating metrics. Keep unavailable report dimensions
-    // explicit instead of inventing values on the client.
-    const dashboard = await this.getDashboard();
-    return dashboard.ranking.map((item, index) => ({
-      id: `remote-report-${index}`,
-      store: item.store,
-      bookingCount: 0,
-      completionRate: item.rate,
-      revenue: item.revenue,
-      averageTicket: 0,
-      topService: '暂无数据'
-    }));
+    return adminRequest<RemoteBusinessReport[]>('/admin/reports');
   },
   async getResources(): Promise<ResourceData> {
     const payload = await adminRequest<{

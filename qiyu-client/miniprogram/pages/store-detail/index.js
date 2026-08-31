@@ -35,7 +35,7 @@ const reviewPageSize = 2;
 Page({
     data: {
         store: null,
-        storeId: 'jingan',
+        storeId: '',
         services: [],
         therapists: [],
         reviews: [],
@@ -50,12 +50,17 @@ Page({
         galleryImages: [],
         galleryTotal: 0,
         favorite: false,
+        favoriteUpdating: false,
         placeholderLabel: ui_1.imagePlaceholderLabels.brand,
         loading: true,
         error: ''
     },
     async onLoad(query) {
-        const storeId = query.id || 'jingan';
+        const storeId = query.id || '';
+        if (!storeId) {
+            this.setData({ loading: false, error: emptyDictionaries.errorMessage });
+            return;
+        }
         booking_1.bookingStore.selectStore(storeId);
         this.setData({ storeId });
         await this.loadStore();
@@ -68,14 +73,15 @@ Page({
                 booking_service_1.bookingService.getActionFeedbackDictionaries()
             ]);
             this.setData({ dictionaries, feedback });
-            const [store, home, therapists, reviewPage] = await Promise.all([
+            const [store, services, therapists, reviewPage, favorite] = await Promise.all([
                 booking_service_1.bookingService.getStore(this.data.storeId),
-                booking_service_1.bookingService.getHome(),
-                booking_service_1.bookingService.getTherapists('neck'),
-                booking_service_1.bookingService.getStoreReviews(this.data.storeId, undefined, 1, reviewPageSize)
+                booking_service_1.bookingService.getServices(),
+                booking_service_1.bookingService.getTherapists(''),
+                booking_service_1.bookingService.getStoreReviews(this.data.storeId, undefined, 1, reviewPageSize),
+                booking_service_1.bookingService.getFavorite('stores', this.data.storeId)
             ]);
             const galleryImages = store.galleryImageUrls?.length ? store.galleryImageUrls : [store.galleryImageUrl || store.coverImageUrl || ''];
-            this.setData({ store, services: home.featuredServices, therapists, reviews: reviewPage.items, reviewPage: reviewPage.page, reviewHasMore: reviewPage.hasMore, galleryImages, galleryIndex: 1, galleryTotal: galleryImages.length, loading: false });
+            this.setData({ store, services, therapists: therapists.filter((item) => item.storeId === store.id), reviews: reviewPage.items, reviewPage: reviewPage.page, reviewHasMore: reviewPage.hasMore, galleryImages, galleryIndex: 1, galleryTotal: galleryImages.length, favorite: favorite.favorite, loading: false });
         }
         catch (error) {
             this.setData({ loading: false, error: (0, ui_1.resolvePageError)(error, this.data.dictionaries.errorMessage) });
@@ -84,7 +90,9 @@ Page({
     goService(event) {
         if (this.data.loading || this.data.error)
             return;
-        const serviceId = event?.detail?.id || 'neck';
+        const serviceId = event?.detail?.id || '';
+        if (!serviceId)
+            return;
         booking_1.bookingStore.selectStore(this.data.storeId);
         booking_1.bookingStore.selectService(serviceId);
         wx.navigateTo({ url: navigation_1.pageUrls.serviceDetail(serviceId) });
@@ -118,12 +126,24 @@ Page({
             this.setData({ reviewLoadingMore: false });
         }
     },
-    onAction(event) {
+    async onAction(event) {
         const key = String(event.currentTarget.dataset.key || '');
         if (key === 'favorite') {
+            if (this.data.favoriteUpdating)
+                return;
             const favorite = !this.data.favorite;
-            this.setData({ favorite });
-            wx.showToast({ title: favorite ? this.data.dictionaries.favoriteAddedToast : this.data.dictionaries.favoriteRemovedToast, icon: 'none' });
+            this.setData({ favoriteUpdating: true });
+            try {
+                const result = await booking_service_1.bookingService.setFavorite('stores', this.data.storeId, favorite);
+                this.setData({ favorite: result.favorite });
+                wx.showToast({ title: result.favorite ? this.data.dictionaries.favoriteAddedToast : this.data.dictionaries.favoriteRemovedToast, icon: 'none' });
+            }
+            catch (error) {
+                wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
+            }
+            finally {
+                this.setData({ favoriteUpdating: false });
+            }
             return;
         }
         if (key === 'navigation') {

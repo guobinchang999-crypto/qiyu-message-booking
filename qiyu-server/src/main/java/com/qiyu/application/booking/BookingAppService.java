@@ -202,13 +202,13 @@ public class BookingAppService {
         PaymentGateway.PaymentParameters parameters = payment.parameters();
         return new BookingOperationVO.Payment(booking.id(), payment.amount(), payment.paymentNo(),
                 new BookingOperationVO.PaymentParameters(parameters.timeStamp(), parameters.nonceStr(), parameters.packageValue(),
-                        parameters.signType(), parameters.paySign(), false));
+                        parameters.signType(), parameters.paySign()));
     }
 
     /** Applies the deposit-paid state transition for a customer-owned booking. */
-    public BookingVO payDeposit(String bookingId) {
+    public BookingVO payDeposit(String bookingId, String requestId) {
         Booking booking = authorized(bookingId, "booking:update", "UPDATE");
-        paymentGateway.verifyDepositConfirmation(booking, null);
+        paymentGateway.verifyDepositConfirmation(booking, requestId);
         booking.payDeposit();
         bookingGateway.save(booking);
         return toView(booking);
@@ -275,7 +275,9 @@ public class BookingAppService {
     private BookingVO toView(Booking booking) {
         ServiceItem service = catalogProvider.findService(booking.serviceId());
         Store store = catalogProvider.findStore(booking.storeId());
-        Therapist therapist = catalogProvider.findTherapist(booking.therapistId());
+        // Automatically assigned bookings may legitimately remain without a therapist until
+        // store staff completes resource assignment.
+        Therapist therapist = booking.therapistId() == null ? null : catalogProvider.findTherapist(booking.therapistId());
         // Field permission is independent of row permission: broad store access does not imply
         // access to a customer's full mobile number.
         boolean revealPhone = dataPermissionService.canRevealCustomerPhone(AuthContext.current(), booking);
@@ -285,7 +287,7 @@ public class BookingAppService {
         return new BookingVO(booking.id(), booking.status().name(), booking.status().label(),
                 com.qiyu.application.catalog.CatalogResourceVO.store(store),
                 com.qiyu.application.catalog.CatalogResourceVO.service(service),
-                com.qiyu.application.catalog.CatalogResourceVO.therapist(therapist), booking.roomId(),
+                therapist == null ? null : com.qiyu.application.catalog.CatalogResourceVO.therapist(therapist), booking.roomId(),
                 booking.customerName(), revealPhone ? booking.mobile() : maskMobile(booking.mobile()),
                 booking.customerId(), booking.timeRange().serviceFrom().toLocalDate().toString(),
                 booking.timeRange().serviceFrom().toLocalTime().toString(),

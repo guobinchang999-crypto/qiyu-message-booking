@@ -33,13 +33,17 @@ Page({
     validationError: ''
   },
   async onLoad(query: { id?: string }) {
-    await this.loadReviewData(query.id || 'booking-1000');
+    if (!query.id) {
+      this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+      return;
+    }
+    await this.loadReviewData(query.id);
   },
   async loadReviewData(id?: string) {
     this.setData({ loading: true, error: '' });
     try {
       const [booking, dictionaries, pageStates] = await Promise.all([
-        bookingService.getBooking(id || this.data.booking?.id || 'booking-1000'),
+        bookingService.getBooking(id || this.data.booking?.id || ''),
         bookingService.getReviewDictionaries(),
         bookingService.getPageStateDictionaries()
       ]);

@@ -46,6 +46,7 @@ DROP TABLE IF EXISTS service_item;
 DROP TABLE IF EXISTS service_category;
 DROP TABLE IF EXISTS customer_contact;
 DROP TABLE IF EXISTS customer_favorite_store;
+DROP TABLE IF EXISTS customer_favorite_service;
 DROP TABLE IF EXISTS customer;
 DROP TABLE IF EXISTS audit_log;
 DROP TABLE IF EXISTS customer_store_relation;
@@ -541,6 +542,19 @@ CREATE TABLE customer_favorite_store (
   KEY idx_qy_customer_favorite_order (customer_id, is_pinned, sort_order, last_booking_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='客户常去门店';
 
+CREATE TABLE customer_favorite_service (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  customer_id BIGINT UNSIGNED NOT NULL COMMENT '客户编号',
+  service_item_id BIGINT UNSIGNED NOT NULL COMMENT '服务项目编号',
+  sort_order INT NOT NULL DEFAULT 0 COMMENT '收藏排序序号',
+  deleted TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_customer_favorite_service (customer_id, service_item_id),
+  KEY idx_customer_favorite_service_order (customer_id, sort_order, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='客户收藏服务项目';
+
 CREATE TABLE customer_store_relation (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   customer_id BIGINT UNSIGNED NOT NULL COMMENT '客户编号',
@@ -635,6 +649,7 @@ CREATE TABLE room (
   room_name VARCHAR(64) NOT NULL COMMENT '房间名称',
   room_kind VARCHAR(32) NOT NULL COMMENT '房间类型字典值',
   capacity INT NOT NULL DEFAULT 1 COMMENT '接待容量',
+  note VARCHAR(255) NULL COMMENT '房间运营备注',
   status VARCHAR(32) NOT NULL DEFAULT 'AVAILABLE' COMMENT '房间状态',
   sort_order INT NOT NULL DEFAULT 0 COMMENT '排序序号',
   enabled TINYINT NOT NULL DEFAULT 1 COMMENT '1 启用，0 停用',

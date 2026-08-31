@@ -12,7 +12,18 @@ const defaultAppointmentDate = () => {
     date.setDate(date.getDate() + 1);
     return toDateText(date);
 };
-const createDefaultDraft = () => ({ storeId: 'jingan', serviceId: 'neck', appointmentDate: defaultAppointmentDate(), therapistMode: 'specified', therapistId: 'zhang', slotId: '1400', guestCount: 1, contact: '林知夏', remark: '希望安静一些', benefitSelection: '新人体验券 ¥20' });
+const createDefaultDraft = () => ({
+    storeId: '',
+    serviceId: '',
+    appointmentDate: defaultAppointmentDate(),
+    therapistMode: 'auto',
+    therapistId: undefined,
+    slotId: undefined,
+    guestCount: 1,
+    contact: '',
+    remark: '',
+    benefitSelection: '',
+});
 const defaultDraft = createDefaultDraft();
 let currentDraft = { ...defaultDraft };
 const listeners = [];

@@ -70,7 +70,7 @@ Page({
             wx.navigateTo({ url: navigation_1.pageUrls.bookingDetail(id) });
             return;
         }
-        wx.showToast({ title: this.data.feedback.genericMockAction, icon: 'none' });
+        wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
     },
     async payBooking(id) {
         if (this.data.actingBookingId)
@@ -126,7 +126,7 @@ Page({
             wx.navigateTo({ url: navigation_1.pageUrls.serviceDetail(rebookPayload.draft.serviceId) });
         }
         catch (error) {
-            wx.showToast({ title: this.data.feedback.genericMockAction, icon: 'none' });
+            wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
         }
         finally {
             this.setData({ actingBookingId: '' });
@@ -142,7 +142,7 @@ Page({
             wx.navigateTo({ url: navigation_1.pageRoutes.time });
         }
         catch (error) {
-            wx.showToast({ title: this.data.feedback.genericMockAction, icon: 'none' });
+            wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
         }
         finally {
             this.setData({ actingBookingId: '' });

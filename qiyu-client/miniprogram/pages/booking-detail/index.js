@@ -43,7 +43,7 @@ const buildPaymentRows = (booking, dictionaries) => [
 Page({
     data: {
         booking: null,
-        bookingId: 'booking-1001',
+        bookingId: '',
         dictionaries: emptyDictionaries,
         feedback: emptyFeedback,
         stateCopy: emptyState,
@@ -59,7 +59,11 @@ Page({
         error: ''
     },
     async onLoad(query) {
-        this.setData({ bookingId: query.id || 'booking-1001' });
+        if (!query.id) {
+            this.setData({ loading: false, error: this.data.stateCopy.errorMessage });
+            return;
+        }
+        this.setData({ bookingId: query.id });
         await this.loadBooking();
     },
     async loadBooking() {
@@ -131,7 +135,7 @@ Page({
             (0, store_actions_1.callStore)(this.data.booking.store, this.data.feedback);
             return;
         }
-        wx.showToast({ title: this.data.feedback.genericMockAction, icon: 'none' });
+        wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
     },
     cancelBooking() {
         if (!this.data.booking || this.data.acting)
@@ -224,7 +228,7 @@ Page({
             wx.navigateTo({ url: navigation_1.pageUrls.serviceDetail(rebookPayload.draft.serviceId) });
         }
         catch (error) {
-            wx.showToast({ title: this.data.feedback.genericMockAction, icon: 'none' });
+            wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
         }
         finally {
             this.setData({ acting: false });
@@ -240,7 +244,7 @@ Page({
             wx.navigateTo({ url: navigation_1.pageRoutes.time });
         }
         catch (error) {
-            wx.showToast({ title: this.data.feedback.genericMockAction, icon: 'none' });
+            wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
         }
         finally {
             this.setData({ acting: false });

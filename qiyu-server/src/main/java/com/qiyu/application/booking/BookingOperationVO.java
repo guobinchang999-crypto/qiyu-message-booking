@@ -33,5 +33,5 @@ public final class BookingOperationVO {
                         String benefitSelection, String flow, String sourceBookingId) {}
     public record Payment(String bookingId, Number amount, String paymentNo, PaymentParameters parameters) {}
     public record PaymentParameters(String timeStamp, String nonceStr, @JsonProperty("package") String packageValue,
-                                    String signType, String paySign, boolean mockPayment) {}
+                                    String signType, String paySign) {}
 }

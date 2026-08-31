@@ -37,18 +37,22 @@ Page({
             this.goProfile();
             return;
         }
-        wx.showToast({ title: this.data.feedback.genericMockAction, icon: 'none' });
+        wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
     },
     onSupportContactError() { wx.showToast({ title: this.data.feedback.supportUnavailable, icon: 'none' }); },
     goStores() { wx.navigateTo({ url: navigation_1.pageRoutes.stores }); },
     goServices() { wx.switchTab({ url: navigation_1.pageRoutes.services }); },
     goStore(event) {
-        const storeId = event.detail.id || 'jingan';
+        const storeId = event.detail.id || '';
+        if (!storeId)
+            return;
         booking_1.bookingStore.selectStore(storeId);
         wx.navigateTo({ url: navigation_1.pageUrls.storeDetail(storeId) });
     },
     goService(event) {
-        const serviceId = event.detail.id || 'neck';
+        const serviceId = event.detail.id || '';
+        if (!serviceId)
+            return;
         booking_1.bookingStore.selectService(serviceId);
         wx.navigateTo({ url: navigation_1.pageUrls.serviceDetail(serviceId) });
     },

@@ -32,6 +32,40 @@ public class SystemManagementController {
     @PostMapping("/users") public ApiResponse<SystemModels.User> createUser(@RequestBody SystemModels.UserCommand command) { return ApiResponse.success(service.saveUser(null, command)); }
     @PutMapping("/users/{id}") public ApiResponse<SystemModels.User> updateUser(@PathVariable String id, @RequestBody SystemModels.UserCommand command) { return ApiResponse.success(service.saveUser(id, command)); }
     @DeleteMapping("/users/{id}") public ApiResponse<Void> deleteUser(@PathVariable String id) { service.deleteUser(id); return ApiResponse.success(null); }
+    /** Resets a staff password through the audited credential service. */
+    @PostMapping("/users/{id}/password")
+    public ApiResponse<Void> resetUserPassword(@PathVariable String id,
+                                               @RequestBody SystemModels.PasswordResetCommand command) {
+        service.resetUserPassword(id, command);
+        return ApiResponse.success(null);
+    }
+
+    /** Returns the persisted user override including temporary store and region grants. */
+    @GetMapping("/users/{id}/data-scope")
+    public ApiResponse<SystemModels.UserDataScope> userDataScope(@PathVariable String id) {
+        return ApiResponse.success(service.userDataScope(id));
+    }
+
+    /** Atomically replaces one user's complete data-scope override. */
+    @PutMapping("/users/{id}/data-scope")
+    public ApiResponse<SystemModels.UserDataScope> saveUserDataScope(
+            @PathVariable String id,
+            @RequestBody SystemModels.UserDataScopeCommand command
+    ) {
+        return ApiResponse.success(service.saveUserDataScope(id, command));
+    }
+
+    /** Removes the user override so subsequent requests inherit current role defaults. */
+    @DeleteMapping("/users/{id}/data-scope")
+    public ApiResponse<SystemModels.UserDataScope> clearUserDataScope(@PathVariable String id) {
+        return ApiResponse.success(service.clearUserDataScope(id));
+    }
+
+    /** Supplies stable store and region IDs for the authorization editor. */
+    @GetMapping("/data-scope-options")
+    public ApiResponse<SystemModels.DataScopeOptions> dataScopeOptions() {
+        return ApiResponse.success(service.dataScopeOptions());
+    }
 
     @GetMapping("/roles") public ApiResponse<SystemModels.Page<SystemModels.Role>> roles(@RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int pageSize) { return ApiResponse.success(service.roles(keyword, page, pageSize)); }
     @PostMapping("/roles") public ApiResponse<SystemModels.Role> createRole(@RequestBody SystemModels.RoleCommand command) { return ApiResponse.success(service.saveRole(null, command)); }

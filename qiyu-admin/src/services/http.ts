@@ -3,6 +3,7 @@ import { adminApiConfig } from './config';
 interface ApiEnvelope<T> { code: number; message: string; data: T; }
 
 export const adminRequest = async <T>(path: string, options: { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; data?: unknown } = {}): Promise<T> => {
+  if (!adminApiConfig.baseUrl) throw new Error('生产接口地址尚未配置');
   const session = typeof localStorage === 'undefined' ? '' : localStorage.getItem('qiyu-admin-auth');
   const token = session ? (() => { try { const parsed = JSON.parse(session); return parsed.accessToken || parsed.token || ''; } catch (error) { return ''; } })() : '';
   const response = await fetch(`${adminApiConfig.baseUrl}${path}`, {

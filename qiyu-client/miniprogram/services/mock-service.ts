@@ -1,11 +1,15 @@
 import { cancelledBooking, completedBooking, initialBooking, pendingPaymentBooking, services, stores, therapists, timeSlots } from '../mock/fixtures';
 import { Booking, BookingDraft, BookingStatus, PaymentSummary, StoreReview } from '../types/domain';
-import { BookingConfirmationPayload, BookingRebookPayload, BookingReschedulePayload, BookingService, HomePayload, LoginCodePayload, LoginPayload, OrderTabItem } from './contracts';
+import { BookingConfirmationPayload, BookingRebookPayload, BookingReschedulePayload, BookingService, FavoritePayload, FavoriteResourceType, HomePayload, LoginCodePayload, LoginPayload, OrderTabItem } from './contracts';
 const delay = <T>(data:T):Promise<T> => new Promise((resolve) => setTimeout(() => resolve(data), 280));
 const nextBookingCode = (): string => `QY${Date.now().toString().slice(-9)}`;
 const buildQrImageUrl = (code: string): string => `https://mock-cdn.qiyu.local/checkin/${code}.png`;
 const buildPaymentNo = (bookingId: string): string => `PAY-${bookingId}-${Date.now()}`;
 let bookings: Booking[] = [{ ...pendingPaymentBooking }, { ...initialBooking }, { ...completedBooking }, { ...cancelledBooking }];
+const favoriteKeys = new Set<string>();
+const favoritePayload = (resourceType: FavoriteResourceType, resourceId: string): FavoritePayload => ({
+  resourceType, resourceId, favorite: favoriteKeys.has(`${resourceType}:${resourceId}`)
+});
 let storeReviews: StoreReview[] = [
   { id:'review-jingan-1', storeId:'jingan', serviceId:'neck', userName:'林女士', rating:5, content:'环境安静，技师会提前确认肩颈重点，结束后放松感很明显。', tags:['环境安静','手法专业'], createdAt:'2026-08-01' },
   { id:'review-jingan-2', storeId:'jingan', serviceId:'neck', userName:'周先生', rating:5, content:'到店接待很准时，房间私密性好，适合下班后短暂恢复。', tags:['准时接待','独立房间'], createdAt:'2026-07-29' },
@@ -449,7 +453,7 @@ const checkinDictionaries = {
 };
 const actionFeedbackDictionaries = {
   supportUnavailable: '客服入口将在接入企微后开放',
-  genericMockAction: '该入口为 Mock 演示',
+  genericUnavailable: '该入口暂不可用',
   distanceSorted: '已按距离展示附近门店',
   mapUnavailable: '地图暂不可用，请稍后重试',
   navigationUnavailable: '导航能力将在接入定位后开放',
@@ -633,8 +637,14 @@ export const mockService: BookingService = {
   checkinBooking: (id) => { bookings = bookings.map((booking) => booking.id === id ? { ...booking, status:'CHECKED_IN', availableActions:['contact','view_detail'] } : booking); return delay(bookings.find((booking) => booking.id === id) || bookings[0]); },
   refreshBookingCode: (id) => { bookings = bookings.map((booking) => { if (booking.id !== id) return booking; const code = nextBookingCode(); return { ...booking, code, qrImageUrl:buildQrImageUrl(code) }; }); return delay(bookings.find((booking) => booking.id === id) || bookings[0]); },
   cancelBooking: (id) => { bookings = bookings.map((booking) => booking.id === id ? { ...booking, status:'CANCELLED', availableActions:['rebook','view_detail'] } : booking); return delay(bookings.find((booking) => booking.id === id) || bookings[0]); },
-  prepareBookingPayment: (id) => { const booking = bookings.find((item) => item.id === id) || bookings[0]; return delay({ bookingId:id, amount:booking.payment.depositDue, paymentNo:buildPaymentNo(id), parameters:{ timeStamp:String(Math.floor(Date.now() / 1000)), nonceStr:`mock-${Date.now()}`, package:`prepay_id=mock-${id}`, signType:'RSA', paySign:'mock-signature', mockPayment:true } }); },
+  prepareBookingPayment: (id) => { const booking = bookings.find((item) => item.id === id) || bookings[0]; return delay({ bookingId:id, amount:booking.payment.depositDue, paymentNo:buildPaymentNo(id), parameters:{ timeStamp:String(Math.floor(Date.now() / 1000)), nonceStr:`mock-${Date.now()}`, package:`prepay_id=mock-${id}`, signType:'RSA', paySign:'mock-signature' } }); },
   payBooking: (id) => { bookings = bookings.map((booking) => booking.id === id ? { ...booking, status:'BOOKED', payment:{ ...booking.payment, paidAmount:booking.payment.depositDue }, availableActions:['show_code','refresh_code','reschedule','contact','view_detail'] } : booking); return delay(bookings.find((booking) => booking.id === id) || bookings[0]); },
+  getFavorite: (resourceType, resourceId) => delay(favoritePayload(resourceType, resourceId)),
+  setFavorite: (resourceType, resourceId, favorite) => {
+    const key = `${resourceType}:${resourceId}`;
+    if (favorite) favoriteKeys.add(key); else favoriteKeys.delete(key);
+    return delay(favoritePayload(resourceType, resourceId));
+  },
   uploadReviewImage: (tempFilePath) => tempFilePath.includes('fail-upload') ? Promise.reject(new Error('review image upload failed')) : delay({ imageUrl:tempFilePath }),
   submitReview: (request) => {
     const booking = bookings.find((item) => item.id === request.bookingId) || bookings[0];

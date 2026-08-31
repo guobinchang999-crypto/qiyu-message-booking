@@ -50,17 +50,22 @@ Page({
         reviewPage: 1,
         reviewHasMore: false,
         reviewLoadingMore: false,
-        serviceId: 'neck',
+        serviceId: '',
         serviceMetaText: '',
         feedback: emptyFeedback,
         dictionaries: emptyDictionaries,
         favorite: false,
+        favoriteUpdating: false,
         placeholderLabel: ui_1.imagePlaceholderLabels.brand,
         loading: true,
         error: ''
     },
     async onLoad(query) {
-        const serviceId = query.id || 'neck';
+        const serviceId = query.id || '';
+        if (!serviceId) {
+            this.setData({ loading: false, error: emptyDictionaries.errorMessage });
+            return;
+        }
         booking_1.bookingStore.selectService(serviceId);
         this.setData({ serviceId });
         await this.loadService();
@@ -74,21 +79,28 @@ Page({
             ]);
             this.setData({ feedback, dictionaries });
             const draft = booking_1.bookingStore.get();
-            const [service, store, therapists, reviewPage] = await Promise.all([
+            const stores = await booking_service_1.bookingService.getStores();
+            const storeId = draft.storeId || stores.find((item) => item.isFrequent)?.id || stores[0]?.id || '';
+            if (!storeId)
+                throw new Error(dictionaries.errorMessage);
+            booking_1.bookingStore.selectStore(storeId);
+            const [service, store, therapists, reviewPage, favorite] = await Promise.all([
                 booking_service_1.bookingService.getService(this.data.serviceId),
-                booking_service_1.bookingService.getStore(draft.storeId),
+                booking_service_1.bookingService.getStore(storeId),
                 booking_service_1.bookingService.getTherapists(this.data.serviceId),
-                booking_service_1.bookingService.getStoreReviews(draft.storeId, this.data.serviceId, 1, reviewPageSize)
+                booking_service_1.bookingService.getStoreReviews(storeId, this.data.serviceId, 1, reviewPageSize),
+                booking_service_1.bookingService.getFavorite('services', this.data.serviceId)
             ]);
             const metaItems = [`${service.durationMinutes}${dictionaries.cardMeta.durationUnit}`, service.tags[0], `${dictionaries.cardMeta.servedPrefix}${service.salesCount}${dictionaries.cardMeta.servedSuffix}`].filter(Boolean);
             this.setData({
                 service,
                 store,
-                therapists: therapists.slice(0, 2),
+                therapists: therapists.filter((item) => item.storeId === storeId).slice(0, 2),
                 reviews: reviewPage.items,
                 reviewPage: reviewPage.page,
                 reviewHasMore: reviewPage.hasMore,
                 serviceMetaText: metaItems.join(' · '),
+                favorite: favorite.favorite,
                 loading: false
             });
         }
@@ -101,12 +113,22 @@ Page({
             return;
         wx.navigateTo({ url: navigation_1.pageRoutes.therapist });
     },
-    toggleFavorite() {
-        if (!this.data.service)
+    async toggleFavorite() {
+        if (!this.data.service || this.data.favoriteUpdating)
             return;
         const favorite = !this.data.favorite;
-        this.setData({ favorite });
-        wx.showToast({ title: favorite ? this.data.dictionaries.favoriteAddedToast : this.data.dictionaries.favoriteRemovedToast, icon: 'none' });
+        this.setData({ favoriteUpdating: true });
+        try {
+            const result = await booking_service_1.bookingService.setFavorite('services', this.data.serviceId, favorite);
+            this.setData({ favorite: result.favorite });
+            wx.showToast({ title: result.favorite ? this.data.dictionaries.favoriteAddedToast : this.data.dictionaries.favoriteRemovedToast, icon: 'none' });
+        }
+        catch (error) {
+            wx.showToast({ title: this.data.feedback.genericUnavailable, icon: 'none' });
+        }
+        finally {
+            this.setData({ favoriteUpdating: false });
+        }
     },
     onShareAppMessage() {
         const service = this.data.service;

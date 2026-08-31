@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * HTTP adapter for the complete booking lifecycle.
@@ -92,8 +91,9 @@ public class BookingController {
     }
 
     @PostMapping("/{id}/pay")
-    public ApiResponse<BookingVO> payDeposit(@PathVariable String id) {
-        return ApiResponse.success(bookingAppService.payDeposit(id));
+    public ApiResponse<BookingVO> payDeposit(@PathVariable String id,
+                                             @RequestBody(required = false) BookingPaymentConfirmRequest request) {
+        return ApiResponse.success(bookingAppService.payDeposit(id, request == null ? null : request.requestId()));
     }
 
     @PostMapping("/{id}/start-service")

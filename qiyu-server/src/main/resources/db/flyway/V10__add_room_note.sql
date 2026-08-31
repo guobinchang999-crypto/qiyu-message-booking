@@ -1,0 +1,2 @@
+ALTER TABLE room
+  ADD COLUMN note VARCHAR(255) NULL COMMENT '房间运营备注' AFTER capacity;

@@ -4,7 +4,7 @@ export type AdminScopeType = 'NONE' | 'SELF' | 'PRIMARY_STORE' | 'ASSIGNED_STORE
 export interface AdminStoreScope {
   resourceCode?: string;
   actionCode?: string;
-  scopeType: AdminScopeType;
+  scopeType?: AdminScopeType;
   scopeTypes?: AdminScopeType[];
   storeIds: string[];
   regionIds?: string[];
@@ -43,7 +43,8 @@ const toRole = (principal: AdminPrincipal): AdminRole => {
   const role = principal.roles.find((item): item is AdminRole => isRole(item));
   return role || 'EMPLOYEE';
 };
-const toStoreScope = (principal: AdminPrincipal): string[] => principal.storeScopes.flatMap((scope) => scope.scopeType === 'ALL_STORES' ? ['ALL_STORES'] : scope.storeIds);
+const hasScopeType = (scope: AdminStoreScope, type: AdminScopeType): boolean => scope.scopeType === type || !!scope.scopeTypes?.includes(type);
+const toStoreScope = (principal: AdminPrincipal): string[] => principal.storeScopes.flatMap((scope) => hasScopeType(scope, 'ALL_STORES') ? ['ALL_STORES'] : scope.storeIds);
 
 export const createAdminSession = (response: AdminAuthResponse, remember: boolean): AdminSession => ({
   ...response,
@@ -95,13 +96,13 @@ export const canAccessStore = (session: AdminSession | null, resourceCode: strin
   if (!session) return false;
   const scopes = session.principal.storeScopes.filter((scope) => !scope.resourceCode || scope.resourceCode === resourceCode)
     .filter((scope) => !scope.actionCode || scope.actionCode === actionCode || scope.actionCode === '*');
-  return scopes.some((scope) => scope.scopeType === 'ALL_STORES' || scope.storeIds.includes(storeId));
+  return scopes.some((scope) => hasScopeType(scope, 'ALL_STORES') || scope.storeIds.includes(storeId));
 };
 
 export const isSelfScope = (session: AdminSession | null, resourceCode: string, actionCode: string): boolean => !!session
   && session.principal.storeScopes.some((scope) => (!scope.resourceCode || scope.resourceCode === resourceCode)
     && (!scope.actionCode || scope.actionCode === actionCode || scope.actionCode === '*')
-    && (scope.scopeType === 'SELF' || scope.scopeTypes?.includes('SELF')));
+    && hasScopeType(scope, 'SELF'));
 
 export const maskPhone = (value: string, session: AdminSession | null): string => can(session, 'customer:reveal_phone') || can(session, 'admin:*')
   ? value
