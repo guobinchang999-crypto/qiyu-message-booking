@@ -67,6 +67,31 @@ public class SystemManagementController {
         return ApiResponse.success(service.dataScopeOptions());
     }
 
+    /** Returns one user's direct permission overrides for the user-level authorization editor. */
+    @GetMapping("/users/{id}/permissions")
+    public ApiResponse<java.util.List<SystemModels.UserPermission>> userPermissions(@PathVariable String id) {
+        return ApiResponse.success(service.userPermissions(id));
+    }
+
+    /** Atomically replaces one user's direct ALLOW/DENY overrides. */
+    @PutMapping("/users/{id}/permissions")
+    public ApiResponse<java.util.List<SystemModels.UserPermission>> saveUserPermissions(
+            @PathVariable String id, @RequestBody SystemModels.UserPermissionCommand command) {
+        return ApiResponse.success(service.saveUserPermissions(id, command));
+    }
+
+    /** Removes all direct overrides so the user inherits role permissions again. */
+    @DeleteMapping("/users/{id}/permissions")
+    public ApiResponse<java.util.List<SystemModels.UserPermission>> clearUserPermissions(@PathVariable String id) {
+        return ApiResponse.success(service.clearUserPermissions(id));
+    }
+
+    /** Supplies the enabled permission catalog for the direct-permission editor. */
+    @GetMapping("/permission-options")
+    public ApiResponse<java.util.List<SystemModels.PermissionOption>> permissionOptions() {
+        return ApiResponse.success(service.permissionOptions());
+    }
+
     @GetMapping("/roles") public ApiResponse<SystemModels.Page<SystemModels.Role>> roles(@RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int pageSize) { return ApiResponse.success(service.roles(keyword, page, pageSize)); }
     @PostMapping("/roles") public ApiResponse<SystemModels.Role> createRole(@RequestBody SystemModels.RoleCommand command) { return ApiResponse.success(service.saveRole(null, command)); }
     @PutMapping("/roles/{id}") public ApiResponse<SystemModels.Role> updateRole(@PathVariable String id, @RequestBody SystemModels.RoleCommand command) { return ApiResponse.success(service.saveRole(id, command)); }

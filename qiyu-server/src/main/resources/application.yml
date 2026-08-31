@@ -6,6 +6,9 @@ spring:
     name: qiyu-server
   profiles:
     default: local
+  autoconfigure:
+    exclude:
+      - cn.dev33.satoken.dao.SaTokenDaoRedisJackson
 
 springdoc:
   swagger-ui:

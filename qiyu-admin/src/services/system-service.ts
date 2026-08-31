@@ -1,5 +1,5 @@
 import { adminRequest } from './http';
-import type { AuditLogRecord, DataScopeOptions, DictionaryRecord, OrganizationRecord, SystemMenuRecord, SystemPage, SystemQuery, SystemRoleRecord, SystemUserRecord, UserDataScope } from '@/types/system';
+import type { AuditLogRecord, DataScopeOptions, DictionaryRecord, OrganizationRecord, PermissionOption, SystemMenuRecord, SystemPage, SystemQuery, SystemRoleRecord, SystemUserRecord, UserDataScope, UserPermissionCommand, UserPermissionGrant } from '@/types/system';
 
 type SavePayload<T> = Partial<T> & { id?: string };
 const queryString = (query: SystemQuery): string => {
@@ -38,6 +38,16 @@ export const systemAdminApi = {
       { method: 'DELETE' },
     ),
     dataScopeOptions: () => adminRequest<DataScopeOptions>('/admin/system/data-scope-options'),
+    getPermissions: (id: string) => adminRequest<UserPermissionGrant[]>(`/admin/system/users/${id}/permissions`),
+    savePermissions: (id: string, payload: UserPermissionCommand) => adminRequest<UserPermissionGrant[]>(
+      `/admin/system/users/${id}/permissions`,
+      { method: 'PUT', data: payload },
+    ),
+    clearPermissions: (id: string) => adminRequest<UserPermissionGrant[]>(
+      `/admin/system/users/${id}/permissions`,
+      { method: 'DELETE' },
+    ),
+    permissionOptions: () => adminRequest<PermissionOption[]>(`/admin/system/permission-options`),
   },
   roles: rolesRemote,
   menus: menusRemote,

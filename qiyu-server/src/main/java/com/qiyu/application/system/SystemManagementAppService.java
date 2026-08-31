@@ -93,6 +93,30 @@ public class SystemManagementAppService {
         return repository.dataScopeOptions();
     }
 
+    /** Reads one user's direct permission overrides after verifying system-user administration. */
+    public List<SystemModels.UserPermission> userPermissions(String id) {
+        require("system:user:manage");
+        return repository.userPermissions(requiredId(id));
+    }
+
+    /** Replaces one user's direct ALLOW/DENY overrides as one transaction. */
+    public List<SystemModels.UserPermission> saveUserPermissions(String id, SystemModels.UserPermissionCommand command) {
+        require("system:user:manage");
+        return repository.saveUserPermissions(requiredId(id), command, require("system:user:manage").userId());
+    }
+
+    /** Removes all direct overrides so role grants apply again. */
+    public List<SystemModels.UserPermission> clearUserPermissions(String id) {
+        require("system:user:manage");
+        return repository.clearUserPermissions(requiredId(id), require("system:user:manage").userId());
+    }
+
+    /** Returns the enabled permission catalog for the direct-permission editor. */
+    public List<SystemModels.PermissionOption> permissionOptions() {
+        require("system:user:manage");
+        return repository.permissionOptions();
+    }
+
     public SystemModels.Page<SystemModels.Role> roles(String keyword, int page, int pageSize) {
         require("system:role:manage");
         return repository.roles(text(keyword), page(page), pageSize(pageSize));

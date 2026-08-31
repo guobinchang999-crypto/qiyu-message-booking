@@ -177,6 +177,15 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 
 资源种子使用固定对象名，可重复执行。日常启动可将 `QIYU_LOCAL_MINIO_SEED_ENABLED` 设为 `false`；用户评价图片通过 `/reviews/images` 上传到 MinIO。
 
+#### 桶访问策略
+
+- **本地/演示环境**：将 `QIYU_LOCAL_MINIO_PUBLIC_READ=true` 与 `QIYU_LOCAL_MINIO_ENABLED=true` 一起设置，网关会在上传时给 `qiyu-local` 桶写入 `s3:GetObject` 公开读策略，让后台和小程序直接加载对象 URL。
+- **生产环境**：`public-read` 必须保持 `false`（桶保持私有），改为以下任一受控方案，而不是公开读：
+  1. **预签名 URL**：接口返回 `getPresignedObjectUrl` 生成的短期签名地址（推荐，可配合 `X-Amz-Expires` 控制时效）。
+  2. **CDN + 私有回源**：桶配置 CDN 私有回源鉴权，对外只暴露 CDN 域名。
+  3. **受控公开桶**：仅当图片无敏感信息且允许长期公开时，用独立只读策略的最小权限桶。
+- `MinioObjectStorageGateway` 的 `public-read` 开关仅用于本地演示；生产接入时按上述方案之一实现，并在接口返回 URL 前完成签名或域名替换。
+
 后端启动后，可以在仓库根目录执行接口联通 smoke。该脚本会覆盖客户端远程联调的主要契约，包括 catalog、门店/服务/技师/时间槽、预约创建/详情/成功页、支付参数准备与确认、预约码刷新、改期、取消、评价图片上传、评价提交回流和会员资料：
 
 ```bash

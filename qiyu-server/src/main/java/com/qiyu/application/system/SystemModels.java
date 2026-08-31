@@ -48,6 +48,15 @@ public final class SystemModels {
     public record UserDataScopeCommand(String scopeType, List<String> storeIds, List<String> regionIds,
                                        LocalDateTime validFrom, LocalDateTime validUntil) { }
 
+    /** One effective user-level permission grant; user overrides layer over role grants. */
+    public record UserPermission(String permissionCode, String effect) { }
+
+    /** Replacement command for one user's direct ALLOW/DENY permission overrides. */
+    public record UserPermissionCommand(List<String> allowedCodes, List<String> deniedCodes) { }
+
+    /** Permission selector option backed by the persisted permission catalog. */
+    public record PermissionOption(String code, String name) { }
+
     /** Select option backed by a stable database identity rather than a display name. */
     public record ScopeOption(String id, String name) { }
 

@@ -37,6 +37,10 @@ export interface UserDataScope {
 export interface ScopeOption { id: string; name: string; }
 export interface DataScopeOptions { stores: ScopeOption[]; regions: ScopeOption[]; }
 
+export interface UserPermissionGrant { permissionCode: string; effect: 'ALLOW' | 'DENY'; }
+export interface UserPermissionCommand { allowedCodes: string[]; deniedCodes: string[]; }
+export interface PermissionOption { code: string; name: string; }
+
 export interface SystemRoleRecord {
   id: string;
   code: string;

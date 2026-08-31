@@ -206,6 +206,19 @@ public interface SystemManagementMapper extends BaseMapper<SystemUserEntity> {
     @Update("UPDATE sys_role SET deleted=1,status='DISABLED',updated_by=#{operator},updated_at=NOW() WHERE id=#{id}") int softDeleteRole(@Param("id") long id, @Param("operator") String operator);
     @Delete("DELETE FROM sys_role_menu WHERE role_id=#{id}") int deleteRoleMenus(long id);
 
+    @Select("""
+            SELECT p.permission_code permissionCode, up.effect effect
+            FROM sys_user_permission up JOIN sys_permission p ON p.id=up.permission_id
+            WHERE up.user_id=#{userId} ORDER BY p.permission_code
+            """)
+    List<SystemUserPermissionRow> userPermissions(long userId);
+    @Delete("DELETE FROM sys_user_permission WHERE user_id=#{id}") int deleteUserPermissions(long id);
+    @Insert("INSERT INTO sys_user_permission(user_id,permission_id,effect,created_by_user_id) VALUES(#{userId},#{permissionId},#{effect},#{operatorId})")
+    int insertUserPermission(@Param("userId") long userId, @Param("permissionId") long permissionId,
+                             @Param("effect") String effect, @Param("operatorId") long operatorId);
+    @Select("SELECT permission_code code, permission_name name FROM sys_permission WHERE deleted=0 AND status='ENABLED' ORDER BY permission_code")
+    List<SystemPermissionOptionRow> permissionOptions();
+
     @Select("SELECT COUNT(*) FROM sys_menu WHERE deleted=0 AND (#{keyword}='' OR menu_name LIKE #{pattern} OR menu_code LIKE #{pattern} OR permission_code LIKE #{pattern})")
     long countMenus(@Param("keyword") String keyword, @Param("pattern") String pattern);
     /** Returns menu rows in their persisted display order. */
