@@ -59,4 +59,9 @@ public class CatalogController {
                                                            @RequestParam(required = false) String status) {
         return ApiResponse.success(catalogQueryService.roomOptions(storeId, status));
     }
+
+    @GetMapping("/options/regions")
+    public ApiResponse<List<ResourceOptionVO>> regionOptions() {
+        return ApiResponse.success(catalogQueryService.regionOptions());
+    }
 }

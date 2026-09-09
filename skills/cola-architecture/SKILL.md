@@ -5,7 +5,7 @@ description: 面向栖愈后端开发的实用阿里巴巴 COLA 架构指导，�
 
 # 技能：栖愈后端 COLA 架构设计
 
-> **范围：仅限后端。** 此技能仅适用于 Java Spring Boot 后端（`qiyu-server/`）。不要将此技能中的 COLA 分层、命名约定或架构规则应用于 React 管理后台（`qiyu-admin/`）或微信小程序客户端（`qiyu-client/`）。
+> **范围：仅限后端。** 此技能仅适用于 Java Spring Boot 后端（`qiyu-server/`）。不要将此技能中的 COLA 分层、命名约定或架构规则应用于 React 管理后台（`qiyu-admin-pro/`）或微信小程序客户端（`qiyu-client/`）。
 
 ## 1. 目的
 

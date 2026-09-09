@@ -35,7 +35,9 @@ public class SaTokenConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("http://localhost:8000", "http://127.0.0.1:8000", "http://192.168.31.178:8000")
+                .allowedOrigins(
+                        "http://localhost:8000", "http://127.0.0.1:8000", "http://192.168.31.178:8000",
+                        "http://localhost:8001", "http://127.0.0.1:8001", "http://192.168.31.178:8001")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)

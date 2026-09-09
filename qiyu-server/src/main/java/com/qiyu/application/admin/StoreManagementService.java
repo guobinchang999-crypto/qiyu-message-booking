@@ -38,7 +38,8 @@ public class StoreManagementService {
             throw new IllegalArgumentException("门店编码已存在");
         }
         StoreManagementRepository.StoreMaster saved = repository.save(master(null, id, code,
-                command.regionId() == null ? repository.defaultRegionId() : command.regionId(), command));
+                command.regionId() == null ? repository.defaultRegionId() : command.regionId(),
+                BigDecimal.valueOf(5), 0, command));
         return reloadProfile(saved.id());
     }
 
@@ -52,7 +53,8 @@ public class StoreManagementService {
         StoreManagementRepository.StoreMaster current = repository.find(storeId)
                 .orElseThrow(() -> new IllegalArgumentException("门店不存在"));
         StoreManagementRepository.StoreMaster saved = repository.save(master(current.databaseId(), current.id(),
-                current.code(), command.regionId() == null ? current.regionId() : command.regionId(), command));
+                current.code(), command.regionId() == null ? current.regionId() : command.regionId(),
+                current.rating(), current.sortOrder(), command));
         return reloadProfile(saved.id());
     }
 
@@ -72,7 +74,8 @@ public class StoreManagementService {
     }
 
     private static StoreManagementRepository.StoreMaster master(Long databaseId, String id, String code,
-                                                                 long regionId, StoreCommand command) {
+                                                                 long regionId, BigDecimal rating, int sortOrder,
+                                                                 StoreCommand command) {
         String name = required(command.name(), "门店名称不能为空");
         String address = required(command.address(), "门店地址不能为空");
         String hours = required(command.businessHours(), "营业时间不能为空");
@@ -81,8 +84,7 @@ public class StoreManagementService {
         return new StoreManagementRepository.StoreMaster(databaseId, id, regionId, code, name, command.phone(),
                 blankDefault(command.province(), "上海市"), blankDefault(command.city(), "上海市"),
                 blankDefault(command.district(), ""), address, command.longitude(), command.latitude(), hours,
-                range[0], range[1], status, command.rating() == null ? BigDecimal.valueOf(5) : command.rating(),
-                command.sortOrder() == null ? 0 : command.sortOrder(), command.enabled() == null || command.enabled());
+                range[0], range[1], status, rating, sortOrder, command.enabled() == null || command.enabled());
     }
 
     /**
@@ -100,7 +102,8 @@ public class StoreManagementService {
                 .findFirst()
                 .map(value -> new AdminResponseModels.StoreProfile(value.id(), value.code(), value.regionId(),
                         value.name(), value.phone(), value.province(), value.city(), value.district(), value.address(),
-                        value.longitude(), value.latitude(), value.businessHours(), value.manager(), value.roomCount(),
+                        value.longitude(), value.latitude(), value.businessHours(), value.manager(),
+                        value.managerPosition(), value.managerMobile(), value.roomCount(),
                         value.therapistCount(), value.status(), value.rating(), value.sortOrder(), value.enabled()))
                 .orElseThrow(() -> new IllegalStateException("门店保存成功但读取模型尚未同步"));
     }
@@ -131,7 +134,6 @@ public class StoreManagementService {
     /** Typed store mutation contract shared by create and replacement-style update. */
     public record StoreCommand(String code, Long regionId, String name, String phone, String province, String city,
                                String district, String address, BigDecimal longitude, BigDecimal latitude,
-                               String businessHours, String status, BigDecimal rating, Integer sortOrder,
-                               Boolean enabled) {
+                               String businessHours, String status, Boolean enabled) {
     }
 }

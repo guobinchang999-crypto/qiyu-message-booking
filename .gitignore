@@ -4,10 +4,10 @@
 node_modules/
 dist/
 
-qiyu-admin/.umi/
-qiyu-admin/src/.umi/
-qiyu-admin/src/.umi-production/
-qiyu-admin/typings.d.ts
+qiyu-admin-pro/.umi/
+qiyu-admin-pro/src/.umi/
+qiyu-admin-pro/src/.umi-production/
+qiyu-admin-pro/typings.d.ts
 
 qiyu-client/miniprogram/miniprogram_npm/
 qiyu-client/.cloudbase/

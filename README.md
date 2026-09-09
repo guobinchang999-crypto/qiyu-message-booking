@@ -5,7 +5,7 @@
 本项目后续将拆分为三个核心模块：
 
 - `qiyu-server`：Java 后端接口
-- `qiyu-admin`：React + Ant Design Pro 管理后台
+- `qiyu-admin-pro`：React + Ant Design Pro 管理后台
 - `qiyu-client`：微信小程序客户端
 
 当前仓库已包含客户端 UI 设计图与设计规范文档，后续代码实现应以 `design/` 目录作为视觉和验收基准。
@@ -99,14 +99,14 @@
 - MinIO Java SDK
 - Maven
 
-### 管理后台 `qiyu-admin`
+### 管理后台 `qiyu-admin-pro`
 
 - React
 - TypeScript
-- Ant Design Pro
+- Umi Max
 - Ant Design 5
+- Ant Design Pro Components（ProLayout / ProTable / ProForm / ProCard）
 - Fetch API
-- Umi 或 Vite 方案预留
 
 ### 客户端 `qiyu-client`
 
@@ -129,7 +129,7 @@ qiyu-massage-booking/
 │   ├── UI-ACCEPTANCE-CHECKLIST.md
 │   └── client-*-v2.png
 ├── qiyu-server/      # Spring Boot 后端 API、Flyway 与资源种子
-├── qiyu-admin/       # Ant Design Pro / Umi 管理后台
+├── qiyu-admin-pro/  # Ant Design Pro / Umi Max 管理后台
 └── qiyu-client/      # 微信小程序客户端
 ```
 
@@ -200,7 +200,7 @@ QIYU_API_BASE_URL=http://localhost:8080 node scripts/smoke-api.mjs
 
 ```bash
 # 管理后台
-cd qiyu-admin
+cd qiyu-admin-pro
 npm install
 npm run dev
 ```

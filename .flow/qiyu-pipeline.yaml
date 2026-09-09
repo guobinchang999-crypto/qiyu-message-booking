@@ -54,7 +54,7 @@ stages:
             with:
               node: '20'
               command: 'run typecheck && run build'
-              workingDir: qiyu-admin
+              workingDir: qiyu-admin-pro
       - name: 小程序
         steps:
           - name: 检出代码

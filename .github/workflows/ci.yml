@@ -25,18 +25,18 @@ jobs:
         run: mvn -B -DskipTests package
 
   admin:
-    name: qiyu-admin typecheck + build
+    name: qiyu-admin-pro typecheck + build
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: qiyu-admin
+        working-directory: qiyu-admin-pro
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: qiyu-admin/package-lock.json
+          cache-dependency-path: qiyu-admin-pro/package-lock.json
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build

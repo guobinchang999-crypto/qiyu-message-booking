@@ -11,7 +11,7 @@
 本项目需要继续完成一个统一品牌的按摩预约系统，包含：
 
 - `qiyu-server`：Spring Boot 后端、MySQL、Redis、MinIO、认证授权和数据权限。
-- `qiyu-admin`：React + TypeScript + Ant Design Pro 管理后台。
+- `qiyu-admin-pro`：React + TypeScript + Ant Design Pro 管理后台。
 - `qiyu-client`：微信小程序原生框架 + TypeScript + TDesign MiniProgram 客户端。
 
 用户已明确要求：
@@ -57,7 +57,7 @@
 - 不要执行 `git reset --hard`、`git checkout -- .`、`git clean` 或重新 clone 后覆盖当前目录。
 - 先执行 `git status --short` 和 `git diff --stat` 了解当前改动。
 - 当前工作树中的成果尚未推送到远端，继续开发并验证后应统一提交。
-- `qiyu-admin/src/.umi/appData.json` 有大量生成内容变化，提交前应确认是否需要纳入版本控制。
+- `qiyu-admin-pro/src/.umi/appData.json` 有大量生成内容变化，提交前应确认是否需要纳入版本控制。
 
 ## 4. 当前运行状态
 
@@ -292,7 +292,7 @@ DDL 已按用户要求：
 - `qiyu-server/src/test/java/com/qiyu/application/auth/DataPermissionServiceTests.java`
 - `qiyu-server/src/test/java/com/qiyu/application/member/CustomerFavoriteServiceTest.java`
 - `qiyu-server/src/test/java/com/qiyu/application/member/MemberBalanceServiceTest.java`
-- `qiyu-admin/scripts/smoke-*.mjs`
+- `qiyu-admin-pro`：`npm run typecheck` 与 `npm run build`（后台接口已由根目录 `scripts/smoke-api.mjs` 覆盖）
 - `qiyu-client/scripts/smoke-*.mjs`
 - 根目录 `scripts/smoke-api.mjs`
 
@@ -459,7 +459,7 @@ curl http://localhost:8080/health
 
 ```bash
 cd qiyu-server && mvn test
-cd ../qiyu-admin && npm run typecheck && npm run build
+cd ../qiyu-admin-pro && npm run typecheck && npm run build
 cd ../qiyu-client && npm run verify
 cd .. && git diff --check
 ```
@@ -489,12 +489,12 @@ cd .. && git diff --check
 
 ### 管理后台
 
-- `qiyu-admin/src/services/http.ts`
-- `qiyu-admin/src/services/remote.ts`
-- `qiyu-admin/src/services/system-service.ts`
-- `qiyu-admin/src/layouts/AdminLayout.tsx`
-- `qiyu-admin/src/pages/System/Users/index.tsx`
-- `qiyu-admin/src/pages/System/Roles/index.tsx`
+- `qiyu-admin-pro/src/services/http.ts`
+- `qiyu-admin-pro/src/services/remote.ts`
+- `qiyu-admin-pro/src/services/system-service.ts`
+- `qiyu-admin-pro/src/layouts/AdminLayout.tsx`
+- `qiyu-admin-pro/src/pages/System/Users/index.tsx`
+- `qiyu-admin-pro/src/pages/System/Roles/index.tsx`
 
 ### 微信小程序
 

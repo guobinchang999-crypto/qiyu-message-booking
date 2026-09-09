@@ -57,6 +57,22 @@ class QiyuServerApplicationTests {
     }
 
     @Test
+    void adminLoginSessionIsValidForTwelveHours() throws Exception {
+        mockMvc.perform(post("/auth/login").contentType(APPLICATION_JSON).content(
+                        "{\"clientType\":\"ADMIN_WEB\",\"grantType\":\"PASSWORD\",\"identifier\":\"admin\",\"credential\":\"123456\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.expiresIn").value(43_200));
+    }
+
+    @Test
+    void customerLoginSessionKeepsItsExistingTwoHourLifetime() throws Exception {
+        mockMvc.perform(post("/auth/login").contentType(APPLICATION_JSON).content(
+                        "{\"clientType\":\"MINI_PROGRAM\",\"grantType\":\"SMS_CODE\",\"identifier\":\"13800001288\",\"credential\":\"123456\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.expiresIn").value(7_200));
+    }
+
+    @Test
     void protectedEndpointsRejectAnonymousRequests() throws Exception {
         mockMvc.perform(get("/admin/dashboard"))
                 .andExpect(status().isUnauthorized())

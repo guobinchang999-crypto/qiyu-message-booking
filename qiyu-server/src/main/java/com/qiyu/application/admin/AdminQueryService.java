@@ -89,7 +89,8 @@ public class AdminQueryService {
         return repository.stores(storeAccess(principal, "store", "READ")).stream()
                 .map(row -> new AdminResponseModels.StoreProfile(row.id(), row.code(), row.regionId(), row.name(),
                         row.phone(), row.province(), row.city(), row.district(), row.address(), row.longitude(),
-                        row.latitude(), row.businessHours(), row.manager(), row.roomCount(), row.therapistCount(),
+                        row.latitude(), row.businessHours(), row.manager(), row.managerPosition(), row.managerMobile(),
+                        row.roomCount(), row.therapistCount(),
                         row.status(), row.rating(), row.sortOrder(), row.enabled()))
                 .toList();
     }
@@ -132,8 +133,10 @@ public class AdminQueryService {
     /** Builds dashboard metrics only from rows already restricted by the current data scope. */
     public AdminResponseModels.Dashboard dashboard() {
         AuthPrincipal principal = authAppService.requirePermission("dashboard:read");
+        // The dashboard aggregates operations in the same all/primary-store/region boundary as
+        // business reports, so it reuses the report data scope (no separate "dashboard" scope exists).
         AdminOperationsReadRepository.DashboardSnapshot snapshot = operationsReadRepository.getIfAvailable() == null
-                ? emptyDashboard() : operationsReadRepository.getObject().dashboard(storeAccess(principal, "dashboard", "READ"));
+                ? emptyDashboard() : operationsReadRepository.getObject().dashboard(storeAccess(principal, "report", "READ"));
         return new AdminResponseModels.Dashboard(List.of(
                 statistic("今日预约", snapshot.bookingCount() + " 单"),
                 statistic("待到店", snapshot.waitingCount() + " 单"),
@@ -149,7 +152,10 @@ public class AdminQueryService {
     public AdminResponseModels.BookingPage bookings(String pageNum, String pageSize, String status) {
         authAppService.requirePermission("booking:read");
         List<BookingVO> list = bookingQueryService.list(status);
-        return new AdminResponseModels.BookingPage(list, list.size(), pageNum == null ? 1 : Integer.parseInt(pageNum), pageSize == null ? 10 : Integer.parseInt(pageSize));
+        int page = pageNum == null ? 1 : Integer.parseInt(pageNum);
+        int size = pageSize == null ? 10 : Integer.parseInt(pageSize);
+        if (page < 1 || size < 1 || size > 200) throw new IllegalArgumentException("分页范围无效");
+        return new AdminResponseModels.BookingPage(list.stream().skip((long)(page-1)*size).limit(size).toList(), list.size(), page, size);
     }
 
     /** Returns schedule resources restricted to stores visible to the current operator. */

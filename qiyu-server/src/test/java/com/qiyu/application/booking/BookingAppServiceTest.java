@@ -45,7 +45,7 @@ class BookingAppServiceTest {
         // bookings count as expired so the test does not wait.
         service = new BookingAppService(bookingGateway, catalogGateway, authAppService, auditLogService,
                 true, mock(CustomerLookupGateway.class), mock(PaymentGateway.class), authorizer, assembler,
-                pricingCalculator, -1);
+                pricingCalculator, mock(BookingAvailabilityService.class), -1);
     }
 
     @Test

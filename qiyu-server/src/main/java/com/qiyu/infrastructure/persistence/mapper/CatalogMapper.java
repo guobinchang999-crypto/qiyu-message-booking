@@ -147,4 +147,11 @@ public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
             ORDER BY sort_order, id
             """)
     List<String> serviceCategories();
+
+    @Select("""
+            SELECT CAST(id AS CHAR) AS id, region_name AS name
+            FROM region WHERE status='ENABLED' AND deleted=0
+            ORDER BY sort_order, id
+            """)
+    List<ScopeOptionRow> regionOptions();
 }

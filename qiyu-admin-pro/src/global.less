@@ -1,0 +1,28 @@
+:root {
+  --qiyu-primary: #5d806d;
+  --qiyu-primary-light: #edf4ee;
+  --qiyu-warm: #b58c5e;
+  --qiyu-background: #f6f7f5;
+  --qiyu-surface: #ffffff;
+  --qiyu-text: #26332c;
+  --qiyu-muted: #7c8780;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--qiyu-text); background: var(--qiyu-background); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+
+/* 看板趋势图（保留现有 SVG 折线图实现） */
+.qiyu-line-chart { height: 240px; position: relative; overflow: hidden; padding: 14px; }
+.qiyu-line-chart svg { width: 100%; height: 100%; overflow: visible; }
+.qiyu-line-chart .grid { stroke: #edf0ec; stroke-width: 1; }
+.qiyu-line-chart .curve { fill: none; stroke: var(--qiyu-primary); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 登录页品牌区域 */
+.login-page { min-height: 100vh; display: grid; grid-template-columns: 1.2fr .8fr; background: #f6f7f5; }
+.login-intro { padding: 13vw 12vw; background: linear-gradient(135deg, #e9f0e9 0%, #f8f5ee 100%); }
+.login-brand-mark { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 16px; background: #5d806d; color: white; font-weight: 700; font-size: 24px; margin-bottom: 32px; }
+.login-intro h1 { color: #26332c; margin-bottom: 12px; }
+.login-intro p { color: #66736b; font-size: 16px; }
+.login-intro-card { margin-top: 72px; max-width: 380px; padding: 22px; color: #4f6155; background: rgba(255,255,255,.64); border: 1px solid rgba(255,255,255,.7); border-radius: 14px; line-height: 1.8; }
+.login-card { align-self: center; justify-self: center; width: min(420px, calc(100% - 48px)); border-radius: 16px; box-shadow: 0 16px 50px rgba(42, 62, 47, .10); }
+@media (max-width: 800px) { .login-page { grid-template-columns: 1fr; } .login-intro { display: none; } .login-card { margin-top: 15vh; } }

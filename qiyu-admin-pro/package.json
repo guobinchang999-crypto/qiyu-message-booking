@@ -1,0 +1,25 @@
+{
+  "name": "qiyu-admin-pro",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "max dev --port 8001",
+    "build": "max build",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "max setup"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.5.0",
+    "@ant-design/pro-components": "2.8.10",
+    "@umijs/max": "4.7.0",
+    "antd": "5.29.3",
+    "dayjs": "^1.11.13",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "5.9.3"
+  }
+}

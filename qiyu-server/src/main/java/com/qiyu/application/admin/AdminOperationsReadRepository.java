@@ -41,7 +41,8 @@ public interface AdminOperationsReadRepository {
 
     record StoreSnapshot(String id, String code, Long regionId, String name, String phone, String province,
                          String city, String district, String address, BigDecimal longitude, BigDecimal latitude,
-                         String businessHours, String manager, long roomCount, long therapistCount, String status,
+                         String businessHours, String manager, String managerPosition, String managerMobile,
+                         long roomCount, long therapistCount, String status,
                          BigDecimal rating, Integer sortOrder, Boolean enabled) {
     }
 

@@ -13,6 +13,7 @@ import com.qiyu.domain.room.RoomStatus;
 import com.qiyu.domain.schedule.TimeSlotStatus;
 import com.qiyu.domain.therapist.TherapistStatus;
 import com.qiyu.domain.catalog.gateway.CatalogGateway;
+import com.qiyu.infrastructure.persistence.mapper.CatalogMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -28,10 +29,13 @@ public class CatalogQueryService {
 
     private final ClientCatalogGateway clientCatalogGateway;
     private final CatalogGateway catalogGateway;
+    private final CatalogMapper catalogMapper;
 
-    public CatalogQueryService(ClientCatalogGateway clientCatalogGateway, CatalogGateway catalogGateway) {
+    public CatalogQueryService(ClientCatalogGateway clientCatalogGateway, CatalogGateway catalogGateway,
+                               CatalogMapper catalogMapper) {
         this.clientCatalogGateway = clientCatalogGateway;
         this.catalogGateway = catalogGateway;
+        this.catalogMapper = catalogMapper;
     }
 
     /** Returns all supported system dictionaries with a stable, typed JSON shape. */
@@ -81,6 +85,13 @@ public class CatalogQueryService {
     public List<ResourceOptionVO> roomOptions(String storeId, String status) {
         return catalogGateway.rooms(storeId, status).stream()
                 .map(item -> new ResourceOptionVO(item.id(), item.name(), item.storeId(), item.status(), item.statusLabel()))
+                .toList();
+    }
+
+    /** Returns enabled operating regions as selectable resources for the store form. */
+    public List<ResourceOptionVO> regionOptions() {
+        return catalogMapper.regionOptions().stream()
+                .map(item -> new ResourceOptionVO(item.id(), item.name(), null, null, null))
                 .toList();
     }
 

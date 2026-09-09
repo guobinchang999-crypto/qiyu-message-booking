@@ -60,7 +60,7 @@ public class MybatisPlusBookingGateway implements BookingGateway {
         Long serviceId = required(mapper.serviceId(serviceCode(booking.serviceId())), "服务项目不存在");
         Long therapistId = booking.therapistId() == null ? null : mapper.therapistId(therapistCode(booking.therapistId()));
         Long roomId = mapper.roomId(storeId, roomCode(booking.roomId()));
-        boolean occupiesResources = !BookingStatus.CANCELLED.equals(booking.status());
+        boolean occupiesResources = booking.occupiesResource();
         if (occupiesResources) {
             // Lock the resource master rows in a fixed order (therapist before room) before any
             // conflict check. This serializes concurrent saves that target the same resource even

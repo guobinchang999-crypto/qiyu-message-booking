@@ -29,11 +29,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 public class AuthAppService {
+    private static final int CUSTOMER_SESSION_TIMEOUT_SECONDS = 2 * 60 * 60;
     private final ConcurrentMap<String, AuthPrincipal> principals = new ConcurrentHashMap<>();
     private final DbAuthPrincipalProvider dbAuthPrincipalProvider;
     private final SmsVerificationGateway smsVerificationGateway;
     @Value("${qiyu.auth.mock-admin-password:}")
     private String mockAdminPassword;
+    @Value("${qiyu.auth.admin-session-timeout-seconds:43200}")
+    private int adminSessionTimeoutSeconds;
 
     public AuthAppService(ObjectProvider<DbAuthPrincipalProvider> dbAuthPrincipalProvider,
                           SmsVerificationGateway smsVerificationGateway) {
@@ -52,19 +55,21 @@ public class AuthAppService {
         ClientType clientType = parse(ClientType.class, clientTypeValue, "客户端类型不正确");
         GrantType grantType = parse(GrantType.class, grantTypeValue, "登录方式不正确");
         AuthPrincipal principal = authenticate(clientType, grantType, identifier, credential);
+        int sessionTimeoutSeconds = sessionTimeoutSeconds(clientType);
         // Every client receives the same token contract even though each grant type authenticates differently.
-        StpUtil.login(principal.userId(), new SaLoginModel().setTimeout(7200));
+        StpUtil.login(principal.userId(), new SaLoginModel().setTimeout(sessionTimeoutSeconds));
         StpUtil.getTokenSession().set("principal", principal);
         String token = StpUtil.getTokenValue();
         principals.put(token, principal);
-        return response(token, principal);
+        return response(token, principal, sessionTimeoutSeconds);
     }
 
     /** Returns the refreshed effective access context for the current token. */
     public AuthResponse current() {
         refreshCurrentAccessContext();
         AuthPrincipal principal = AuthContext.current();
-        return response(StpUtil.getTokenValue(), principal);
+        return response(StpUtil.getTokenValue(), principal,
+                principal.userType() == UserType.STAFF ? adminSessionTimeoutSeconds : CUSTOMER_SESSION_TIMEOUT_SECONDS);
     }
 
     /** Invalidates the current token and removes its cached principal. */
@@ -153,7 +158,11 @@ public class AuthAppService {
         throw new IllegalArgumentException("当前客户端不支持该登录方式");
     }
 
-    private static AuthResponse response(String token, AuthPrincipal principal) {
+    private int sessionTimeoutSeconds(ClientType clientType) {
+        return clientType == ClientType.ADMIN_WEB ? adminSessionTimeoutSeconds : CUSTOMER_SESSION_TIMEOUT_SECONDS;
+    }
+
+    private static AuthResponse response(String token, AuthPrincipal principal, int expiresIn) {
         AuthResponse.ScopeView scope = scopeView(principal.scopeType(), principal.storeIds(), principal.regionIds());
         List<AuthResponse.StoreScopeView> scopes = principal.dataScopes().stream()
                 .map(item -> new AuthResponse.StoreScopeView(item.resourceCode(), item.actionCode(),
@@ -165,7 +174,7 @@ public class AuthAppService {
                 principal.permissions().stream()
                 .filter(permission -> permission.contains("reveal_") || permission.startsWith("finance:") || permission.contains("health"))
                 .toList(), principal.deniedPermissions(), scopes, scope);
-        return new AuthResponse(token, token, "Bearer", 7200, principalView,
+        return new AuthResponse(token, token, "Bearer", expiresIn, principalView,
                 new AuthResponse.UserSummary(principal.mobile() == null ? "" : principal.mobile(), principal.displayName()));
     }
 

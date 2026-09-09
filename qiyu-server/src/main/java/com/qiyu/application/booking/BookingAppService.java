@@ -47,6 +47,7 @@ public class BookingAppService {
     private final BookingAuthorizer authorizer;
     private final BookingAssembler assembler;
     private final BookingPricingCalculator pricingCalculator;
+    private final BookingAvailabilityService availability;
     private final ScheduleConflictChecker conflictChecker = new ScheduleConflictChecker();
     private final BookingDomainService bookingDomain = new BookingDomainService();
     private final AtomicInteger sequence = new AtomicInteger(1003);
@@ -58,7 +59,7 @@ public class BookingAppService {
                              @Value("${qiyu.auth.persistence:false}") boolean persistenceEnabled,
                              CustomerLookupGateway customerLookupGateway, PaymentGateway paymentGateway,
                              BookingAuthorizer authorizer, BookingAssembler assembler,
-                             BookingPricingCalculator pricingCalculator,
+                             BookingPricingCalculator pricingCalculator, BookingAvailabilityService availability,
                              @Value("${qiyu.booking.payment-timeout-minutes:15}") int paymentTimeoutMinutes) {
         this.bookingGateway = bookingGateway;
         this.catalogProvider = catalogProvider;
@@ -70,6 +71,7 @@ public class BookingAppService {
         this.authorizer = authorizer;
         this.assembler = assembler;
         this.pricingCalculator = pricingCalculator;
+        this.availability = availability;
         this.paymentTimeoutMinutes = paymentTimeoutMinutes;
     }
 
@@ -101,7 +103,11 @@ public class BookingAppService {
         // Idempotent creation: a retried submission with the same requestId returns the original
         // booking instead of creating a duplicate, even when the first response was lost.
         Booking existing = bookingGateway.findByRequestId(command.requestId()).orElse(null);
-        if (existing != null) return assembler.toView(existing);
+        if (existing != null) {
+            if (!existing.customerId().equals(customerId) || !existing.storeId().equals(command.storeId()))
+                throw new IllegalArgumentException("该提交标识已被使用，请重新创建预约");
+            return assembler.toView(existing);
+        }
         ServiceItem service = catalogProvider.findService(command.serviceId());
         catalogProvider.findStore(command.storeId());
         String therapistId = command.therapistId();
@@ -123,7 +129,7 @@ public class BookingAppService {
                 command.requestId());
         // Validate the complete occupied window, including preparation and cleanup buffers,
         // before any state is persisted.
-        conflictChecker.ensureAvailable(booking, bookingGateway.findAll());
+        availability.validate(booking);
         return assembler.toView(bookingGateway.save(booking));
     }
 
@@ -255,6 +261,7 @@ public class BookingAppService {
         String nextTherapistId = changeTherapist ? therapistId : booking.therapistId();
         String nextRoomId = changeRoom ? roomId : booking.roomId();
         Booking candidate = booking.candidate(nextTherapistId, nextRoomId, nextDate, nextStart, service.durationMinutes());
+        availability.validate(candidate);
         conflictChecker.ensureAvailable(candidate, bookingGateway.findAll().stream()
                 .filter(existing -> !existing.id().equals(booking.id()))
                 .toList());
