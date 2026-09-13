@@ -1,6 +1,7 @@
 export type SystemStatus = 'ENABLED' | 'DISABLED';
 
 export interface OrganizationRecord {
+  version: number;
   id: string;
   parentId?: string;
   name: string;
@@ -53,6 +54,7 @@ export interface SystemRoleRecord {
 }
 
 export interface SystemMenuRecord {
+  version: number;
   id: string;
   parentId?: string;
   name: string;

@@ -76,6 +76,9 @@ public class ReceptionService {
             .filter(b -> start==null || !b.timeRange().serviceFrom().toLocalDate().isBefore(start))
             .filter(b -> end==null || !b.timeRange().serviceFrom().toLocalDate().isAfter(end))
             .filter(b -> blank(query.customerId()) || query.customerId().equals(b.customerId()))
+            .filter(b -> blank(query.therapistId()) || query.therapistId().equals(b.therapistId()))
+            .filter(b -> blank(query.roomId()) || query.roomId().equals(b.roomId()))
+            .filter(b -> blank(query.serviceId()) || query.serviceId().equals(b.serviceId()))
             .filter(b -> keyword.isEmpty() || (b.id()+b.customerName()+b.mobile()).toLowerCase().contains(keyword))
             .sorted(Comparator.comparing((Booking b) -> b.timeRange().serviceFrom()).thenComparing(Booking::id)).toList();
         Map<String,Long> counts=new LinkedHashMap<>();

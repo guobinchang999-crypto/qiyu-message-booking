@@ -1,113 +1,74 @@
-import { SearchOutlined } from '@ant-design/icons';
-import { Button, Input, Space, message } from 'antd';
-import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import type { ProColumns } from '@ant-design/pro-components';
-import { useEffect, useMemo, useState } from 'react';
-import BookingStatusTag from '@/components/BookingStatusTag';
-import { adminRemoteApi } from '@/services/remote';
-import { can, canAccessStore, readAdminSession } from '@/services/admin-auth';
-import type { CheckinTask } from '@/types';
-import { stringifyValue } from '@/utils/filter';
-
-const searchKeys: Array<keyof CheckinTask> = ['code', 'customerName', 'store', 'service'];
+import { Alert, App, Button, Descriptions, Empty, Input, Space, Table, Typography } from 'antd';
+import type { InputRef } from 'antd';
+import { PageContainer } from '@ant-design/pro-components';
+import { ScanOutlined } from '@ant-design/icons';
+import { useEffect, useRef, useState } from 'react';
+import { receptionApi, type ReceptionBooking } from '@/services/reception-service';
+import { useReception } from '@/components/reception/ReceptionContext';
+import ReceptionToolbar from '@/components/reception/ReceptionToolbar';
+import BookingDetail from '@/components/reception/BookingDetail';
+import BookingForm from '@/components/reception/BookingForm';
+import { errorText, statusLabels } from '@/constants/reception';
 
 export default function CheckinPage() {
-  const session = readAdminSession();
-  const [data, setData] = useState<CheckinTask[]>([]);
-  const [keyword, setKeyword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
-  const [batchBusy, setBatchBusy] = useState(false);
-
-  const reload = async () => {
-    setLoading(true);
-    try {
-      setData((await adminRemoteApi.getCheckinTasks()).filter((item) => canAccessStore(session, 'booking', 'CHECKIN', item.storeId || item.store)));
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '核销任务加载失败');
-    } finally {
-      setLoading(false);
-    }
+  const { message } = App.useApp();
+  const scope=useReception(); const [code,setCode]=useState(''); const [keyword,setKeyword]=useState('');
+  const [record,setRecord]=useState<ReceptionBooking>(); const [foundCode,setFoundCode]=useState('');
+  const [rows,setRows]=useState<ReceptionBooking[]>([]); const [error,setError]=useState<string>();
+  const [busy,setBusy]=useState(false); const lock=useRef(false); const input=useRef<InputRef>(null);
+  const [detail,setDetail]=useState<string>(); const [create,setCreate]=useState(false);
+  const [success,setSuccess]=useState(false);
+  useEffect(()=>{setRecord(undefined);setFoundCode('');setCode('');setSuccess(false);setError(undefined);},[scope.storeId]);
+  useEffect(()=>{
+    if (!scope.storeId || !keyword) {setRows([]); return;}
+    let active=true;
+    receptionApi.all({storeId:scope.storeId,keyword}).then(result=>active && setRows(result)).catch(e=>active && setError(errorText(e)));
+    return ()=>{active=false;};
+  },[keyword,scope.storeId,scope.revision]);
+  const resolve=async()=>{
+    if (!scope.storeId || !code.trim() || lock.current) return;
+    lock.current=true;setBusy(true);setError(undefined);setSuccess(false);setRecord(undefined);
+    try {const result=await receptionApi.resolve(scope.storeId,code.trim());setRecord(result);setFoundCode(code.trim());}
+    catch(e){setError(errorText(e));}
+    finally{lock.current=false;setBusy(false);}
   };
-  useEffect(() => { void reload(); }, []);
-
-  const rows = useMemo(() => {
-    const value = keyword.trim();
-    return value ? data.filter((record) => searchKeys.some((key) => stringifyValue(record[key]).includes(value))) : data;
-  }, [keyword, data]);
-
-  const withBusy = async (id: string, action: () => Promise<void>, successText: string) => {
-    if (busyIds.has(id)) return;
-    setBusyIds((current) => new Set(current).add(id));
-    try {
-      await action();
-      await reload();
-      message.success(successText);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '操作失败，请重试');
-    } finally {
-      setBusyIds((current) => { const next = new Set(current); next.delete(id); return next; });
-    }
+  const confirm=async()=>{
+    if (!record || !scope.storeId || lock.current) return;
+    lock.current=true;setBusy(true);setError(undefined);
+    try {setRecord(await receptionApi.confirm(record,scope.storeId,foundCode));setSuccess(true);scope.refresh();message.success('客户已到店');}
+    catch(e){setError(errorText(e));}
+    finally{lock.current=false;setBusy(false);}
   };
-  const checkIn = (record: CheckinTask) => withBusy(record.id, () => adminRemoteApi.transitionAppointment(record.id, 'checkin'), '客户已签到');
-  const startService = (record: CheckinTask) => withBusy(record.id, () => adminRemoteApi.transitionAppointment(record.id, 'start-service'), '服务已开始');
-  const batchCheckIn = async () => {
-    if (batchBusy || !selectedRowKeys.length) return;
-    setBatchBusy(true);
-    const ids = [...selectedRowKeys];
-    let failed = 0;
-    for (const key of ids) {
-      try {
-        await adminRemoteApi.transitionAppointment(String(key), 'checkin');
-      } catch {
-        failed += 1;
-      }
-    }
-    setSelectedRowKeys([]);
-    setBatchBusy(false);
-    await reload();
-    if (failed === 0) message.success(`已批量签到 ${ids.length} 位客户`);
-    else message.warning(`签到完成，${failed} 位失败请重试`);
-  };
-
-  const columns: ProColumns<CheckinTask>[] = [
-    { title: '核销码', dataIndex: 'code' },
-    { title: '客户', dataIndex: 'customerName' },
-    { title: '门店', dataIndex: 'store' },
-    { title: '服务项目', dataIndex: 'service' },
-    { title: '预约时间', dataIndex: 'scheduledAt' },
-    { title: '状态', dataIndex: 'status', render: (_, record) => <BookingStatusTag status={record.status} label={record.statusLabel} /> },
-    {
-      title: '核销',
-      key: 'checkin',
-      render: (_, record) => (
-        <Space>
-          {can(session, 'booking:checkin') && <Button size="small" type="primary" loading={busyIds.has(record.id)} disabled={record.status !== 'BOOKED'} onClick={() => checkIn(record)}>确认签到</Button>}
-          {can(session, 'booking:update') && <Button size="small" loading={busyIds.has(record.id)} disabled={record.status !== 'CHECKED_IN'} onClick={() => startService(record)}>开始服务</Button>}
-        </Space>
-      )
-    }
-  ];
-
-  return (
-    <PageContainer header={{ title: '到店核销', subTitle: '前台按核销码确认客户到店，签到后进入待服务履约流程。' }}>
-      <ProCard>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-          <Input allowClear prefix={<SearchOutlined />} placeholder="搜索核销码、客户、门店或服务项目" style={{ width: 300 }} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
-          {can(session, 'booking:checkin') && <Button type="primary" loading={batchBusy} disabled={!selectedRowKeys.length || batchBusy} onClick={batchCheckIn}>批量签到</Button>}
-        </div>
-        <ProTable<CheckinTask>
-          rowKey="id"
-          loading={loading}
-          columns={columns}
-          dataSource={rows}
-          search={false}
-          scroll={{ x: 980 }}
-          rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys, getCheckboxProps: (record) => ({ disabled: record.status !== 'BOOKED' }) }}
-          pagination={{ pageSize: 8, showSizeChanger: false, showTotal: (total) => `共 ${total} 条` }}
-        />
-      </ProCard>
-    </PageContainer>
-  );
+  const next=()=>{setRecord(undefined);setCode('');setFoundCode('');setSuccess(false);setError(undefined);input.current?.focus();};
+  return <PageContainer title="到店核销" subTitle="核对预约后确认到店，继续安排服务。">
+    <ReceptionToolbar hideCheckin onCreate={()=>setCreate(true)} />
+    <div className="checkin-layout">
+      <section className="reception-panel checkin-entry">
+        <ScanOutlined className="checkin-icon" /><Typography.Title level={3}>输入客户核销码</Typography.Title>
+        <Typography.Paragraph type="secondary">支持手动输入或扫码枪输入，按回车查询。</Typography.Paragraph>
+        <Input.Search ref={input} aria-label="客户核销码" size="large" autoFocus autoComplete="off" value={code} placeholder="输入客户出示的核销码" enterButton="查询预约" loading={busy} disabled={!scope.storeId} onChange={e=>{setCode(e.target.value);setRecord(undefined);setSuccess(false);}} onSearch={resolve} />
+        {(scope.error || error) && <Alert className="section-gap" type="error" showIcon message={scope.error||error} />}
+        <div className="checkin-help"><Typography.Text strong>没有核销码？</Typography.Text><Typography.Paragraph type="secondary">可通过客户姓名、手机号或预约编号查找，在详情中核对后确认到店。</Typography.Paragraph><Input.Search aria-label="辅助查找预约" allowClear placeholder="姓名、手机号、预约编号" onSearch={setKeyword} /></div>
+        {keyword && <Table rowKey="id" dataSource={rows} size="small" pagination={{pageSize:5}} columns={[{title:'客户',dataIndex:'customerName'},{title:'时间',dataIndex:'scheduledAt'},{title:'操作',render:(_,b)=><Button onClick={()=>setDetail(b.id)}>核对详情</Button>}]} />}
+      </section>
+      <section className="reception-panel">
+        {!record ? <Empty description="查询后在这里核对客户与服务信息" /> : <>
+          <Alert showIcon type={success?'success':record.status==='BOOKED'?'info':'warning'} message={success?'到店确认成功':record.status==='BOOKED'?'请核对以下预约':'当前状态：'+statusLabels[record.status]} description={record.status!=='BOOKED' && !success?'该预约不能重复核销，请查看详情继续处理。':undefined} />
+          <Typography.Title level={3}>{record.customerName}</Typography.Title>
+          <Descriptions column={1} bordered items={[
+            {key:'phone',label:'手机号',children:record.phone},{key:'store',label:'预约门店',children:record.store},
+            {key:'time',label:'时间',children:record.scheduledAt+'–'+record.endTime},
+            {key:'service',label:'项目',children:record.service},{key:'resource',label:'安排',children:record.therapist+' · '+record.room}
+          ]} />
+          <Space wrap className="section-gap">
+            {record.status==='BOOKED' && <Button size="large" type="primary" loading={busy} onClick={confirm}>确认客户到店</Button>}
+            {success && <Button type="primary" size="large" onClick={next}>接待下一位</Button>}
+            <Button size="large" onClick={()=>setDetail(record.id)}>{success?'继续安排服务':'查看详情'}</Button>
+          </Space>
+        </>}
+      </section>
+    </div>
+    {detail && <BookingDetail id={detail} onClose={()=>setDetail(undefined)} />}
+    {create && <BookingForm onClose={()=>setCreate(false)} onSaved={b=>{setCreate(false);setDetail(b.id);}} />}
+  </PageContainer>;
 }

@@ -299,8 +299,11 @@ export const adminRemoteApi = {
       })
     };
   },
-  async getBusinessReports(): Promise<BusinessReportRow[]> {
-    return adminRequest<RemoteBusinessReport[]>('/admin/reports');
+  async getBusinessReports(startDate?: string, endDate?: string): Promise<BusinessReportRow[]> {
+    const query = new URLSearchParams();
+    if (startDate) query.set('startDate', startDate);
+    if (endDate) query.set('endDate', endDate);
+    return adminRequest<RemoteBusinessReport[]>('/admin/reports' + (query.size ? '?' + query.toString() : ''));
   },
   async getResources(): Promise<ResourceData> {
     const payload = await adminRequest<{

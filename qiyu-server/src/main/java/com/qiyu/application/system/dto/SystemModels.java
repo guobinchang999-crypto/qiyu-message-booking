@@ -11,7 +11,7 @@ public final class SystemModels {
     public record Page<T>(List<T> records, long total) { }
 
     public record Organization(String id, String parentId, String name, String type, String leader,
-                               int sort, String status) { }
+                               int sort, String status, long version) { }
 
     public record User(String id, String username, String displayName, String phone, String departmentName,
                        List<String> roleNames, String dataScope, String status, String lastLoginAt) { }
@@ -20,10 +20,12 @@ public final class SystemModels {
                        List<String> deniedPermissionCodes, String dataScope, long userCount, String status) { }
 
     public record Menu(String id, String parentId, String name, String path, String permissionCode,
-                       String type, int sort, boolean visible, String status) { }
+                       String type, int sort, boolean visible, String status, long version) { }
 
     public record Dictionary(String id, String typeCode, String typeName, String itemLabel, String itemValue,
                              int sort, String status, String remark) { }
+
+    public record DictionaryType(String code, String name, String description, long itemCount) { }
 
     public record AuditLog(String id, String operatorName, String action, String resourceType,
                            String resourceId, String organizationName, String result, String ipAddress,
@@ -31,7 +33,10 @@ public final class SystemModels {
 
     /** Write contract used by both organization creation and replacement-style updates. */
     public record OrganizationCommand(String parentId, String name, String type, String leader,
-                                      Integer sort, String status) { }
+                                      Integer sort, String status, Long version) { }
+
+    public record OrganizationMember(String id, String username, String displayName,
+                                     String departmentName, String status) { }
 
     public record UserCommand(String username, String displayName, String phone, String departmentName,
                               List<String> roleNames, String dataScope, String status) { }
@@ -67,7 +72,7 @@ public final class SystemModels {
                               List<String> deniedPermissionCodes, String dataScope, String status) { }
 
     public record MenuCommand(String parentId, String name, String path, String permissionCode,
-                              String type, Integer sort, Boolean visible, String status) { }
+                              String type, Integer sort, Boolean visible, String status, Long version) { }
 
     public record DictionaryCommand(String typeCode, String typeName, String itemLabel, String itemValue,
                                     Integer sort, String status, String remark) { }

@@ -68,8 +68,10 @@ export const createMockSession = (role: AdminRole, remember: boolean): AdminSess
     userType: 'STAFF',
     displayName: role === 'HQ_ADMIN' ? '总部运营管理员' : role === 'STORE_MANAGER' ? '静安寺店店长' : '值班员工',
     roles: [role],
-    permissions: role === 'HQ_ADMIN' ? ['admin:*'] : ['dashboard:read', 'booking:read', 'booking:update', 'booking:cancel', 'booking:checkin', 'schedule:read'],
-    storeScopes: [{ resourceCode: 'booking', actionCode: '*', scopeType: role === 'HQ_ADMIN' ? 'ALL_STORES' : role === 'STORE_MANAGER' ? 'PRIMARY_STORE' : 'SELF', storeIds: role === 'HQ_ADMIN' ? [] : ['静安寺店'] }]
+    permissions: role === 'HQ_ADMIN' ? ['admin:*'] : role === 'STORE_MANAGER'
+      ? ['dashboard:read', 'booking:read', 'booking:create', 'booking:update', 'booking:cancel', 'booking:checkin', 'service_order:read', 'schedule:read']
+      : ['booking:read', 'booking:update'],
+    storeScopes: [{ resourceCode: 'booking', actionCode: '*', scopeType: role === 'HQ_ADMIN' ? 'ALL_STORES' : role === 'STORE_MANAGER' ? 'PRIMARY_STORE' : 'SELF', storeIds: role === 'HQ_ADMIN' ? [] : ['store-jingan'] }]
   }
 }, remember);
 
@@ -92,8 +94,9 @@ export const readAdminSession = (): AdminSession | null => {
 export const clearAdminSession = (): void => localStorage.removeItem(ADMIN_AUTH_STORAGE_KEY);
 
 export const can = (session: AdminSession | null, permissionCode: string): boolean => !!session
+  && !session.principal.deniedPermissionCodes?.includes('*')
   && !session.principal.deniedPermissionCodes?.includes(permissionCode)
-  && (session.principal.permissions.includes('admin:*') || session.principal.permissions.includes(permissionCode));
+  && (session.principal.permissions.includes('*') || session.principal.permissions.includes('admin:*') || session.principal.permissions.includes(permissionCode));
 
 export const canAccessStore = (session: AdminSession | null, resourceCode: string, actionCode: string, storeId: string): boolean => {
   if (!session) return false;

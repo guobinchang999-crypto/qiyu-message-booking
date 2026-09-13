@@ -9,6 +9,8 @@ import java.util.List;
 
 /** Database read model for customer and administration catalog resources. */
 public interface CatalogMapper extends BaseMapper<CatalogStoreEntity> {
+    @Select("SELECT COUNT(*) FROM booking WHERE store_id=#{storeId} AND deleted=0 AND status NOT IN ('COMPLETED','CANCELLED')")
+    long unfinishedBookingCount(long storeId);
     @Select("SELECT id FROM region WHERE region_code=#{code} AND deleted=0 LIMIT 1")
     Long regionId(String code);
     @Select("""

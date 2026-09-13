@@ -57,6 +57,8 @@ public class ServiceManagementService {
         ServiceManagementRepository.ServiceMaster current = repository.findById(serviceId)
                 .orElseThrow(() -> new IllegalArgumentException("服务项目不存在"));
         validateUnchangedCode(current.code(), command.code());
+        if (!databaseStatus(command).equals(current.databaseStatus()) && repository.countUnfinishedBookings(current.databaseId())>0)
+            throw new IllegalArgumentException("项目仍有未完成预约，请先查看并处理预约再调整上下架状态");
         validatePrices(command);
         Long categoryId = resolveCategory(command.category());
         ServiceManagementRepository.ServiceMaster saved = repository.save(new ServiceManagementRepository.ServiceMaster(

@@ -52,6 +52,9 @@ public class StoreManagementService {
         }
         StoreManagementRepository.StoreMaster current = repository.find(storeId)
                 .orElseThrow(() -> new IllegalArgumentException("门店不存在"));
+        if ((Boolean.FALSE.equals(command.enabled()) || "休息中".equals(command.status()) || "CLOSED".equals(command.status())
+                || !java.util.Objects.equals(command.businessHours(),current.businessHours())) && repository.unfinishedBookingCount(current.databaseId())>0)
+            throw new IllegalArgumentException("门店仍有未完成预约，请先处理预约再调整营业安排");
         StoreManagementRepository.StoreMaster saved = repository.save(master(current.databaseId(), current.id(),
                 current.code(), command.regionId() == null ? current.regionId() : command.regionId(),
                 current.rating(), current.sortOrder(), command));

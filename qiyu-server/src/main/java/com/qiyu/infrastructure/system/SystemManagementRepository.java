@@ -35,6 +35,14 @@ import java.util.UUID;
  */
 @Repository
 public class SystemManagementRepository implements SystemManagementGateway {
+    public List<SystemModels.Organization> organizationTree() {
+        return mapper.organizations("", "%%", Integer.MAX_VALUE, 0).stream().map(this::toOrganization).toList();
+    }
+    public SystemModels.Page<SystemModels.OrganizationMember> organizationMembers(long id, boolean descendants, int page, int pageSize) {
+        ensureOrganization(id);
+        var ids=descendants?com.qiyu.application.system.OrganizationHierarchy.descendants(organizationTree(),String.valueOf(id)).stream().map(Long::valueOf).toList():List.of(id);
+        return new SystemModels.Page<>(mapper.organizationMembers(ids,pageSize,offset(page,pageSize)),mapper.countOrganizationMembers(ids));
+    }
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final List<String> SCOPED_RESOURCES = List.of(
             "store", "booking", "service_order", "schedule", "therapist", "room",
@@ -58,6 +66,8 @@ public class SystemManagementRepository implements SystemManagementGateway {
 
     @Transactional
     public SystemModels.Organization saveOrganization(Long id, SystemModels.OrganizationCommand command, long operatorId) {
+        mapper.lockOrganizations();
+        com.qiyu.application.system.OrganizationHierarchy.validate(organizationTree(),id==null?null:String.valueOf(id),command);
         boolean creating = id == null;
         SystemOrganizationEntity entity = new SystemOrganizationEntity();
         entity.setParentId(numericId(command.parentId()));
@@ -80,6 +90,7 @@ public class SystemManagementRepository implements SystemManagementGateway {
 
     @Transactional
     public void deleteOrganization(long id, long operatorId) {
+        mapper.lockOrganizations();
         ensureOrganization(id);
         if (mapper.childOrganizationCount(id) > 0 || mapper.organizationUserCount(id) > 0) {
             throw new IllegalArgumentException("组织下存在子组织或用户，不能删除");
@@ -348,7 +359,28 @@ public class SystemManagementRepository implements SystemManagementGateway {
 
     @Transactional
     public SystemModels.Menu saveMenu(Long id, SystemModels.MenuCommand command, long operatorId) {
-        String status = Boolean.FALSE.equals(command.visible()) ? "DISABLED" : command.status();
+        mapper.lockMenus();
+        final String targetId=id==null?null:String.valueOf(id);
+        var all=menus("",1,Integer.MAX_VALUE).records();
+        if(command.type()==null||!Set.of("DIRECTORY","MENU","BUTTON").contains(command.type()))throw new IllegalArgumentException("菜单类型不正确");
+        if(command.status()==null||!Set.of("ENABLED","DISABLED").contains(command.status()))throw new IllegalArgumentException("菜单状态不正确");
+        if(id!=null){
+            var old=all.stream().filter(m->m.id().equals(targetId)).findFirst().orElseThrow(()->new IllegalArgumentException("菜单不存在"));
+            if(command.version()==null||command.version()!=old.version())throw new IllegalArgumentException("菜单已更新，请刷新后核对");
+            if("MENU".equals(old.type())&&(!old.path().equals(command.path())||!old.type().equals(command.type())))throw new IllegalArgumentException("内置页面身份不能修改");
+        }
+        if("MENU".equals(command.type())&&(command.path()==null||!com.qiyu.application.system.SystemRouteRegistry.ROUTES.containsKey(command.path())))throw new IllegalArgumentException("请选择已注册页面");
+        if("MENU".equals(command.type())&&all.stream().anyMatch(m->m.path().equals(command.path())&&!m.id().equals(targetId)))throw new IllegalArgumentException("该页面已经配置");
+        if("BUTTON".equals(command.type())&&(command.permissionCode()==null||mapper.permissionId(command.permissionCode())==null))throw new IllegalArgumentException("请选择有效权限");
+        String ancestor=command.parentId();Set<String> visited=new java.util.HashSet<>();if(id!=null)visited.add(String.valueOf(id));
+        while(ancestor!=null&&!ancestor.isBlank()&&!ancestor.equals("0")){
+            if(!visited.add(ancestor))throw new IllegalArgumentException("菜单不能循环引用");
+            String parent=ancestor;
+            var node=all.stream().filter(m->m.id().equals(parent)).findFirst().orElseThrow(()->new IllegalArgumentException("上级菜单不存在"));
+            if("BUTTON".equals(node.type())||(!"BUTTON".equals(command.type())&&!"DIRECTORY".equals(node.type())))throw new IllegalArgumentException("上级必须是目录");
+            ancestor=node.parentId();
+        }
+        String status = command.status();
         long parentId = numericId(command.parentId());
         if (id == null) {
             SystemMenuEntity menu = new SystemMenuEntity();
@@ -368,13 +400,16 @@ public class SystemManagementRepository implements SystemManagementGateway {
             mapper.updateMenu(id, parentId, command.name(), command.type(), blankToNull(command.path()),
                     blankToNull(command.permissionCode()), value(command.sort(), 0), status, String.valueOf(operatorId));
         }
+        mapper.updateMenuVisibility(id,!Boolean.FALSE.equals(command.visible()));
         audit(operatorId, "system:menu:save", "MENU", id);
         return menu(id);
     }
 
     @Transactional
     public void deleteMenu(long id, long operatorId) {
+        mapper.lockMenus();
         ensureMenu(id);
+        if("MENU".equals(menu(id).type()))throw new IllegalArgumentException("内置页面不能删除，请使用隐藏或停用");
         if (mapper.childMenuCount(id) > 0) throw new IllegalArgumentException("菜单下存在子菜单，不能删除");
         mapper.softDeleteMenu(id, String.valueOf(operatorId));
         mapper.deleteMenuRoles(id);
@@ -389,40 +424,38 @@ public class SystemManagementRepository implements SystemManagementGateway {
         return new SystemModels.Page<>(records, mapper.countDictionaries(normalized, pattern(normalized)));
     }
 
-    /** Dictionary type metadata and the item are committed together because the UI edits them as one aggregate. */
+    public List<SystemModels.DictionaryType> dictionaryTypes() { return mapper.dictionaryTypes(); }
+
+    public SystemModels.Page<SystemModels.Dictionary> dictionaryItems(String typeCode, String keyword, int page, int pageSize) {
+        if (mapper.dictionaryTypes().stream().noneMatch(type -> type.code().equals(typeCode))) missing();
+        String normalized = normalize(keyword);
+        return new SystemModels.Page<>(mapper.dictionaryItems(typeCode, normalized, pattern(normalized), pageSize, offset(page, pageSize))
+                .stream().map(this::toDictionary).toList(), mapper.countDictionaryItems(typeCode, normalized, pattern(normalized)));
+    }
+
+    /** No currently registered business consumer supports dynamically adding state values. */
     @Transactional
     public SystemModels.Dictionary saveDictionary(Long id, SystemModels.DictionaryCommand command, long operatorId) {
+        if (id == null) throw new IllegalArgumentException("当前字典由业务程序定义，暂不支持新增选项");
+        SystemDictionaryProjection row = mapper.dictionaryForUpdate(id);
+        if (row == null) missing();
+        if (!row.typeCode().equals(command.typeCode()) || !row.itemValue().equals(command.itemValue()))
+            throw new IllegalArgumentException("业务字典的类型编码和选项值不可修改");
+        String currentStatus = row.enabled() == 1 ? "ENABLED" : "DISABLED";
+        if (!currentStatus.equals(command.status())) throw new IllegalArgumentException("业务字典选项不支持启停，请在对应业务页面操作");
+        if (command.sort() == null || command.sort() < 0) throw new IllegalArgumentException("排序必须为非负整数");
         int enabled = "ENABLED".equals(command.status()) ? 1 : 0;
         String operator = String.valueOf(operatorId);
-        String remark = blankToNull(command.remark());
-        if (mapper.updateDictionaryType(command.typeCode(), command.typeName(), remark, operator) == 0) {
-            mapper.insertDictionaryType(command.typeCode(), command.typeName(), remark, enabled, operator);
-        }
-        if (id == null) {
-            SystemDictionaryEntity item = new SystemDictionaryEntity();
-            item.setTypeCode(command.typeCode());
-            item.setItemCode("ITEM_" + randomCode());
-            item.setItemLabel(command.itemLabel());
-            item.setItemValue(command.itemValue());
-            item.setEnabled(enabled);
-            item.setSortOrder(value(command.sort(), 0));
-            item.setCreatedBy(operator);
-            mapper.insertDictionary(item);
-            id = item.getId();
-        } else {
-            ensureDictionary(id);
-            mapper.updateDictionary(id, command.typeCode(), command.itemLabel(), command.itemValue(), enabled,
-                    value(command.sort(), 0), operator);
-        }
+        // Item editing must not replace metadata shared by all siblings.
+        mapper.updateDictionary(id, row.typeCode(), command.itemLabel(), row.itemValue(), enabled, command.sort(), operator);
         audit(operatorId, "system:dict:save", "DICTIONARY", id);
-        return dictionary(id);
+        return toDictionary(mapper.dictionaryForUpdate(id));
     }
 
     @Transactional
     public void deleteDictionary(long id, long operatorId) {
         ensureDictionary(id);
-        mapper.softDeleteDictionary(id, String.valueOf(operatorId));
-        audit(operatorId, "system:dict:delete", "DICTIONARY", id);
+        throw new IllegalArgumentException("业务字典选项不可删除，以免影响已有记录");
     }
 
     /** Queries enriched audit entries and keeps the existing successful-operation status contract. */
@@ -433,7 +466,7 @@ public class SystemManagementRepository implements SystemManagementGateway {
         return new SystemModels.Page<>(records, mapper.countAuditLogs(normalized, pattern(normalized)));
     }
 
-    private SystemModels.Organization organization(long id) { return findById(organizations("", 1, 10_000).records(), id); }
+    private SystemModels.Organization organization(long id) { return findById(organizationTree(), id); }
     private SystemModels.User user(long id) { return findById(users("", 1, 10_000).records(), id); }
     private SystemModels.Role role(long id) { return findById(roles("", 1, 10_000).records(), id); }
     private SystemModels.Menu menu(long id) { return findById(menus("", 1, 10_000).records(), id); }
@@ -491,7 +524,7 @@ public class SystemManagementRepository implements SystemManagementGateway {
     /** Maps an organization persistence projection without exposing database naming to the application contract. */
     private SystemModels.Organization toOrganization(SystemOrganizationProjection row) {
         return new SystemModels.Organization(id(row.id()), nullableId(row.parentId()), string(row.deptName()),
-                organizationType(string(row.deptCode())), string(row.leader()), row.sortOrder(), string(row.status()));
+                organizationType(string(row.deptCode())), string(row.leader()), row.sortOrder(), string(row.status()),row.version());
     }
 
     /** Expands comma-separated persistence aggregates into the existing user response contract. */
@@ -522,7 +555,7 @@ public class SystemManagementRepository implements SystemManagementGateway {
         String status = string(row.status());
         return new SystemModels.Menu(id(row.id()), nullableId(row.parentId()), string(row.menuName()),
                 string(row.routePath()), string(row.permissionCode()), string(row.menuType()), row.sortOrder(),
-                "ENABLED".equals(status), status);
+                row.visible(), status,row.version());
     }
 
     /** Converts the persisted enabled flag into the public dictionary status label. */

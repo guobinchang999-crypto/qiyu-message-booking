@@ -143,7 +143,9 @@ public class AuthAppService {
             }
             if ("manager".equals(identifier)) {
                 return new AuthPrincipal(9002L, UserType.STAFF, null, null,
-                        Set.of("STORE_MANAGER"), Set.of("dashboard:read", "booking:read", "booking:update", "booking:cancel", "booking:checkin", "schedule:read", "customer:read", "customer:reveal_phone"),
+                        Set.of("STORE_MANAGER"), Set.of("dashboard:read", "booking:read", "booking:create", "booking:update", "booking:cancel", "booking:checkin",
+                                "service_order:read", "service_order:update", "schedule:read", "store:read", "therapist:read", "service:read", "room:read",
+                                "customer:read", "customer:reveal_phone", "member:read", "coupon:read", "report:read"),
                         DataScopeType.PRIMARY_STORE, Set.of("store-jingan"), Set.of(), storeScopes(Set.of("store-jingan")), Set.of(), "静安寺店店长", null);
             }
             if ("employee".equals(identifier)) {
@@ -199,10 +201,18 @@ public class AuthAppService {
 
     private static List<DataAccessScope> storeScopes(Set<String> stores) {
         return List.of(scope("booking", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("booking", "CREATE", DataScopeType.PRIMARY_STORE, stores),
                 scope("booking", "UPDATE", DataScopeType.PRIMARY_STORE, stores),
                 scope("booking", "CANCEL", DataScopeType.PRIMARY_STORE, stores),
                 scope("booking", "CHECKIN", DataScopeType.PRIMARY_STORE, stores),
-                scope("schedule", "READ", DataScopeType.PRIMARY_STORE, stores));
+                scope("schedule", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("store", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("therapist", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("room", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("customer", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("member", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("coupon", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("report", "READ", DataScopeType.PRIMARY_STORE, stores));
     }
 
     private static List<DataAccessScope> employeeScopes() {
@@ -211,9 +221,8 @@ public class AuthAppService {
     }
 
     private static List<DataAccessScope> allStoreScopes() {
-        return List.of(scope("booking", "*", DataScopeType.ALL_STORES, Set.of()),
-                scope("schedule", "*", DataScopeType.ALL_STORES, Set.of()),
-                scope("dashboard", "READ", DataScopeType.ALL_STORES, Set.of()));
+        return java.util.stream.Stream.of("booking","schedule","dashboard","store","therapist","room","service","customer","member","coupon","report")
+                .map(resource->scope(resource,"*",DataScopeType.ALL_STORES,Set.of())).toList();
     }
 
     private static DataAccessScope scope(String resource, String action, DataScopeType type, Set<String> stores) {

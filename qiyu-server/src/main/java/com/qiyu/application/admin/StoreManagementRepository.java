@@ -12,6 +12,7 @@ public interface StoreManagementRepository {
 
     /** Counts active resources or business records that still own the store identity. */
     long dependentRecordCount(long databaseId);
+    default long unfinishedBookingCount(long databaseId) { return dependentRecordCount(databaseId); }
 
     void delete(String storeId);
 

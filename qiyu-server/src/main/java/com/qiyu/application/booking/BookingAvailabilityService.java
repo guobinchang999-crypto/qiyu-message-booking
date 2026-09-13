@@ -26,7 +26,7 @@ public class BookingAvailabilityService {
         rules.ensureRoomBelongsToStore(candidate.storeId(), room);
         if ("CLOSED".equals(catalog.findStore(candidate.storeId()).businessStatusCode()))
             throw new IllegalArgumentException("门店当前暂停预约，请选择其他门店");
-        if (java.util.Set.of("LEAVE", "REST", "DISABLED").contains(therapist.status()))
+        if (java.util.Set.of("LEAVE", "REST", "ON_LEAVE", "OFF_DUTY", "DISABLED").contains(therapist.status()))
             throw new IllegalArgumentException("该技师当前不可安排服务");
         if (java.util.Set.of("MAINTENANCE", "CLEANING", "DISABLED").contains(room.status()))
             throw new IllegalArgumentException("该房间正在清洁或维护，请选择其他房间");

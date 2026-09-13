@@ -16,6 +16,27 @@ import java.util.function.Supplier;
  */
 @Service
 public class SystemManagementAppService {
+    public List<SystemModels.Menu> navigation() {
+        var principal=com.qiyu.application.auth.AuthContext.current();
+        return SystemRouteRegistry.navigation(gateway.menus("",1,Integer.MAX_VALUE).records(),principal);
+    }
+    public List<SystemModels.Menu> menuTree() {
+        require("system:menu:manage");return gateway.menus("",1,Integer.MAX_VALUE).records();
+    }
+    public List<SystemModels.ScopeOption> registeredRoutes() {
+        require("system:menu:manage");return SystemRouteRegistry.ROUTES.keySet().stream().sorted()
+            .map(path->new SystemModels.ScopeOption(path,path)).toList();
+    }
+    public long organizationImpact(String id) {
+        require("system:org:manage");return gateway.organizationMembers(requiredId(id),true,1,1).total();
+    }
+    public List<SystemModels.Organization> organizationTree() {
+        require("system:org:manage");return gateway.organizationTree();
+    }
+    public SystemModels.Page<SystemModels.OrganizationMember> organizationMembers(String id,boolean descendants,int page,int pageSize) {
+        require("system:org:manage");require("system:user:manage");
+        return gateway.organizationMembers(requiredId(id),descendants,page(page),pageSize(pageSize));
+    }
     private final DataPermissionService permissions;
     private final SystemManagementGateway gateway;
 
@@ -114,8 +135,9 @@ public class SystemManagementAppService {
 
     /** Returns the enabled permission catalog for the direct-permission editor. */
     public List<SystemModels.PermissionOption> permissionOptions() {
-        require("system:user:manage");
-        return gateway.permissionOptions();
+        var principal=com.qiyu.application.auth.AuthContext.current();
+        if(!principal.hasPermission("system:user:manage")&&!principal.hasPermission("system:role:manage")&&!principal.hasPermission("system:menu:manage"))throw new SecurityException("没有权限查看权限目录");
+        return gateway.permissionOptions().stream().filter(p->principal.hasPermission(p.code())).toList();
     }
 
     public SystemModels.Page<SystemModels.Role> roles(String keyword, int page, int pageSize) {
@@ -159,6 +181,17 @@ public class SystemManagementAppService {
         validate(command.itemLabel(), "选项名称");
         validate(command.itemValue(), "选项值");
         return write(() -> gateway.saveDictionary(id(id), command, require("system:dict:manage").userId()));
+    }
+
+    public List<SystemModels.DictionaryType> dictionaryTypes() {
+        require("system:dict:manage");
+        return gateway.dictionaryTypes();
+    }
+
+    public SystemModels.Page<SystemModels.Dictionary> dictionaryItems(String typeCode, String keyword, int page, int pageSize) {
+        require("system:dict:manage");
+        validate(typeCode, "字典类型");
+        return gateway.dictionaryItems(typeCode, text(keyword), page(page), pageSize(pageSize));
     }
 
     public void deleteDictionary(String id) {

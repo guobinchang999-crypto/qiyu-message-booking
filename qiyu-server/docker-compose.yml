@@ -1,30 +1,33 @@
-# 栖愈后端生产部署编排（自有主机，配合云效 Flow 主机部署任务）
-# 用法（在目标服务器上，把密钥通过 CI 密文变量注入而非手工 export）：
-#   export QIYU_DB_URL="jdbc:mysql://<host>:3306/qiyu_booking?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai"
-#   export QIYU_DB_USERNAME="<用户>" QIYU_DB_PASSWORD="<密码>"
-#   export QIYU_REDIS_HOST="<host>" QIYU_REDIS_PASSWORD="<密码>"
-#   export ADMIN_INITIAL_PASSWORD="<首次部署管理员初始密码>"
-#   export QIYU_IMAGE_TAG="latest"
-#   docker compose up -d
+# Flow supplies the image and runtime variables; this file contains no credentials.
+# Required values are checked by Compose before containers are changed.
 services:
   qiyu-server:
-    image: ${QIYU_IMAGE_REPOSITORY:-qiyu-server}:${QIYU_IMAGE_TAG:-latest}
-    container_name: qiyu-server
-    restart: unless-stopped
+    image: "${IMAGE_FULL_NAME:?IMAGE_FULL_NAME is required}"
+    container_name: "${CONTAINER_NAME:-qiyu-server}"
+    restart: "${RESTART_POLICY:-unless-stopped}"
     ports:
-      - "8080:8080"
+      - "${HOST_PORT:-8080}:${CONTAINER_PORT:-8080}"
     environment:
-      SPRING_PROFILES_ACTIVE: db
-      QIYU_DB_URL: ${QIYU_DB_URL}
-      QIYU_DB_USERNAME: ${QIYU_DB_USERNAME}
-      QIYU_DB_PASSWORD: ${QIYU_DB_PASSWORD}
-      QIYU_REDIS_HOST: ${QIYU_REDIS_HOST:-127.0.0.1}
-      QIYU_REDIS_PORT: ${QIYU_REDIS_PORT:-6379}
-      QIYU_REDIS_PASSWORD: ${QIYU_REDIS_PASSWORD:-}
-      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
-      QIYU_BOOKING_PAYMENT_TIMEOUT_MINUTES: ${QIYU_BOOKING_PAYMENT_TIMEOUT_MINUTES:-15}
+      SPRING_PROFILES_ACTIVE: "${SPRING_PROFILE:-db}"
+      SERVER_PORT: "${CONTAINER_PORT:-8080}"
+      QIYU_DB_URL: "${QIYU_DB_URL:?QIYU_DB_URL is required}"
+      QIYU_DB_USERNAME: "${QIYU_DB_USERNAME:?QIYU_DB_USERNAME is required}"
+      QIYU_DB_PASSWORD: "${QIYU_DB_PASSWORD:?QIYU_DB_PASSWORD is required}"
+      SPRING_DATA_REDIS_HOST: "${QIYU_REDIS_HOST:?QIYU_REDIS_HOST is required}"
+      SPRING_DATA_REDIS_PORT: "${QIYU_REDIS_PORT:-6379}"
+      SPRING_DATA_REDIS_PASSWORD: "${QIYU_REDIS_PASSWORD:-}"
+      ADMIN_INITIAL_PASSWORD: "${ADMIN_INITIAL_PASSWORD:-}"
+      QIYU_BOOKING_PAYMENT_TIMEOUT_MINUTES: "${QIYU_BOOKING_PAYMENT_TIMEOUT_MINUTES:-15}"
+      QIYU_STORAGE_MINIO_ENABLED: "${QIYU_MINIO_ENABLED:-false}"
+      QIYU_STORAGE_MINIO_ENDPOINT: "${QIYU_MINIO_ENDPOINT:-}"
+      QIYU_STORAGE_MINIO_ACCESSKEY: "${QIYU_MINIO_ACCESS_KEY:-}"
+      QIYU_STORAGE_MINIO_SECRETKEY: "${QIYU_MINIO_SECRET_KEY:-}"
+      QIYU_STORAGE_MINIO_BUCKET: "${QIYU_MINIO_BUCKET:-}"
+      QIYU_STORAGE_MINIO_PUBLICBASEURL: "${QIYU_MINIO_PUBLIC_BASE_URL:-${QIYU_MINIO_ENDPOINT:-}}"
+      QIYU_STORAGE_MINIO_PUBLICREAD: "${QIYU_MINIO_PUBLIC_READ:-false}"
+      QIYU_STORAGE_MINIO_SEEDENABLED: "${QIYU_MINIO_SEED_ENABLED:-false}"
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:$$SERVER_PORT/actuator/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

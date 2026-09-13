@@ -11,7 +11,7 @@ public final class ReceptionModels {
                         long version, List<String> actions) {}
     public record Page(List<Entry> list, long total, int pageNum, int pageSize, Map<String, Long> counts) {}
     public record Query(String storeId, String startDate, String endDate, String keyword, String customerId,
-                        String status, Integer pageNum, Integer pageSize) {}
+                        String status, Integer pageNum, Integer pageSize, String therapistId, String roomId, String serviceId) {}
     public record Placement(@NotBlank String storeId, @NotBlank String serviceId, @NotBlank String therapistId,
                             @NotBlank String roomId, @NotBlank String date, @NotBlank String startTime,
                             String bookingId) {}

@@ -54,7 +54,7 @@ public interface RoomManagementMapper extends BaseMapper<RoomEntity> {
             WHERE r.deleted=0 AND CONCAT('room-', LOWER(REPLACE(s.store_code, '_', '-')), '-',
                      CASE WHEN r.room_code REGEXP '^R[0-9]+$' THEN LPAD(SUBSTRING(r.room_code, 2), 2, '0')
                           ELSE LOWER(REPLACE(r.room_code, '_', '-')) END)=#{roomId}
-            LIMIT 1
+            LIMIT 1 FOR UPDATE
             """)
     RoomManagementRow findByApiId(@Param("roomId") String roomId);
 

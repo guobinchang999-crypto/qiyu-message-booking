@@ -1,5 +1,6 @@
 import { DeleteOutlined, EditOutlined, LeftOutlined, PlusOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons';
-import { Button, DatePicker, Empty, Popconfirm, Select, Space, Table, Tabs, Tag, TimePicker, message } from 'antd';
+import { App, Button, DatePicker, Empty, Popconfirm, Select, Space, Table, Tabs, Tag, TimePicker } from 'antd';
+import { useManagementState } from '@/components/management/useManagement';
 import type { ColumnsType } from 'antd/es/table';
 import { ModalForm, PageContainer, ProCard, ProForm, ProFormDatePicker, ProFormSelect, ProFormTextArea } from '@ant-design/pro-components';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -34,14 +35,16 @@ const monday = (value: Dayjs) => {
 };
 
 export default function ResourcesPage() {
+  const {message}=App.useApp();
+  const {params,set}=useManagementState();
   const session = readAdminSession();
   const manageable = can(session, 'schedule:manage');
-  const [weekStart, setWeekStart] = useState(() => monday(dayjs()));
+  const [weekStart, setWeekStart] = useState(() => monday(dayjs(params.get('date')||undefined)));
   const [stores, setStores] = useState<StoreResource[]>([]);
   const [therapists, setTherapists] = useState<TherapistResource[]>([]);
   const [rooms, setRooms] = useState<RoomResource[]>([]);
   const [schedules, setSchedules] = useState<ScheduleResource[]>([]);
-  const [storeId, setStoreId] = useState<string>();
+  const [storeId, setStoreId] = useState<string | undefined>(params.get('storeId')||undefined);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleResource>();
@@ -61,8 +64,8 @@ export default function ResourcesPage() {
   }, [weekStart]);
   useEffect(() => { void load(); }, [load]);
 
-  const scopedTherapists = useMemo(() => therapists.filter((item) => !storeId || item.storeId === storeId
-    || stores.find((store) => store.id === storeId)?.name === item.store), [storeId, stores, therapists]);
+  const scopedTherapists = useMemo(() => therapists.filter((item) => (!params.get('therapistId')||params.get('therapistId')===item.id)&&(!storeId || item.storeId === storeId
+    || stores.find((store) => store.id === storeId)?.name === item.store)), [storeId, stores, therapists,params.get('therapistId')]);
   const scopedSchedules = useMemo(() => schedules.filter((item) => !storeId || item.storeId === storeId), [schedules, storeId]);
   const scopedRooms = useMemo(() => rooms.filter((item) => !storeId || item.storeId === storeId), [rooms, storeId]);
 

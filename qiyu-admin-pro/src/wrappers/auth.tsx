@@ -10,7 +10,7 @@ export default function AuthWrapper() {
     return <Navigate to="/login" replace />;
   }
   const requiredPermission = menuPermission[location.pathname];
-  if (requiredPermission && !can(session, requiredPermission)) {
+  if (requiredPermission && !can(session, requiredPermission) && !(location.pathname==='/customers' && can(session,'member:read'))) {
     return <Result status="403" title="无访问权限" subTitle="当前账号没有访问此功能的权限。" />;
   }
   return <Outlet />;

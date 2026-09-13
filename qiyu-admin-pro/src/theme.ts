@@ -17,9 +17,13 @@ export const qiyuTheme: ThemeConfig = {
     colorTextBase: '#26332c',
     colorBgLayout: '#f6f7f5',
     borderRadius: 8,
-    fontSize: 14
+    fontSize: 14,
+    controlHeight: 44
   },
   components: {
+    Table: { cellPaddingBlockMD: 14, headerBg: '#f5f7f5', rowHoverBg: '#f4f8f4' },
+    Button: { controlHeight: 44 },
+    Drawer: { paddingLG: 24 },
     Layout: {
       headerBg: '#ffffff',
       bodyBg: '#f6f7f5',

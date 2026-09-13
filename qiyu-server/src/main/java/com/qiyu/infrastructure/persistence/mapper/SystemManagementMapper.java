@@ -34,7 +34,7 @@ public interface SystemManagementMapper extends BaseMapper<SystemUserEntity> {
 
     @Select("""
             SELECT d.id,d.parent_id parentId,d.dept_code deptCode,d.dept_name deptName,
-                   COALESCE(leader.display_name,'') leader,d.sort_order sortOrder,d.status
+                   COALESCE(leader.display_name,'') leader,d.sort_order sortOrder,d.status,d.version
             FROM sys_dept d LEFT JOIN sys_user leader ON leader.id=d.leader_user_id AND leader.deleted=0
             WHERE d.deleted=0 AND (#{keyword}='' OR d.dept_name LIKE #{pattern} OR d.dept_code LIKE #{pattern})
             ORDER BY d.sort_order,d.id LIMIT #{limit} OFFSET #{offset}
@@ -53,9 +53,36 @@ public interface SystemManagementMapper extends BaseMapper<SystemUserEntity> {
 
     @Update("""
             UPDATE sys_dept SET parent_id=#{parentId},dept_name=#{name},leader_user_id=#{leaderUserId},
-              sort_order=#{sortOrder},status=#{status},updated_at=NOW() WHERE id=#{id} AND deleted=0
+              sort_order=#{sortOrder},status=#{status},version=version+1,updated_at=NOW() WHERE id=#{id} AND deleted=0
             """)
     int updateOrganization(SystemOrganizationEntity entity);
+
+    @Select("SELECT id FROM sys_dept WHERE deleted=0 ORDER BY id FOR UPDATE")
+    List<Long> lockOrganizations();
+
+    @Select("""
+      <script>
+      SELECT COUNT(DISTINCT u.id) FROM sys_user u JOIN sys_user_dept ud ON ud.user_id=u.id
+      WHERE u.deleted=0 AND u.user_type='STAFF' AND ud.is_primary=1 AND ud.dept_id IN
+      <foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach>
+      </script>
+      """)
+    long countOrganizationMembers(@Param("ids") List<Long> ids);
+
+    @Select("""
+      <script>
+      SELECT DISTINCT CAST(u.id AS CHAR) id,COALESCE(i.identifier,'') username,
+      u.display_name displayName,d.dept_name departmentName,u.status
+      FROM sys_user u JOIN sys_user_dept ud ON ud.user_id=u.id
+      JOIN sys_dept d ON d.id=ud.dept_id AND d.deleted=0
+      LEFT JOIN sys_user_identity i ON i.user_id=u.id AND i.identity_type='PASSWORD' AND i.deleted=0
+      WHERE u.deleted=0 AND u.user_type='STAFF' AND ud.is_primary=1 AND ud.dept_id IN
+      <foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach>
+      ORDER BY id LIMIT #{limit} OFFSET #{offset}
+      </script>
+      """)
+    List<com.qiyu.application.system.dto.SystemModels.OrganizationMember> organizationMembers(
+        @Param("ids") List<Long> ids,@Param("limit") int limit,@Param("offset") int offset);
 
     @Select("SELECT id FROM sys_user WHERE display_name=#{displayName} AND deleted=0 ORDER BY id LIMIT 1")
     Long findUserIdByDisplayName(String displayName);
@@ -224,7 +251,7 @@ public interface SystemManagementMapper extends BaseMapper<SystemUserEntity> {
     /** Returns menu rows in their persisted display order. */
     @Select("""
             SELECT id,parent_id parentId,menu_name menuName,COALESCE(route_path,'') routePath,
-              COALESCE(permission_code,'') permissionCode,menu_type menuType,sort_order sortOrder,status
+              COALESCE(permission_code,'') permissionCode,menu_type menuType,sort_order sortOrder,status,visible,version
             FROM sys_menu WHERE deleted=0
               AND (#{keyword}='' OR menu_name LIKE #{pattern} OR menu_code LIKE #{pattern} OR permission_code LIKE #{pattern})
             ORDER BY sort_order,id LIMIT #{limit} OFFSET #{offset}
@@ -235,6 +262,11 @@ public interface SystemManagementMapper extends BaseMapper<SystemUserEntity> {
                                      @Param("offset") int offset);
     @Insert("INSERT INTO sys_menu(parent_id,menu_code,menu_name,menu_type,route_path,permission_code,sort_order,status,created_by) VALUES(#{parentId},#{code},#{name},#{type},#{path},#{permissionCode},#{sortOrder},#{status},#{createdBy})")
     @Options(useGeneratedKeys = true, keyProperty = "id") int insertMenu(SystemMenuEntity entity);
+
+    @Select("SELECT id FROM sys_menu WHERE deleted=0 ORDER BY id FOR UPDATE")
+    List<Long> lockMenus();
+    @Update("UPDATE sys_menu SET visible=#{visible},version=version+1 WHERE id=#{id}")
+    int updateMenuVisibility(@Param("id") long id,@Param("visible") boolean visible);
     @Select("SELECT COUNT(*) FROM sys_menu WHERE id=#{id} AND deleted=0") long menuExists(long id);
     @Update("UPDATE sys_menu SET parent_id=#{parentId},menu_name=#{name},menu_type=#{type},route_path=#{path},permission_code=#{permissionCode},sort_order=#{sortOrder},status=#{status},updated_by=#{operator},updated_at=NOW() WHERE id=#{id} AND deleted=0")
     int updateMenu(@Param("id") long id, @Param("parentId") long parentId, @Param("name") String name, @Param("type") String type, @Param("path") String path, @Param("permissionCode") String permissionCode, @Param("sortOrder") int sortOrder, @Param("status") String status, @Param("operator") String operator);
@@ -243,6 +275,39 @@ public interface SystemManagementMapper extends BaseMapper<SystemUserEntity> {
     @Delete("DELETE FROM sys_role_menu WHERE menu_id=#{id}") int deleteMenuRoles(long id);
 
     /** Returns dictionary items together with the owning dictionary-type metadata. */
+    @Select("""
+            SELECT t.type_code code,t.type_name name,t.description,COUNT(i.id) itemCount
+            FROM dict_type t LEFT JOIN dict_item i ON i.type_code=t.type_code AND i.deleted=0
+            WHERE t.deleted=0 GROUP BY t.id,t.type_code,t.type_name,t.description,t.sort_order
+            ORDER BY t.sort_order,t.id
+            """)
+    List<com.qiyu.application.system.dto.SystemModels.DictionaryType> dictionaryTypes();
+
+    @Select("""
+            SELECT COUNT(*) FROM dict_item WHERE deleted=0 AND type_code=#{typeCode}
+            AND (#{keyword}='' OR item_label LIKE #{pattern} OR item_value LIKE #{pattern})
+            """)
+    long countDictionaryItems(@Param("typeCode") String typeCode, @Param("keyword") String keyword, @Param("pattern") String pattern);
+
+    @Select("""
+            SELECT i.id,t.type_code typeCode,t.type_name typeName,i.item_label itemLabel,i.item_value itemValue,
+              i.sort_order sortOrder,i.enabled,t.description
+            FROM dict_item i JOIN dict_type t ON t.type_code=i.type_code AND t.deleted=0
+            WHERE i.deleted=0 AND i.type_code=#{typeCode}
+              AND (#{keyword}='' OR i.item_label LIKE #{pattern} OR i.item_value LIKE #{pattern})
+            ORDER BY i.sort_order,i.id LIMIT #{limit} OFFSET #{offset}
+            """)
+    List<SystemDictionaryProjection> dictionaryItems(@Param("typeCode") String typeCode, @Param("keyword") String keyword,
+            @Param("pattern") String pattern, @Param("limit") int limit, @Param("offset") int offset);
+
+    @Select("""
+            SELECT i.id,t.type_code typeCode,t.type_name typeName,i.item_label itemLabel,i.item_value itemValue,
+              i.sort_order sortOrder,i.enabled,t.description
+            FROM dict_item i JOIN dict_type t ON t.type_code=i.type_code AND t.deleted=0
+            WHERE i.id=#{id} AND i.deleted=0 FOR UPDATE
+            """)
+    SystemDictionaryProjection dictionaryForUpdate(long id);
+
     @Select("""
             SELECT COUNT(*) FROM dict_item i JOIN dict_type t ON t.type_code=i.type_code AND t.deleted=0
             WHERE i.deleted=0 AND (#{keyword}='' OR t.type_code LIKE #{pattern} OR t.type_name LIKE #{pattern}

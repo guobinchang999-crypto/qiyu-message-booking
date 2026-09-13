@@ -45,6 +45,13 @@ public class CouponManagementService {
                 .orElseThrow(()->new IllegalArgumentException("优惠券不存在"));
         if(!current.code().equals(code(command.code()))) throw new IllegalArgumentException("优惠券编码创建后不能修改");
         Values values=values(command);
+        if(current.issuedCount()>0 || repository().customerCouponCount(current.databaseId())>0) {
+            if(!java.util.Objects.equals(current.discountType(),values.type())
+                || !sameAmount(current.discountAmount(),values.amount()) || !sameAmount(current.discountPercent(),values.percent())
+                || !sameAmount(current.thresholdAmount(),values.threshold())
+                || !java.util.Objects.equals(current.validStartAt(),values.start()) || !java.util.Objects.equals(current.validEndAt(),values.end()))
+                throw new IllegalArgumentException("优惠券已有发放记录，不能修改优惠规则或有效期");
+        }
         return view(repository().save(template(current.databaseId(),current.id(),current.code(),values,
                 current.issuedCount(),current.usedCount(),current.createdBy(),String.valueOf(principal.userId()))));
     }
@@ -79,6 +86,7 @@ public class CouponManagementService {
     private static String code(String value){String code=required(value,"优惠券编码不能为空").toUpperCase(Locale.ROOT).replace('-','_');if(!code.matches("[A-Z0-9_]{2,32}"))throw new IllegalArgumentException("优惠券编码只能包含字母、数字和下划线");return code;}
     private static String required(String value,String message){if(value==null||value.isBlank())throw new IllegalArgumentException(message);return value.trim();}
     private static BigDecimal positive(BigDecimal value,String message){if(value==null||value.signum()<=0)throw new IllegalArgumentException(message);return value;}
+    private static boolean sameAmount(BigDecimal left,BigDecimal right){return left==null?right==null:right!=null&&left.compareTo(right)==0;}
 
     public record CouponCommand(String code,String name,String discountType,BigDecimal discountAmount,
                                 BigDecimal discountPercent,BigDecimal thresholdAmount,LocalDateTime validStartAt,

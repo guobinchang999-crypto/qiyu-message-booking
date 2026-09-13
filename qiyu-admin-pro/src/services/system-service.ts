@@ -21,7 +21,13 @@ const rolesRemote = remoteCrud<SystemRoleRecord>('/admin/system/roles');
 const menusRemote = remoteCrud<SystemMenuRecord>('/admin/system/menus');
 const dictionariesRemote = remoteCrud<DictionaryRecord>('/admin/system/dictionaries');
 export const systemAdminApi = {
-  organizations: organizationsRemote,
+  navigation: () => adminRequest<SystemMenuRecord[]>('/admin/system/navigation'),
+  organizations: {
+    ...organizationsRemote,
+    tree: () => adminRequest<OrganizationRecord[]>('/admin/system/organizations/tree'),
+    impact: (id:string) => adminRequest<{userCount:number}>(`/admin/system/organizations/${id}/impact`),
+    members: (id:string, descendants:boolean, page:number) => adminRequest<SystemPage<{id:string;username:string;displayName:string;departmentName:string;status:string}>>(`/admin/system/organizations/${id}/members?descendants=${descendants}&page=${page}&pageSize=20`),
+  },
   users: {
     ...usersRemote,
     resetPassword: (id: string, newPassword: string) => adminRequest<void>(
@@ -50,8 +56,16 @@ export const systemAdminApi = {
     permissionOptions: () => adminRequest<PermissionOption[]>(`/admin/system/permission-options`),
   },
   roles: rolesRemote,
-  menus: menusRemote,
-  dictionaries: dictionariesRemote,
+  menus: {
+    ...menusRemote,
+    tree: () => adminRequest<SystemMenuRecord[]>('/admin/system/menus/tree'),
+    routes: () => adminRequest<Array<{id:string;name:string}>>('/admin/system/menus/routes'),
+  },
+  dictionaries: {
+    ...dictionariesRemote,
+    types: () => adminRequest<Array<{code:string;name:string;description:string;itemCount:number}>>('/admin/system/dictionaries/types'),
+    items: (typeCode:string, query:SystemQuery) => adminRequest<SystemPage<DictionaryRecord>>(`/admin/system/dictionaries/items?typeCode=${encodeURIComponent(typeCode)}&${queryString(query)}`),
+  },
   auditLogs: {
     list: (query: SystemQuery) => adminRequest<SystemPage<AuditLogRecord>>(
       `/admin/system/audit-logs?${queryString(query)}`,

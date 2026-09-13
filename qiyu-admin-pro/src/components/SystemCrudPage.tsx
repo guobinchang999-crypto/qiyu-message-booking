@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Button, Popconfirm, Space, Tag, message } from 'antd';
+import { App, Button, Popconfirm, Space, Tag } from 'antd';
 import { ModalForm, PageContainer, ProCard, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { useRef, useState } from 'react';
@@ -47,6 +47,7 @@ export const statusColumn = <T extends { status: string }>(): ProColumns<T> => (
 });
 
 export default function SystemCrudPage<T extends { id: string }>(props: SystemCrudPageProps<T>) {
+  const { message } = App.useApp();
   const actionRef = useRef<ActionType>();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<T>();
@@ -84,7 +85,7 @@ export default function SystemCrudPage<T extends { id: string }>(props: SystemCr
         <Space size={4}>
           <Button type="text" size="small" icon={<EditOutlined />} onClick={() => openForm(record)}>编辑</Button>
           {props.extraActions?.(record)}
-          <Popconfirm title="确认删除该记录？" description="删除后无法恢复，请确认没有业务数据引用。" onConfirm={() => remove(record.id)}><Button type="text" danger size="small" icon={<DeleteOutlined />} /></Popconfirm>
+          <Popconfirm title="确认移除该记录？" description="移除后将不再用于后续业务，请确认当前没有业务引用。" onConfirm={() => remove(record.id)}><Button aria-label="移除" type="text" danger size="small" icon={<DeleteOutlined />} /></Popconfirm>
         </Space>
       )
     }
@@ -103,7 +104,7 @@ export default function SystemCrudPage<T extends { id: string }>(props: SystemCr
           search={{ labelWidth: 'auto' }}
           scroll={{ x: 1050 }}
           pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 条` }}
-          toolBarRender={() => [<Tag key="hint" bordered={false} color="blue">权限码：{props.permissionHint}</Tag>, <Button key="reload" icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>]}
+          toolBarRender={() => [<Button key="reload" icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>刷新</Button>]}
           request={async (params) => {
             const { current = 1, pageSize = 10, keyword } = params;
             try {

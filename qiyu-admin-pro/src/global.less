@@ -9,6 +9,43 @@
 }
 
 * { box-sizing: border-box; }
+.reception-toolbar { position: sticky; top: 56px; z-index: 9; background: var(--qiyu-surface); padding: 16px; border: 1px solid #e7ebe7; border-radius: 10px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.store-select { min-width: 180px; }
+.reception-panel { background: var(--qiyu-surface); border: 1px solid #e7ebe7; border-radius: 12px; padding: 24px; min-width: 0; }
+.reception-list-heading, .schedule-heading, .drawer-actions { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; }
+.reception-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:20px; }
+.reception-metric { cursor:pointer; text-align:left; font:inherit; color:var(--qiyu-text); background:white; border:1px solid #e0e6e0; border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:6px; }
+.reception-metric strong { font-size:32px; line-height:1.25; font-weight:600; }
+.reception-metric small { color:var(--qiyu-muted); }
+.reception-metric.selected { border-color:var(--qiyu-primary); background:var(--qiyu-primary-light); }
+.section-gap { margin-top:16px; margin-bottom:16px; }
+.muted { color:#66736b; font-size:12px; margin-top:4px; }
+.customer-link { padding:0; height:auto; font-weight:600; }
+.booking-summary { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; }
+.form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 20px; }
+.checkin-layout { display:grid; grid-template-columns:minmax(340px,1fr) minmax(350px,1.2fr); gap:20px; }
+.checkin-entry { padding:32px; }
+.checkin-icon { font-size:32px; color:var(--qiyu-primary); }
+.checkin-help { margin-top:40px; padding-top:24px; border-top:1px solid #e7ebe7; }
+.schedule-heading { margin:16px 0; }
+.day-schedule { overflow:auto; max-height:65vh; border:1px solid #e1e7e1; border-radius:8px; }
+.schedule-axis,.resource-row { display:flex; width:3020px; }
+.schedule-axis { position:sticky; top:0; z-index:4; background:#f4f7f4; }
+.resource-name { position:sticky; left:0; z-index:3; width:140px; flex-shrink:0; padding:18px 12px; background:#f4f7f4; font-weight:600; border-bottom:1px solid #dfe7df; }
+.schedule-hours { display:flex; width:2880px; }
+.schedule-hours span { width:120px; padding:14px 8px; border-left:1px solid #dfe7df; }
+.resource-track { display:flex; position:relative; width:2880px; height:100px; border-bottom:1px solid #e1e7e1; }
+.schedule-slot { flex:0 0 60px; border:0; border-left:1px solid #e5ebe5; background:white; cursor:crosshair; }
+.schedule-slot:hover:not(:disabled),.schedule-slot:focus-visible { background:var(--qiyu-primary-light); outline:2px solid var(--qiyu-primary); outline-offset:-2px; }
+.schedule-slot:disabled { cursor:default; background:#fafbfa; }
+.schedule-booking.ant-btn { position:absolute; top:8px; height:82px; display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:8px 12px; text-align:left; overflow:hidden; background:#edf4ee; border-color:#9eb4a1; border-left:8px solid #b6c8b9; border-right:8px solid #b6c8b9; }
+.schedule-booking span { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.schedule-booking.status-IN_SERVICE { background:#e6f1f8; border-color:#9db5c5; }
+.schedule-booking.status-COMPLETED { background:#f0f1f0; border-color:#c3c8c3; }
+.schedule-booking.status-PENDING_SETTLEMENT { background:#fff6e7; border-color:#d5b77f; }
+@media (max-width:1100px) { .checkin-layout { grid-template-columns:1fr; } .reception-panel { padding:16px; } .reception-toolbar { top:0; } }
+@media (max-width:650px) { .form-grid { grid-template-columns:1fr; } .reception-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (pointer:coarse), (max-width:1100px) { .ant-btn { min-height:44px; } .ant-input,.ant-select-selector { min-height:44px; } .ant-menu-item { min-height:44px; } }
 body { margin: 0; color: var(--qiyu-text); background: var(--qiyu-background); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
 
 /* 看板趋势图（保留现有 SVG 折线图实现） */
@@ -26,3 +63,17 @@ body { margin: 0; color: var(--qiyu-text); background: var(--qiyu-background); f
 .login-intro-card { margin-top: 72px; max-width: 380px; padding: 22px; color: #4f6155; background: rgba(255,255,255,.64); border: 1px solid rgba(255,255,255,.7); border-radius: 14px; line-height: 1.8; }
 .login-card { align-self: center; justify-self: center; width: min(420px, calc(100% - 48px)); border-radius: 16px; box-shadow: 0 16px 50px rgba(42, 62, 47, .10); }
 @media (max-width: 800px) { .login-page { grid-template-columns: 1fr; } .login-intro { display: none; } .login-card { margin-top: 15vh; } }
+.management-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 24px; }
+.management-metrics { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 16px; margin-bottom:16px; }
+.management-trend { display:flex; align-items:flex-end; gap:8px; overflow-x:auto; min-height:190px; padding:16px 0; }
+.management-trend-point { flex:1; background:transparent; border:0; min-width:48px; min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:10px; cursor:pointer; }
+.management-trend-point:focus-visible { outline:2px solid var(--qiyu-primary); }
+.management-trend-bar { display:block; width:24px; background:var(--qiyu-primary); border-radius:4px 4px 0 0; }
+.system-master-detail { display:grid; grid-template-columns:280px minmax(0,1fr); gap:16px; }
+.system-tree .ant-tree-treenode { min-height:44px; align-items:center; }
+.system-tree .ant-tree-node-content-wrapper { min-width:0; overflow:hidden; }
+.system-tree .ant-tree-title { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@media(max-width:1100px) { .system-master-detail { grid-template-columns:220px minmax(0,1fr); } }
+@media(max-width:767px) { .system-master-detail { grid-template-columns:1fr; } }
+@media (max-width:1200px) { .management-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:600px) { .management-form-grid { grid-template-columns:1fr; } .management-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }

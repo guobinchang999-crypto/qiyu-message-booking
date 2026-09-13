@@ -9,6 +9,8 @@ import java.util.List;
  * application layer (per project convention), while core business ports live in domain.
  */
 public interface SystemManagementGateway {
+    List<SystemModels.Organization> organizationTree();
+    SystemModels.Page<SystemModels.OrganizationMember> organizationMembers(long id, boolean descendants, int page, int pageSize);
     SystemModels.Page<SystemModels.Organization> organizations(String keyword, int page, int pageSize);
     SystemModels.Organization saveOrganization(Long id, SystemModels.OrganizationCommand command, long operatorId);
     void deleteOrganization(long id, long operatorId);
@@ -37,6 +39,8 @@ public interface SystemManagementGateway {
     void deleteMenu(long id, long operatorId);
 
     SystemModels.Page<SystemModels.Dictionary> dictionaries(String keyword, int page, int pageSize);
+    List<SystemModels.DictionaryType> dictionaryTypes();
+    SystemModels.Page<SystemModels.Dictionary> dictionaryItems(String typeCode, String keyword, int page, int pageSize);
     SystemModels.Dictionary saveDictionary(Long id, SystemModels.DictionaryCommand command, long operatorId);
     void deleteDictionary(long id, long operatorId);
 
