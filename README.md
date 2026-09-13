@@ -238,7 +238,7 @@ CI 与 CD 分开维护。当前 `.github/workflows/ci.yml` 只负责检查和打
 - **微信小程序**：生成可以导入微信开发者工具的 ZIP Artifact。
 - **运行测试和质量检查**：非 main 分支可以取消；main 分支始终强制执行。
 
-手动运行每次打包一个组件。Pull Request 会自动识别变化的组件并执行检查，可同时检查多个组件；它不会登录 ACR，也不会发布任何产物。修改统一 CI 工作流时会检查全部组件。
+手动运行每次打包一个组件。Pull Request 会自动识别变化的组件并执行检查，可同时检查多个组件；它不会登录 GHCR，也不会发布任何产物。修改统一 CI 工作流时会检查全部组件。
 
 ### 版本与产物
 
@@ -253,20 +253,20 @@ CI 与 CD 分开维护。当前 `.github/workflows/ci.yml` 只负责检查和打
 main 分支产物直接使用源码版本，例如：
 
 ```text
-<ACR>/<namespace>/qiyu-server:0.1.0
-<ACR>/<namespace>/qiyu-admin:0.1.0
+ghcr.io/<repository-owner>/qiyu-server:0.1.0
+ghcr.io/<repository-owner>/qiyu-admin:0.1.0
 qiyu-client-0.1.0.zip
 ```
 
 非 main 分支增加 Snapshot 和短提交号，例如：
 
 ```text
-<ACR>/<namespace>/qiyu-server:0.1.0-SNAPSHOT-cb5f36d
-<ACR>/<namespace>/qiyu-admin:0.1.0-SNAPSHOT-cb5f36d
+ghcr.io/<repository-owner>/qiyu-server:0.1.0-SNAPSHOT-cb5f36d
+ghcr.io/<repository-owner>/qiyu-admin:0.1.0-SNAPSHOT-cb5f36d
 qiyu-client-0.1.0-SNAPSHOT-cb5f36d.zip
 ```
 
-main 发布前会检查组件 Git Tag 和 ACR 镜像标签是否重复。发布成功后创建 `qiyu-server-vX.Y.Z`、`qiyu-admin-vX.Y.Z` 或 `qiyu-client-vX.Y.Z` 标签；再次发布相同组件版本会失败。
+main 发布前会检查组件 Git Tag 和 GHCR 镜像标签是否重复。发布成功后创建 `qiyu-server-vX.Y.Z`、`qiyu-admin-vX.Y.Z` 或 `qiyu-client-vX.Y.Z` 标签；再次发布相同组件版本会失败。
 
 ### GitHub 配置
 
@@ -276,15 +276,13 @@ Variables（非私密）：
 
 | 名称 | 说明 |
 | --- | --- |
-| `ACR_DOCKER_REGISTRY` | ACR 仓库域名，如 `crpi-....cn-guangzhou.personal.cr.aliyuncs.com` |
-| `ACR_NAMESPACE` | ACR 命名空间，如 `chang_stage_666` |
+| `GHCR_USERNAME` | 创建 `GHCR_PAT` 的 GitHub 用户名 |
 
 Secrets（私密）：
 
 | 名称 | 说明 |
 | --- | --- |
-| `ACR_USERNAME` | ACR 登录用户名 |
-| `ACR_PASSWORD` | ACR 登录密码 |
+| `GHCR_PAT` | GitHub Container Registry 访问令牌，需要 `write:packages` 权限；需要删除镜像时再增加 `delete:packages` |
 
 main 发布标签需要工作流具有 `contents: write` 权限。如果仓库将 Actions 默认权限限制为只读，需要在 **Settings → Actions → General → Workflow permissions** 允许工作流写入仓库内容。小程序 Artifact 保留30天。
 

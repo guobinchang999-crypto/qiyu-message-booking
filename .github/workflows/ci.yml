@@ -181,17 +181,15 @@ jobs:
         if: github.event_name == 'pull_request'
         run: mvn -B -DskipTests package
 
-      - name: Validate ACR configuration
+      - name: Validate GHCR configuration
         if: github.event_name == 'workflow_dispatch'
         shell: bash
         env:
-          ACR_DOCKER_REGISTRY: ${{ vars.ACR_DOCKER_REGISTRY }}
-          ACR_NAMESPACE: ${{ vars.ACR_NAMESPACE }}
-          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+          GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
         run: |
           set -euo pipefail
-          for name in ACR_DOCKER_REGISTRY ACR_NAMESPACE ACR_USERNAME ACR_PASSWORD; do
+          for name in GHCR_USERNAME GHCR_PAT; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::$name 未在仓库 Actions Variables/Secrets 中配置。"
               exit 1
@@ -202,23 +200,24 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: docker/setup-buildx-action@v4
 
-      - name: Log in to ACR
+      - name: Log in to GHCR
         if: github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v4
         with:
-          registry: ${{ vars.ACR_DOCKER_REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ vars.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_PAT }}
 
       - name: Resolve image reference
         if: github.event_name == 'workflow_dispatch'
         id: image
         shell: bash
         env:
-          REGISTRY: ${{ vars.ACR_DOCKER_REGISTRY }}
-          NAMESPACE: ${{ vars.ACR_NAMESPACE }}
+          IMAGE_OWNER: ${{ github.repository_owner }}
           PACKAGE_VERSION: ${{ steps.version.outputs.package_version }}
-        run: echo "image=${REGISTRY}/${NAMESPACE}/qiyu-server:${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+        run: |
+          image_owner="$(printf '%s' "$IMAGE_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${image_owner}/qiyu-server:${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Reject an existing release image
         if: needs.plan.outputs.release == 'true'
@@ -315,17 +314,15 @@ jobs:
         if: needs.plan.outputs.checks == 'true'
         run: npm run build
 
-      - name: Validate ACR configuration
+      - name: Validate GHCR configuration
         if: github.event_name == 'workflow_dispatch'
         shell: bash
         env:
-          ACR_DOCKER_REGISTRY: ${{ vars.ACR_DOCKER_REGISTRY }}
-          ACR_NAMESPACE: ${{ vars.ACR_NAMESPACE }}
-          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+          GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
         run: |
           set -euo pipefail
-          for name in ACR_DOCKER_REGISTRY ACR_NAMESPACE ACR_USERNAME ACR_PASSWORD; do
+          for name in GHCR_USERNAME GHCR_PAT; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::$name 未在仓库 Actions Variables/Secrets 中配置。"
               exit 1
@@ -336,23 +333,24 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: docker/setup-buildx-action@v4
 
-      - name: Log in to ACR
+      - name: Log in to GHCR
         if: github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v4
         with:
-          registry: ${{ vars.ACR_DOCKER_REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ vars.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_PAT }}
 
       - name: Resolve image reference
         if: github.event_name == 'workflow_dispatch'
         id: image
         shell: bash
         env:
-          REGISTRY: ${{ vars.ACR_DOCKER_REGISTRY }}
-          NAMESPACE: ${{ vars.ACR_NAMESPACE }}
+          IMAGE_OWNER: ${{ github.repository_owner }}
           PACKAGE_VERSION: ${{ steps.version.outputs.package_version }}
-        run: echo "image=${REGISTRY}/${NAMESPACE}/qiyu-admin:${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+        run: |
+          image_owner="$(printf '%s' "$IMAGE_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${image_owner}/qiyu-admin:${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Reject an existing release image
         if: needs.plan.outputs.release == 'true'
