@@ -43,7 +43,7 @@ after each object upload succeeds; credentials are never stored in source.
 
 配置文件为仓库根目录的 `.flow/qiyu-pipeline.yaml`。流程为 Java P3C 扫描和 Maven 测试 → Docker 多阶段构建并推送 ACR → 主机 `docker run` 部署。默认构建 `main`，镜像和容器名为 `qiyu-server`，部署使用 `db` profile、`8080:8080` 端口映射。该流水线仅负责后端。
 
-日常维护只需关注两个位置：云效变量组维护环境值；流水线 `run` 负责登录、拉取、启动和健康等待。部署不依赖 Compose，主机只需安装 Docker。`docker-compose.yml` 仅用于本地或手工部署，流水线不再上传和下载该文件。
+日常维护只需关注两个位置：云效变量组维护环境值；流水线 `run` 负责登录、拉取、启动和健康等待。项目不使用 Docker Compose 部署，目标主机只需安装 Docker，流水线直接运行单个后端容器。
 
 ### 变量如何维护
 
@@ -117,7 +117,7 @@ jdbc:mysql://<mysql-host>:3306/qiyu_booking?useUnicode=true&characterEncoding=ut
 
 不要把本地 `.env.local` 上传到流水线，也不要把密码放进 JDBC URL。容器中的 `127.0.0.1` 指向容器本身，不能用它表示宿主机上的 MySQL 或 Redis。
 
-`db` profile 已绑定 `QIYU_DB_*`，但没有绑定 `QIYU_REDIS_*`。Compose 将 Redis 参数映射为 Spring 标准的 `SPRING_DATA_REDIS_*`，将 MinIO 参数映射为 `QIYU_STORAGE_MINIO_*`，无需修改应用代码。启用 MinIO 本身不实现私有图片的预签名访问；访问方案仍遵循上方的资源访问约束。
+`db` profile 已绑定 `QIYU_DB_*`，但没有绑定 `QIYU_REDIS_*`。部署命令将 Redis 参数映射为 Spring 标准的 `SPRING_DATA_REDIS_*`，将 MinIO 参数映射为 `QIYU_STORAGE_MINIO_*`，无需修改应用代码。启用 MinIO 本身不实现私有图片的预签名访问；访问方案仍遵循上方的资源访问约束。
 
 ### YAML 工程参数
 
@@ -156,6 +156,6 @@ docker run -d --name "$CONTAINER_NAME" --restart "$RESTART_POLICY" -p "$${HOST_P
 
 端口冲突由 Docker 报错，不自动停止其他服务。单容器更新存在短暂中断，不自动回滚。ACR 登录信息写入临时 Docker 配置目录，退出时删除；容器环境变量在主机执行时注入，不写入仓库。
 
-`docker-compose.yml` 保留给本地或手工部署使用；手工运行时仍需设置 `IMAGE_FULL_NAME`。旧的 `QIYU_IMAGE_REPOSITORY` / `QIYU_IMAGE_TAG` 两个变量不再使用，`HEALTH_POLL_SECONDS` 也不再需要。
+项目不保留 `docker-compose.yml`。手工部署同样使用上述 `docker run` 方式，并设置 `IMAGE_FULL_NAME`。旧的 `QIYU_IMAGE_REPOSITORY` / `QIYU_IMAGE_TAG` 两个变量不再使用，`HEALTH_POLL_SECONDS` 也不再需要。
 
 参考：[docker run](https://docs.docker.com/reference/cli/docker/container/run/)、[docker ps 过滤器](https://docs.docker.com/reference/cli/docker/container/ls/)。
