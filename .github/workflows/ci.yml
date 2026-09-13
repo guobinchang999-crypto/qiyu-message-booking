@@ -1,4 +1,4 @@
-name: Qiyu CI Package
+name: 栖愈 CI 打包
 
 on:
   pull_request:
@@ -9,23 +9,17 @@ on:
       - '.github/workflows/ci.yml'
   workflow_dispatch:
     inputs:
-      build_server:
-        description: '打包 Java 后端'
-        required: false
-        default: false
-        type: boolean
-      build_admin:
-        description: '打包管理后台'
-        required: false
-        default: false
-        type: boolean
-      build_client:
-        description: '打包微信小程序'
-        required: false
-        default: false
-        type: boolean
+      component:
+        description: '选择打包组件'
+        required: true
+        default: 'Java 后端'
+        type: choice
+        options:
+          - 'Java 后端'
+          - '管理后台'
+          - '微信小程序'
       run_checks:
-        description: '运行单元测试和质量检查（main 分支始终强制运行）'
+        description: '运行测试和质量检查（main 始终执行）'
         required: false
         default: true
         type: boolean
@@ -43,7 +37,7 @@ env:
 
 jobs:
   plan:
-    name: Resolve components and policy
+    name: 解析构建参数
     runs-on: ubuntu-latest
     outputs:
       server: ${{ steps.plan.outputs.server }}
@@ -64,9 +58,7 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          INPUT_SERVER: ${{ inputs.build_server }}
-          INPUT_ADMIN: ${{ inputs.build_admin }}
-          INPUT_CLIENT: ${{ inputs.build_client }}
+          INPUT_COMPONENT: ${{ inputs.component }}
           INPUT_CHECKS: ${{ inputs.run_checks }}
         run: |
           set -euo pipefail
@@ -76,14 +68,15 @@ jobs:
           client=false
 
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            server="${INPUT_SERVER:-false}"
-            admin="${INPUT_ADMIN:-false}"
-            client="${INPUT_CLIENT:-false}"
-
-            if [[ "$server" != "true" && "$admin" != "true" && "$client" != "true" ]]; then
-              echo "::error::请至少选择一个打包组件：Java 后端、管理后台或微信小程序。"
-              exit 1
-            fi
+            case "$INPUT_COMPONENT" in
+              'Java 后端') server=true ;;
+              '管理后台') admin=true ;;
+              '微信小程序') client=true ;;
+              *)
+                echo "::error::不支持的打包组件：$INPUT_COMPONENT"
+                exit 1
+                ;;
+            esac
           else
             while IFS= read -r changed_file; do
               case "$changed_file" in
@@ -119,17 +112,17 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           {
-            echo "### CI build plan"
-            echo "- Branch: \`$REF_NAME\`"
-            echo "- Java backend: \`$server\`"
-            echo "- Admin console: \`$admin\`"
-            echo "- Mini Program: \`$client\`"
-            echo "- Checks enabled: \`$checks\`"
-            echo "- Release build: \`$release\`"
+            echo "### CI 构建计划"
+            echo "- 分支：\`$REF_NAME\`"
+            echo "- Java 后端：\`$server\`"
+            echo "- 管理后台：\`$admin\`"
+            echo "- 微信小程序：\`$client\`"
+            echo "- 执行检查：\`$checks\`"
+            echo "- Release 构建：\`$release\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   server:
-    name: Java backend
+    name: Java 后端
     needs: plan
     if: needs.plan.outputs.server == 'true'
     runs-on: ubuntu-latest
@@ -257,7 +250,7 @@ jobs:
           echo "- Java image: \`${{ steps.image.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
 
   admin:
-    name: Admin console
+    name: 管理后台
     needs: plan
     if: needs.plan.outputs.admin == 'true'
     runs-on: ubuntu-latest
@@ -391,7 +384,7 @@ jobs:
           echo "- Admin image: \`${{ steps.image.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
 
   client:
-    name: Mini Program
+    name: 微信小程序
     needs: plan
     if: needs.plan.outputs.client == 'true'
     runs-on: ubuntu-latest
@@ -495,7 +488,7 @@ jobs:
           echo "- Mini Program artifact: \`${{ steps.archive.outputs.artifact_name }}.zip\`" >> "$GITHUB_STEP_SUMMARY"
 
   mark-release:
-    name: Mark release versions
+    name: 标记 Release 版本
     needs: [plan, server, admin, client]
     if: >-
       always() &&

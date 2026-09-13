@@ -231,14 +231,14 @@ CI 与 CD 分开维护。当前 `.github/workflows/ci.yml` 只负责检查和打
 
 ### 手动打包
 
-进入仓库的 **Actions → Qiyu CI Package → Run workflow**，先用 GitHub 自带的分支下拉框选择代码分支，再选择一个或多个组件：
+进入仓库的 **Actions → 栖愈 CI 打包 → Run workflow**，先用 GitHub 自带的分支下拉框选择代码分支，再从 **选择打包组件** 下拉框中选择一个组件。默认选择 **Java 后端**：
 
-- **打包 Java 后端**：构建并推送 `qiyu-server` Docker 镜像。
-- **打包管理后台**：构建并推送 `qiyu-admin` Docker 镜像。
-- **打包微信小程序**：生成可以导入微信开发者工具的 ZIP Artifact。
-- **运行单元测试和质量检查**：非 main 分支可以取消；main 分支始终强制执行。
+- **Java 后端**：构建并推送 `qiyu-server` Docker 镜像。
+- **管理后台**：构建并推送 `qiyu-admin` Docker 镜像。
+- **微信小程序**：生成可以导入微信开发者工具的 ZIP Artifact。
+- **运行测试和质量检查**：非 main 分支可以取消；main 分支始终强制执行。
 
-Pull Request 会自动识别变化的组件并执行检查，不登录 ACR，也不发布任何产物。修改统一 CI 工作流时会检查全部组件。
+手动运行每次打包一个组件。Pull Request 会自动识别变化的组件并执行检查，可同时检查多个组件；它不会登录 ACR，也不会发布任何产物。修改统一 CI 工作流时会检查全部组件。
 
 ### 版本与产物
 
