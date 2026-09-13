@@ -231,14 +231,14 @@ CI 与 CD 分开维护。当前 `.github/workflows/ci.yml` 只负责检查和打
 
 ### 手动打包
 
-进入仓库的 **Actions → 栖愈 CI 打包 → Run workflow**，先用 GitHub 自带的分支下拉框选择代码分支，再从 **选择打包组件** 下拉框中选择一个组件。默认选择 **Java 后端**：
+进入仓库的 **Actions → Qiyu CI Pipeline → Run workflow**，先用 GitHub 自带的分支下拉框选择代码分支，再从 **Select component to build** 下拉框中选择一个组件。默认选择 **Java Backend**：
 
-- **Java 后端**：构建并推送 `qiyu-server` Docker 镜像。
-- **管理后台**：构建并推送 `qiyu-admin` Docker 镜像。
-- **微信小程序**：生成可以导入微信开发者工具的 ZIP Artifact。
-- **运行测试和质量检查**：非 main 分支可以取消；main 分支始终强制执行。
+- **Java Backend**：构建并推送 `qiyu-server` Docker 镜像。
+- **Admin Console**：构建并推送 `qiyu-admin` Docker 镜像。
+- **WeChat Mini Program**：生成可以导入微信开发者工具的 ZIP Artifact。
+- **Run tests and quality checks**：非 main 分支可以取消；main 分支始终强制执行。
 
-手动运行每次打包一个组件。Pull Request 会自动识别变化的组件并执行检查，可同时检查多个组件；它不会登录 GHCR，也不会发布任何产物。修改统一 CI 工作流时会检查全部组件。
+手动运行每次打包一个组件，并始终以 **Build Result** 作为最后一个节点。成功后，该节点会集中显示源码版本、提交、镜像地址、不可变 Digest 地址、GHCR 页面链接和拉取命令；小程序则显示 Artifact 下载链接和摘要。Pull Request 会自动识别变化的组件并执行检查，可同时检查多个组件；它不会登录 GHCR，也不会发布任何产物。修改统一 CI 工作流时会检查全部组件。
 
 ### 版本与产物
 
@@ -258,13 +258,15 @@ ghcr.io/<repository-owner>/qiyu-admin:0.1.0
 qiyu-client-0.1.0.zip
 ```
 
-非 main 分支增加 Snapshot 和短提交号，例如：
+非 main 分支只增加 Snapshot 后缀，例如：
 
 ```text
-ghcr.io/<repository-owner>/qiyu-server:0.1.0-SNAPSHOT-cb5f36d
-ghcr.io/<repository-owner>/qiyu-admin:0.1.0-SNAPSHOT-cb5f36d
-qiyu-client-0.1.0-SNAPSHOT-cb5f36d.zip
+ghcr.io/<repository-owner>/qiyu-server:0.1.0-SNAPSHOT
+ghcr.io/<repository-owner>/qiyu-admin:0.1.0-SNAPSHOT
+qiyu-client-0.1.0-SNAPSHOT.zip
 ```
+
+Snapshot 标签允许覆盖，方便 CD 始终通过确定的版本标签部署最新一次 Snapshot 构建。需要锁定某次构建时，使用 **Build Result** 中的 `ghcr.io/...@sha256:...` 不可变地址。Docker Action 自带的构建摘要和 `.dockerbuild` 记录已关闭，避免它们覆盖主要交付信息。
 
 main 发布前会检查组件 Git Tag 和 GHCR 镜像标签是否重复。发布成功后创建 `qiyu-server-vX.Y.Z`、`qiyu-admin-vX.Y.Z` 或 `qiyu-client-vX.Y.Z` 标签；再次发布相同组件版本会失败。
 
