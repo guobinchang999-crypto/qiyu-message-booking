@@ -1,0 +1,544 @@
+name: Qiyu CI Package
+
+on:
+  pull_request:
+    paths:
+      - 'qiyu-server/**'
+      - 'qiyu-admin-pro/**'
+      - 'qiyu-client/**'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+    inputs:
+      build_server:
+        description: '打包 Java 后端'
+        required: false
+        default: false
+        type: boolean
+      build_admin:
+        description: '打包管理后台'
+        required: false
+        default: false
+        type: boolean
+      build_client:
+        description: '打包微信小程序'
+        required: false
+        default: false
+        type: boolean
+      run_checks:
+        description: '运行单元测试和质量检查（main 分支始终强制运行）'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qiyu-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  JAVA_VERSION: '21'
+  NODE_VERSION: '22'
+
+jobs:
+  plan:
+    name: Resolve components and policy
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.plan.outputs.server }}
+      admin: ${{ steps.plan.outputs.admin }}
+      client: ${{ steps.plan.outputs.client }}
+      checks: ${{ steps.plan.outputs.checks }}
+      release: ${{ steps.plan.outputs.release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve requested components
+        id: plan
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          INPUT_SERVER: ${{ inputs.build_server }}
+          INPUT_ADMIN: ${{ inputs.build_admin }}
+          INPUT_CLIENT: ${{ inputs.build_client }}
+          INPUT_CHECKS: ${{ inputs.run_checks }}
+        run: |
+          set -euo pipefail
+
+          server=false
+          admin=false
+          client=false
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            server="${INPUT_SERVER:-false}"
+            admin="${INPUT_ADMIN:-false}"
+            client="${INPUT_CLIENT:-false}"
+
+            if [[ "$server" != "true" && "$admin" != "true" && "$client" != "true" ]]; then
+              echo "::error::请至少选择一个打包组件：Java 后端、管理后台或微信小程序。"
+              exit 1
+            fi
+          else
+            while IFS= read -r changed_file; do
+              case "$changed_file" in
+                qiyu-server/*) server=true ;;
+                qiyu-admin-pro/*) admin=true ;;
+                qiyu-client/*) client=true ;;
+                .github/workflows/ci.yml)
+                  server=true
+                  admin=true
+                  client=true
+                  ;;
+              esac
+            done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          fi
+
+          release=false
+          checks=false
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            checks=true
+          elif [[ "$REF_NAME" == "main" ]]; then
+            release=true
+            checks=true
+          elif [[ "${INPUT_CHECKS:-false}" == "true" ]]; then
+            checks=true
+          fi
+
+          {
+            echo "server=$server"
+            echo "admin=$admin"
+            echo "client=$client"
+            echo "checks=$checks"
+            echo "release=$release"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### CI build plan"
+            echo "- Branch: \`$REF_NAME\`"
+            echo "- Java backend: \`$server\`"
+            echo "- Admin console: \`$admin\`"
+            echo "- Mini Program: \`$client\`"
+            echo "- Checks enabled: \`$checks\`"
+            echo "- Release build: \`$release\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  server:
+    name: Java backend
+    needs: plan
+    if: needs.plan.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+    defaults:
+      run:
+        working-directory: qiyu-server
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Resolve Maven version
+        id: version
+        shell: bash
+        env:
+          RELEASE: ${{ needs.plan.outputs.release }}
+        run: |
+          set -euo pipefail
+          version="$(mvn -B help:evaluate -Dexpression=project.version -q -DforceStdout)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::qiyu-server/pom.xml version 必须使用 X.Y.Z 格式，当前为：$version"
+            exit 1
+          fi
+
+          package_version="$version"
+          if [[ "$RELEASE" != "true" ]]; then
+            package_version="${version}-SNAPSHOT-${GITHUB_SHA::7}"
+          fi
+          release_tag="qiyu-server-v${version}"
+
+          if [[ "$RELEASE" == "true" ]] && git rev-parse --verify --quiet "refs/tags/$release_tag" >/dev/null; then
+            echo "::error::Release tag $release_tag 已存在，请先提升 pom.xml 版本。"
+            exit 1
+          fi
+
+          {
+            echo "base_version=$version"
+            echo "package_version=$package_version"
+            echo "release_tag=$release_tag"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Maven tests
+        if: needs.plan.outputs.checks == 'true'
+        run: mvn -B test
+
+      - name: Verify Maven package on pull request
+        if: github.event_name == 'pull_request'
+        run: mvn -B -DskipTests package
+
+      - name: Validate ACR configuration
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          ACR_DOCKER_REGISTRY: ${{ vars.ACR_DOCKER_REGISTRY }}
+          ACR_NAMESPACE: ${{ vars.ACR_NAMESPACE }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in ACR_DOCKER_REGISTRY ACR_NAMESPACE ACR_USERNAME ACR_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::$name 未在仓库 Actions Variables/Secrets 中配置。"
+              exit 1
+            fi
+          done
+
+      - name: Set up Docker Buildx
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ACR
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ vars.ACR_DOCKER_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Resolve image reference
+        if: github.event_name == 'workflow_dispatch'
+        id: image
+        shell: bash
+        env:
+          REGISTRY: ${{ vars.ACR_DOCKER_REGISTRY }}
+          NAMESPACE: ${{ vars.ACR_NAMESPACE }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.package_version }}
+        run: echo "image=${REGISTRY}/${NAMESPACE}/qiyu-server:${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Reject an existing release image
+        if: needs.plan.outputs.release == 'true'
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "::error::Release image $IMAGE 已存在，请先提升 pom.xml 版本。"
+            exit 1
+          fi
+
+      - name: Build and push backend image
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@v7
+        with:
+          context: qiyu-server
+          file: qiyu-server/Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.image.outputs.image }}
+          cache-from: type=gha,scope=qiyu-server
+          cache-to: type=gha,mode=max,scope=qiyu-server
+
+      - name: Publish image summary
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: .
+        run: |
+          echo "- Java image: \`${{ steps.image.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  admin:
+    name: Admin console
+    needs: plan
+    if: needs.plan.outputs.admin == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+    defaults:
+      run:
+        working-directory: qiyu-admin-pro
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: qiyu-admin-pro/package-lock.json
+
+      - name: Resolve package version
+        id: version
+        shell: bash
+        env:
+          RELEASE: ${{ needs.plan.outputs.release }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          lock_version="$(node -p "require('./package-lock.json').version")"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::qiyu-admin-pro/package.json version 必须使用 X.Y.Z 格式，当前为：$version"
+            exit 1
+          fi
+          if [[ "$version" != "$lock_version" ]]; then
+            echo "::error::package.json ($version) 与 package-lock.json ($lock_version) 版本不一致。"
+            exit 1
+          fi
+
+          package_version="$version"
+          if [[ "$RELEASE" != "true" ]]; then
+            package_version="${version}-SNAPSHOT-${GITHUB_SHA::7}"
+          fi
+          release_tag="qiyu-admin-v${version}"
+
+          if [[ "$RELEASE" == "true" ]] && git rev-parse --verify --quiet "refs/tags/$release_tag" >/dev/null; then
+            echo "::error::Release tag $release_tag 已存在，请先提升管理后台版本。"
+            exit 1
+          fi
+
+          {
+            echo "base_version=$version"
+            echo "package_version=$package_version"
+            echo "release_tag=$release_tag"
+          } >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+
+      - name: Run TypeScript checks
+        if: needs.plan.outputs.checks == 'true'
+        run: npm run typecheck
+
+      - name: Verify admin build
+        if: needs.plan.outputs.checks == 'true'
+        run: npm run build
+
+      - name: Validate ACR configuration
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          ACR_DOCKER_REGISTRY: ${{ vars.ACR_DOCKER_REGISTRY }}
+          ACR_NAMESPACE: ${{ vars.ACR_NAMESPACE }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in ACR_DOCKER_REGISTRY ACR_NAMESPACE ACR_USERNAME ACR_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::$name 未在仓库 Actions Variables/Secrets 中配置。"
+              exit 1
+            fi
+          done
+
+      - name: Set up Docker Buildx
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ACR
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ vars.ACR_DOCKER_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Resolve image reference
+        if: github.event_name == 'workflow_dispatch'
+        id: image
+        shell: bash
+        env:
+          REGISTRY: ${{ vars.ACR_DOCKER_REGISTRY }}
+          NAMESPACE: ${{ vars.ACR_NAMESPACE }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.package_version }}
+        run: echo "image=${REGISTRY}/${NAMESPACE}/qiyu-admin:${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Reject an existing release image
+        if: needs.plan.outputs.release == 'true'
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "::error::Release image $IMAGE 已存在，请先提升管理后台版本。"
+            exit 1
+          fi
+
+      - name: Build and push admin image
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@v7
+        with:
+          context: qiyu-admin-pro
+          file: qiyu-admin-pro/Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.image.outputs.image }}
+          cache-from: type=gha,scope=qiyu-admin
+          cache-to: type=gha,mode=max,scope=qiyu-admin
+
+      - name: Publish image summary
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: .
+        run: |
+          echo "- Admin image: \`${{ steps.image.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  client:
+    name: Mini Program
+    needs: plan
+    if: needs.plan.outputs.client == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+    defaults:
+      run:
+        working-directory: qiyu-client
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: qiyu-client/package-lock.json
+
+      - name: Resolve package version
+        id: version
+        shell: bash
+        env:
+          RELEASE: ${{ needs.plan.outputs.release }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          lock_version="$(node -p "require('./package-lock.json').version")"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::qiyu-client/package.json version 必须使用 X.Y.Z 格式，当前为：$version"
+            exit 1
+          fi
+          if [[ "$version" != "$lock_version" ]]; then
+            echo "::error::package.json ($version) 与 package-lock.json ($lock_version) 版本不一致。"
+            exit 1
+          fi
+
+          package_version="$version"
+          if [[ "$RELEASE" != "true" ]]; then
+            package_version="${version}-SNAPSHOT-${GITHUB_SHA::7}"
+          fi
+          release_tag="qiyu-client-v${version}"
+
+          if [[ "$RELEASE" == "true" ]] && git rev-parse --verify --quiet "refs/tags/$release_tag" >/dev/null; then
+            echo "::error::Release tag $release_tag 已存在，请先提升小程序版本。"
+            exit 1
+          fi
+
+          {
+            echo "base_version=$version"
+            echo "package_version=$package_version"
+            echo "release_tag=$release_tag"
+          } >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+
+      - name: Build Mini Program npm dependencies
+        run: npm run build:miniprogram-npm
+
+      - name: Run Mini Program checks
+        if: needs.plan.outputs.checks == 'true'
+        run: npm run verify
+
+      - name: Compile Mini Program without checks
+        if: needs.plan.outputs.checks != 'true'
+        run: npm run build:miniprogram-js
+
+      - name: Create Mini Program ZIP
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.package_version }}
+        run: |
+          set -euo pipefail
+          artifact_name="qiyu-client-${PACKAGE_VERSION}"
+          mkdir -p ../artifacts
+          zip -qr "../artifacts/${artifact_name}.zip" \
+            miniprogram \
+            project.config.json \
+            package.json \
+            package-lock.json \
+            tsconfig.json \
+            README.md \
+            -x '*/.DS_Store' '*/project.private.config.json' '*/.wechatide.*'
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+        id: archive
+
+      - name: Upload Mini Program artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.archive.outputs.artifact_name }}
+          path: artifacts/${{ steps.archive.outputs.artifact_name }}.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish artifact summary
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: .
+        run: |
+          echo "- Mini Program artifact: \`${{ steps.archive.outputs.artifact_name }}.zip\`" >> "$GITHUB_STEP_SUMMARY"
+
+  mark-release:
+    name: Mark release versions
+    needs: [plan, server, admin, client]
+    if: >-
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      needs.plan.outputs.release == 'true' &&
+      needs.plan.result == 'success' &&
+      (needs.plan.outputs.server != 'true' || needs.server.result == 'success') &&
+      (needs.plan.outputs.admin != 'true' || needs.admin.result == 'success') &&
+      (needs.plan.outputs.client != 'true' || needs.client.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Create release tags
+        shell: bash
+        env:
+          BUILD_SERVER: ${{ needs.plan.outputs.server }}
+          BUILD_ADMIN: ${{ needs.plan.outputs.admin }}
+          BUILD_CLIENT: ${{ needs.plan.outputs.client }}
+          SERVER_TAG: ${{ needs.server.outputs.release_tag }}
+          ADMIN_TAG: ${{ needs.admin.outputs.release_tag }}
+          CLIENT_TAG: ${{ needs.client.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tags=()
+          [[ "$BUILD_SERVER" == "true" ]] && tags+=("$SERVER_TAG")
+          [[ "$BUILD_ADMIN" == "true" ]] && tags+=("$ADMIN_TAG")
+          [[ "$BUILD_CLIENT" == "true" ]] && tags+=("$CLIENT_TAG")
+
+          for tag in "${tags[@]}"; do
+            if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+              echo "::error::Release tag $tag 已存在。"
+              exit 1
+            fi
+            git tag -a "$tag" "$GITHUB_SHA" -m "Release $tag"
+          done
+
+          refs=()
+          for tag in "${tags[@]}"; do
+            refs+=("refs/tags/$tag")
+          done
+          git push --atomic origin "${refs[@]}"

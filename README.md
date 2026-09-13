@@ -227,17 +227,50 @@ npm install
 
 ## CI/CD
 
-使用 GitHub Actions，按模块拆成独立工作流，各自用 `paths` 过滤触发：
+CI 与 CD 分开维护。当前 `.github/workflows/ci.yml` 只负责检查和打包，不连接部署主机；CD 将由独立工作流实现。
 
-| 工作流 | 触发路径 | 内容 |
-| --- | --- | --- |
-| `.github/workflows/qiyu-server.yml` | `qiyu-server/**` | Java CI（`mvn test` + `package`）；非 PR 时构建 Docker 镜像推送 ACR，并 SSH 部署到主机 |
-| `.github/workflows/qiyu-admin-pro.yml` | `qiyu-admin-pro/**` | Node CI（`typecheck` + `build`）；非 PR 时用多阶段 Dockerfile（Node 构建 → Nginx 托管）推送 ACR，并 SSH 部署 |
-| `.github/workflows/qiyu-client.yml` | `qiyu-client/**` | 小程序 CI（`npm run verify`，含全部 smoke 校验）；暂不部署 |
+### 手动打包
 
-前后端都通过容器发布：`qiyu-server/Dockerfile` 打包 Spring Boot，`qiyu-admin-pro/Dockerfile` 打包静态资源并由 Nginx 提供，主机上统一用 `docker run` 启动。CD 使用 GitHub 托管 runner，目标机只需 Docker 和 SSH。
+进入仓库的 **Actions → Qiyu CI Package → Run workflow**，先用 GitHub 自带的分支下拉框选择代码分支，再选择一个或多个组件：
 
-在仓库 **Settings → Secrets and variables → Actions** 配置。
+- **打包 Java 后端**：构建并推送 `qiyu-server` Docker 镜像。
+- **打包管理后台**：构建并推送 `qiyu-admin` Docker 镜像。
+- **打包微信小程序**：生成可以导入微信开发者工具的 ZIP Artifact。
+- **运行单元测试和质量检查**：非 main 分支可以取消；main 分支始终强制执行。
+
+Pull Request 会自动识别变化的组件并执行检查，不登录 ACR，也不发布任何产物。修改统一 CI 工作流时会检查全部组件。
+
+### 版本与产物
+
+版本由源码维护，CI 不自动修改版本：
+
+- Java 后端：`qiyu-server/pom.xml` 的 Maven `project.version`。
+- 管理后台：`qiyu-admin-pro/package.json`，并与 `package-lock.json` 保持一致。
+- 微信小程序：`qiyu-client/package.json`，并与 `package-lock.json` 保持一致。
+
+版本必须使用 `X.Y.Z` 格式。更新前端版本时，在对应目录执行 `npm version patch --no-git-tag-version` 可以同时更新两个 npm 文件。
+
+main 分支产物直接使用源码版本，例如：
+
+```text
+<ACR>/<namespace>/qiyu-server:0.1.0
+<ACR>/<namespace>/qiyu-admin:0.1.0
+qiyu-client-0.1.0.zip
+```
+
+非 main 分支增加 Snapshot 和短提交号，例如：
+
+```text
+<ACR>/<namespace>/qiyu-server:0.1.0-SNAPSHOT-cb5f36d
+<ACR>/<namespace>/qiyu-admin:0.1.0-SNAPSHOT-cb5f36d
+qiyu-client-0.1.0-SNAPSHOT-cb5f36d.zip
+```
+
+main 发布前会检查组件 Git Tag 和 ACR 镜像标签是否重复。发布成功后创建 `qiyu-server-vX.Y.Z`、`qiyu-admin-vX.Y.Z` 或 `qiyu-client-vX.Y.Z` 标签；再次发布相同组件版本会失败。
+
+### GitHub 配置
+
+在仓库 **Settings → Secrets and variables → Actions** 配置仓库级参数，以便手动打包任意分支。
 
 Variables（非私密）：
 
@@ -245,25 +278,15 @@ Variables（非私密）：
 | --- | --- |
 | `ACR_DOCKER_REGISTRY` | ACR 仓库域名，如 `crpi-....cn-guangzhou.personal.cr.aliyuncs.com` |
 | `ACR_NAMESPACE` | ACR 命名空间，如 `chang_stage_666` |
-| `DEPLOY_HOST` / `DEPLOY_PORT` / `DEPLOY_USER` | 目标主机地址、SSH 端口、执行用户 |
-| `HOST_PORT` | 后端宿主机端口，默认 `8080` |
-| `ADMIN_HOST_PORT` | 管理后台宿主机端口，默认 `8081` |
-| `SPRING_PROFILE` | `db` |
-| `QIYU_REDIS_HOST` / `QIYU_REDIS_PORT` | Redis 地址与端口 |
-| `QIYU_MINIO_ENABLED` / `QIYU_MINIO_ENDPOINT` / `QIYU_MINIO_BUCKET` / `QIYU_MINIO_PUBLIC_BASE_URL` / `QIYU_MINIO_PUBLIC_READ` / `QIYU_MINIO_SEED_ENABLED` | 按需启用 MinIO 时的配置 |
 
 Secrets（私密）：
 
 | 名称 | 说明 |
 | --- | --- |
-| `ACR_USERNAME` / `ACR_PASSWORD` | ACR 登录凭据 |
-| `DEPLOY_SSH_KEY` | 部署私钥 |
-| `QIYU_DB_URL` / `QIYU_DB_USERNAME` / `QIYU_DB_PASSWORD` | 目标 MySQL 连接 |
-| `QIYU_REDIS_PASSWORD` | Redis 密码，无认证时留空 |
-| `ADMIN_INITIAL_PASSWORD` | 首次初始化数据库时设置 |
-| `QIYU_MINIO_ACCESS_KEY` / `QIYU_MINIO_SECRET_KEY` | MinIO 凭据 |
+| `ACR_USERNAME` | ACR 登录用户名 |
+| `ACR_PASSWORD` | ACR 登录密码 |
 
-`deploy` 任务关联 `production` environment，可在 **Settings → Environments** 添加必需审批人。镜像标签使用提交 SHA；目标机通过容器内置 HEALTHCHECK 等待健康，超时或容器退出即失败。
+main 发布标签需要工作流具有 `contents: write` 权限。如果仓库将 Actions 默认权限限制为只读，需要在 **Settings → Actions → General → Workflow permissions** 允许工作流写入仓库内容。小程序 Artifact 保留30天。
 
 ## 当前阶段
 

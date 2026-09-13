@@ -5,6 +5,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build:miniprogram-js": "tsc --noEmit false",
+    "build:miniprogram-npm": "node scripts/build-miniprogram-npm.mjs",
     "validate:miniprogram": "node scripts/validate-miniprogram.mjs",
     "smoke:page-acceptance": "node scripts/smoke-page-acceptance.mjs",
     "smoke:api-mode": "node scripts/smoke-api-mode.mjs",

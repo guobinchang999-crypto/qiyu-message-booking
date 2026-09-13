@@ -13,7 +13,7 @@
 
     <groupId>com.qiyu</groupId>
     <artifactId>qiyu-server</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.0.1</version>
     <name>qiyu-server</name>
     <description>Qiyu massage booking MVP mock API</description>
 
