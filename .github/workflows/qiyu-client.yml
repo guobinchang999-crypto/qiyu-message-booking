@@ -1,0 +1,40 @@
+name: qiyu-client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'qiyu-client/**'
+      - '.github/workflows/qiyu-client.yml'
+  pull_request:
+    paths:
+      - 'qiyu-client/**'
+      - '.github/workflows/qiyu-client.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: qiyu-client-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: MiniProgram CI (typecheck + build + smoke)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: qiyu-client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: qiyu-client/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run verify

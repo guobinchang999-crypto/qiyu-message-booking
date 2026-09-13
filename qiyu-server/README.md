@@ -37,7 +37,9 @@ Copy `.env.local.example` to a local, untracked env file and set
 configured bucket. The runner updates the corresponding catalog records only
 after each object upload succeeds; credentials are never stored in source.
 
-## 云效 Flow 后端流水线
+## 云效 Flow 后端流水线（备选）
+
+当前主用流水线是 GitHub Actions，见仓库根目录 `README.md` 的 CI/CD 章节和 `.github/workflows/qiyu-server.yml`。本节保留云效 Flow 作为备选方案。
 
 配置文件为仓库根目录的 `.flow/qiyu-pipeline.yaml`。流程为 Java P3C 扫描和 Maven 测试 → Docker 多阶段构建并推送 ACR → 主机 `docker run` 部署。默认构建 `main`，镜像和容器名为 `qiyu-server`，部署使用 `db` profile、`8080:8080` 端口映射。该流水线仅负责后端。
 

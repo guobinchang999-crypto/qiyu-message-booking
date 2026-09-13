@@ -225,6 +225,46 @@ npm install
 - local/dev/prod 默认使用真实后端与持久化数据；Mock 仅作为显式选择的测试模式。
 - 未配置微信支付、短信或对象存储凭据时，相关真实操作失败关闭，不伪造成功结果。
 
+## CI/CD
+
+使用 GitHub Actions，按模块拆成独立工作流，各自用 `paths` 过滤触发：
+
+| 工作流 | 触发路径 | 内容 |
+| --- | --- | --- |
+| `.github/workflows/qiyu-server.yml` | `qiyu-server/**` | Java CI（`mvn test` + `package`）；非 PR 时构建 Docker 镜像推送 ACR，并 SSH 部署到主机 |
+| `.github/workflows/qiyu-admin-pro.yml` | `qiyu-admin-pro/**` | Node CI（`typecheck` + `build`）；非 PR 时用多阶段 Dockerfile（Node 构建 → Nginx 托管）推送 ACR，并 SSH 部署 |
+| `.github/workflows/qiyu-client.yml` | `qiyu-client/**` | 小程序 CI（`npm run verify`，含全部 smoke 校验）；暂不部署 |
+
+前后端都通过容器发布：`qiyu-server/Dockerfile` 打包 Spring Boot，`qiyu-admin-pro/Dockerfile` 打包静态资源并由 Nginx 提供，主机上统一用 `docker run` 启动。CD 使用 GitHub 托管 runner，目标机只需 Docker 和 SSH。
+
+在仓库 **Settings → Secrets and variables → Actions** 配置。
+
+Variables（非私密）：
+
+| 名称 | 说明 |
+| --- | --- |
+| `ACR_DOCKER_REGISTRY` | ACR 仓库域名，如 `crpi-....cn-guangzhou.personal.cr.aliyuncs.com` |
+| `ACR_NAMESPACE` | ACR 命名空间，如 `chang_stage_666` |
+| `DEPLOY_HOST` / `DEPLOY_PORT` / `DEPLOY_USER` | 目标主机地址、SSH 端口、执行用户 |
+| `HOST_PORT` | 后端宿主机端口，默认 `8080` |
+| `ADMIN_HOST_PORT` | 管理后台宿主机端口，默认 `8081` |
+| `SPRING_PROFILE` | `db` |
+| `QIYU_REDIS_HOST` / `QIYU_REDIS_PORT` | Redis 地址与端口 |
+| `QIYU_MINIO_ENABLED` / `QIYU_MINIO_ENDPOINT` / `QIYU_MINIO_BUCKET` / `QIYU_MINIO_PUBLIC_BASE_URL` / `QIYU_MINIO_PUBLIC_READ` / `QIYU_MINIO_SEED_ENABLED` | 按需启用 MinIO 时的配置 |
+
+Secrets（私密）：
+
+| 名称 | 说明 |
+| --- | --- |
+| `ACR_USERNAME` / `ACR_PASSWORD` | ACR 登录凭据 |
+| `DEPLOY_SSH_KEY` | 部署私钥 |
+| `QIYU_DB_URL` / `QIYU_DB_USERNAME` / `QIYU_DB_PASSWORD` | 目标 MySQL 连接 |
+| `QIYU_REDIS_PASSWORD` | Redis 密码，无认证时留空 |
+| `ADMIN_INITIAL_PASSWORD` | 首次初始化数据库时设置 |
+| `QIYU_MINIO_ACCESS_KEY` / `QIYU_MINIO_SECRET_KEY` | MinIO 凭据 |
+
+`deploy` 任务关联 `production` environment，可在 **Settings → Environments** 添加必需审批人。镜像标签使用提交 SHA；目标机通过容器内置 HEALTHCHECK 等待健康，超时或容器退出即失败。
+
 ## 当前阶段
 
 - 客户端 15 个页面和预约、履约、评价闭环已完成，并保留 Mock/真实接口双模式。
