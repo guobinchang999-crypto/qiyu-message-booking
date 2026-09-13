@@ -13,6 +13,7 @@ import java.util.Optional;
 @Repository
 @ConditionalOnProperty(name = "qiyu.auth.persistence", havingValue = "true")
 public class MybatisPlusStoreManagementRepository implements StoreManagementRepository {
+    @Override public long unfinishedBookingCount(long databaseId) { return mapper.unfinishedBookingCount(databaseId); }
     private final CatalogMapper mapper;
 
     public MybatisPlusStoreManagementRepository(CatalogMapper mapper) { this.mapper = mapper; }

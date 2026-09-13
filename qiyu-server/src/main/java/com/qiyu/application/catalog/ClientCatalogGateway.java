@@ -1,5 +1,7 @@
 package com.qiyu.application.catalog;
 
+import com.qiyu.application.catalog.dto.ClientCatalogPayload;
+
 /** Outbound port for client-facing catalog content. */
 public interface ClientCatalogGateway {
     /** Returns all client copy and display dictionaries in one stable payload. */

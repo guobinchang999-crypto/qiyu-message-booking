@@ -40,6 +40,8 @@ public interface BookingMapper extends BaseMapper<BookingEntity> {
     @Select("SELECT id FROM service_item WHERE service_code=#{code} AND deleted=0") Long serviceId(String code);
     @Select("SELECT member_price_amount FROM service_item WHERE id=#{id}") BigDecimal memberPrice(long id);
     @Select("SELECT id FROM therapist WHERE therapist_code=#{code} AND deleted=0") Long therapistId(String code);
+    @Select("SELECT id FROM therapist WHERE id=#{id} AND deleted=0 FOR UPDATE") Long lockTherapist(long id);
+    @Select("SELECT id FROM room WHERE id=#{id} AND deleted=0 FOR UPDATE") Long lockRoom(long id);
     @Select("SELECT id FROM room WHERE store_id=#{storeId} AND room_code=#{code} AND deleted=0") Long roomId(@Param("storeId") long storeId, @Param("code") String code);
     @Select("SELECT user_id FROM customer WHERE id=#{id} AND deleted=0") Long customerUserId(long id);
     @Select("SELECT store_code FROM store WHERE id=#{id}") String storeCode(long id);

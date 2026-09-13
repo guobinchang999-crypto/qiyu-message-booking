@@ -2,10 +2,10 @@ package com.qiyu.adapter.catalog;
 
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.catalog.CatalogQueryService;
-import com.qiyu.application.catalog.ClientCatalogPayload;
-import com.qiyu.application.catalog.DictionaryItemVO;
-import com.qiyu.application.catalog.DictionaryCollectionVO;
-import com.qiyu.application.catalog.ResourceOptionVO;
+import com.qiyu.application.catalog.dto.ClientCatalogPayload;
+import com.qiyu.application.catalog.dto.DictionaryItemVO;
+import com.qiyu.application.catalog.dto.DictionaryCollectionVO;
+import com.qiyu.application.catalog.dto.ResourceOptionVO;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -58,5 +58,10 @@ public class CatalogController {
     public ApiResponse<List<ResourceOptionVO>> roomOptions(@RequestParam(required = false) String storeId,
                                                            @RequestParam(required = false) String status) {
         return ApiResponse.success(catalogQueryService.roomOptions(storeId, status));
+    }
+
+    @GetMapping("/options/regions")
+    public ApiResponse<List<ResourceOptionVO>> regionOptions() {
+        return ApiResponse.success(catalogQueryService.regionOptions());
     }
 }

@@ -2,7 +2,7 @@ package com.qiyu.adapter.therapist;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
-import com.qiyu.application.admin.AdminResponseModels;
+import com.qiyu.application.admin.dto.AdminResponseModels;
 import com.qiyu.application.therapist.TherapistManagementService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;

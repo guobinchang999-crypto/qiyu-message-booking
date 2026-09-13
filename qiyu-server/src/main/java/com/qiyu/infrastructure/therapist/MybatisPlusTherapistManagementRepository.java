@@ -32,7 +32,7 @@ public class MybatisPlusTherapistManagementRepository implements TherapistManage
     @Override
     public Optional<TherapistMaster> find(String therapistId) {
         TherapistEntity entity = therapistMapper.selectOne(new LambdaQueryWrapper<TherapistEntity>()
-                .eq(TherapistEntity::getTherapistCode, databaseCode(therapistId)));
+                .eq(TherapistEntity::getTherapistCode, databaseCode(therapistId)).last("FOR UPDATE"));
         return Optional.ofNullable(entity).map(this::master);
     }
 

@@ -3,7 +3,7 @@ package com.qiyu.adapter.system;
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.system.SystemManagementAppService;
-import com.qiyu.application.system.SystemModels;
+import com.qiyu.application.system.dto.SystemModels;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +19,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/admin/system")
 @SaCheckLogin
 public class SystemManagementController {
+    @GetMapping("/navigation") public ApiResponse<java.util.List<SystemModels.Menu>> navigation(){return ApiResponse.success(service.navigation());}
+    @GetMapping("/menus/tree") public ApiResponse<java.util.List<SystemModels.Menu>> menuTree(){return ApiResponse.success(service.menuTree());}
+    @GetMapping("/menus/routes") public ApiResponse<java.util.List<SystemModels.ScopeOption>> routes(){return ApiResponse.success(service.registeredRoutes());}
+    @GetMapping("/organizations/{id}/impact") public ApiResponse<java.util.Map<String,Long>> organizationImpact(@PathVariable String id){
+        return ApiResponse.success(java.util.Map.of("userCount",service.organizationImpact(id)));
+    }
+    @GetMapping("/organizations/tree") public ApiResponse<java.util.List<SystemModels.Organization>> organizationTree(){return ApiResponse.success(service.organizationTree());}
+    @GetMapping("/organizations/{id}/members") public ApiResponse<SystemModels.Page<SystemModels.OrganizationMember>> organizationMembers(
+        @PathVariable String id,@RequestParam(defaultValue="false") boolean descendants,
+        @RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int pageSize){
+        return ApiResponse.success(service.organizationMembers(id,descendants,page,pageSize));
+    }
     private final SystemManagementAppService service;
 
     public SystemManagementController(SystemManagementAppService service) { this.service = service; }
@@ -103,6 +115,8 @@ public class SystemManagementController {
     @DeleteMapping("/menus/{id}") public ApiResponse<Void> deleteMenu(@PathVariable String id) { service.deleteMenu(id); return ApiResponse.success(null); }
 
     @GetMapping("/dictionaries") public ApiResponse<SystemModels.Page<SystemModels.Dictionary>> dictionaries(@RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int pageSize) { return ApiResponse.success(service.dictionaries(keyword, page, pageSize)); }
+    @GetMapping("/dictionaries/types") public ApiResponse<java.util.List<SystemModels.DictionaryType>> dictionaryTypes() { return ApiResponse.success(service.dictionaryTypes()); }
+    @GetMapping("/dictionaries/items") public ApiResponse<SystemModels.Page<SystemModels.Dictionary>> dictionaryItems(@RequestParam String typeCode, @RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int pageSize) { return ApiResponse.success(service.dictionaryItems(typeCode, keyword, page, pageSize)); }
     @PostMapping("/dictionaries") public ApiResponse<SystemModels.Dictionary> createDictionary(@RequestBody SystemModels.DictionaryCommand command) { return ApiResponse.success(service.saveDictionary(null, command)); }
     @PutMapping("/dictionaries/{id}") public ApiResponse<SystemModels.Dictionary> updateDictionary(@PathVariable String id, @RequestBody SystemModels.DictionaryCommand command) { return ApiResponse.success(service.saveDictionary(id, command)); }
     @DeleteMapping("/dictionaries/{id}") public ApiResponse<Void> deleteDictionary(@PathVariable String id) { service.deleteDictionary(id); return ApiResponse.success(null); }

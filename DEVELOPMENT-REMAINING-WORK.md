@@ -45,7 +45,7 @@
 - 本轮推进：服务详情首屏补齐从服务领域数据渲染的标题、标签和描述叠加层，服务详情与门店详情评价分页按钮改用独立的“加载更多评价”字典；详情加载先获取展示字典，失败态不再因并行请求提前失败而丢失错误文案。
 - 本轮推进：修正远程服务映射，服务分类、销量、标签、流程、适合人群和图片字段全部由 `/api/v1/services` 返回并映射到客户端领域模型；后端服务分类字典改为从同一服务目录动态生成，Mock/dev 模式不再出现分类和详情数据漂移。
 - 本轮推进：首页、门店、服务、订单和我的页启用微信下拉刷新，统一重新加载页面数据并在完成/失败后停止刷新；新增 `smoke:pull-refresh` 验证页面配置和刷新处理器。
-- 本轮推进：管理后台 `AdminLayout` 增加 Mock 登录态守卫，未持有有效 `qiyu-admin-auth` 时重定向到登录页，并新增 `qiyu-admin/npm run smoke:auth-guard`。
+- 本轮推进：管理后台（`qiyu-admin-pro`）通过 ProLayout 运行时配置（`getInitialState` + `layout`）与路由守卫（`src/wrappers/auth.tsx`）实现统一登录态与权限守卫，未持有有效会话时重定向到登录页，无权限时内联展示 403；验证方式为 `npm run typecheck` 与 `npm run build`。
 - 本轮推进：后端补齐 `POST /api/v1/bookings/{id}/start-service`、`finish-service` 和 `settle`，状态规则由预约领域对象显式约束；MockMvc 与 `scripts/smoke-api.mjs` 已覆盖签到 → 服务中 → 待结算 → 已完成闭环。
 - 本轮推进：后端时间槽查询改为按服务时长、准备/清洁缓冲和技师时间重叠判断占用；创建/改期的 Mock 冲突检查与保存进入应用服务临界区，并补充冲突创建、冲突改期和原预约不变测试。
 - 本轮推进：客户端 `apiConfig` 不再永远固定为 Mock；通过 `qiyu-api-mode` 本地存储支持 `mock/dev/prod` 运行时选择，默认和非法值继续回落 Mock，并新增 API 模式 smoke 与 DevTools 切换说明。
@@ -100,14 +100,14 @@
 - 本轮推进：新增 `npm run build:miniprogram-js` 和 `npm run verify`，统一串联类型检查、生成小程序 JS、静态预检、产品边界 smoke、登录表单 smoke、首页顺序 smoke、门店定位/导航/联系 smoke、我的页 smoke、订单状态 smoke、预约草稿 smoke、时间槽 smoke、草稿流程 smoke、确认提交 smoke、履约动作 smoke、评价 flow smoke、评价图片上传 smoke 和支付 smoke，后续客户端改动优先使用一个命令完成本地验证。
 - 当前验证：`npm run verify` 通过，覆盖 `npm run typecheck`、`npm run build:miniprogram-js`、`npm run validate:miniprogram`、`npm run smoke:product-boundary`、`npm run smoke:login-form`、`npm run smoke:home-order`、`npm run smoke:store-location-actions`、`npm run smoke:profile`、`npm run smoke:order-status`、`npm run smoke:booking-store`、`npm run smoke:time-slot`、`npm run smoke:booking-draft-flow`、`npm run smoke:confirm-submit`、`npm run smoke:booking-actions`、`npm run smoke:review-flow`、`npm run smoke:review-upload` 和 `npm run smoke:payment`。
 
-### qiyu-admin
+### qiyu-admin-pro
 
 - 已有可访问路由：登录、总部运营看板、门店管理、预约管理、到店核销、服务订单、排班管理、技师管理、服务项目、房间管理、客户管理、会员管理、优惠券、经营报表。
 - 本轮修复：TypeScript `@/*` 路径别名、Umi 路由 hook 类型不匹配、预约保存对象覆盖错误。
 - 本轮补齐：计划要求的后台核心页面与侧边栏入口，新增后台通用表格页组件和对应 Mock 数据。
 - 本轮推进：后台 Mock API 改为模块级内存状态，预约、核销、服务订单和房间资源支持跨页面状态联动。
 - 已支持的后台 Mock 流转：创建/修改预约、取消预约释放房间、确认签到、安排待服务、开始服务、完成服务进入待结算、完成结算释放房间。
-- 当前验证：`npm run typecheck`、`npm run build`、`npm run smoke:auth-guard` 和 `npm run smoke:fulfillment` 通过。
+- 当前验证：`npm run typecheck`、`npm run build` 通过；后台全量接口冒烟覆盖登录、总部看板、预约、门店、技师、服务、房间、排班、优惠券、会员、客户、报表、目录选项、字典和系统管理接口。
 
 ### qiyu-server
 
@@ -169,7 +169,7 @@
 - 本轮推进：服务评价页提交前会检查是否仍有图片处于上传中；上传未完成时阻止提交并展示字典文案，避免刚选择的图片被静默漏提交。
 - 本轮推进：公共 `qy-bottom-action` 的次按钮补齐 loading/disabled 防护和禁用态样式；后续页面接入次操作时不会绕过固定操作栏的提交锁。
 - 本轮推进：预约详情页底部签到按钮已接入页面 `acting` 锁，支付、取消、刷新码、改期等动作进行中不能同时触发签到跳转。
-- 当前验证：`mvn test`、`qiyu-client/npm run verify`、`qiyu-admin/npm run typecheck`、`qiyu-admin/npm run build` 和本地启动后的 `node scripts/smoke-api.mjs` 均通过；远程 API smoke 已覆盖服务目录、服务时长缓冲后的时间槽、预约创建和履约状态链路，客户端 verify 已增加下拉刷新和 15 页关键交互入口 smoke；后端同时覆盖履约非法状态拒绝和冲突预约拒绝。
+- 当前验证：`mvn test`、`qiyu-client/npm run verify`、`qiyu-admin-pro/npm run typecheck`、`qiyu-admin-pro/npm run build` 和本地启动后的 `node scripts/smoke-api.mjs` 均通过；远程 API smoke 已覆盖服务目录、服务时长缓冲后的时间槽、预约创建和履约状态链路，客户端 verify 已增加下拉刷新和 15 页关键交互入口 smoke；后端同时覆盖履约非法状态拒绝和冲突预约拒绝。
 
 ## 2. P0 剩余工作
 

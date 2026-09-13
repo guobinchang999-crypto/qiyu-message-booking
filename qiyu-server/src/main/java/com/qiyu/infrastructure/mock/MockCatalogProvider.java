@@ -244,8 +244,18 @@ public class MockCatalogProvider {
     }
 
     public Map<String, Object> timeDictionaries() {
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        java.util.List<String> values = new java.util.ArrayList<>();
+        java.time.LocalDate today = java.time.LocalDate.now();
+        String[] weekdays = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
+        for (int offset = 0; offset < 7; offset++) {
+            java.time.LocalDate date = today.plusDays(offset);
+            labels.add((offset == 0 ? "今天" : weekdays[date.getDayOfWeek().getValue() % 7]) + "\n" + date.getMonthValue() + "月" + date.getDayOfMonth() + "日");
+            values.add(date.toString());
+        }
         return map(
-                "dates", List.of("今天\n8月1日", "周六\n8月2日", "周日\n8月3日", "周一\n8月4日"),
+                "dates", labels,
+                "dateValues", values,
                 "periods", List.of(
                         map("key", "MORNING", "label", "上午"),
                         map("key", "AFTERNOON", "label", "下午"),

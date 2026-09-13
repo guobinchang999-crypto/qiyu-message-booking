@@ -18,8 +18,11 @@ Page({
     loading: true,
     refreshingPayment: false,
     submitting: false,
-    agreed: true,
-    error: ''
+    // Agreements must be opt-in; the checkbox starts unchecked for compliance.
+    agreed: false,
+    error: '',
+    // Stable per page visit so retried submissions hit the backend idempotency key.
+    requestId: `request-${Date.now()}`
   },
   async onShow() {
     this.setData({ draft: bookingStore.get() });
@@ -98,11 +101,13 @@ Page({
     try {
       const booking = this.data.draft.flow === 'reschedule'
         ? await bookingService.rescheduleBooking(this.data.draft, `reschedule-${Date.now()}`)
-        : await bookingService.createBooking(this.data.draft, `create-${Date.now()}`);
+        : await bookingService.createBooking(this.data.draft, this.data.requestId);
       wx.redirectTo({ url: pageUrls.success(booking.id) });
     } catch (error) {
-      this.setData({ error: this.data.stateCopy.submitErrorMessage, submitting: false });
-      wx.showToast({ title: this.data.stateCopy.submitErrorMessage, icon: 'none' });
+      // Surface the backend reason (conflict, sold-out slot, expired payment window) verbatim.
+      const reason = resolvePageError(error, this.data.stateCopy.submitErrorMessage);
+      this.setData({ error: reason, submitting: false });
+      wx.showToast({ title: reason, icon: 'none' });
     }
   }
 });

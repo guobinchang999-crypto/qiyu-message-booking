@@ -344,8 +344,17 @@ const buildDateLabels = () => Array.from({ length: 4 }, (_, index) => {
     const prefix = index === 0 ? '明天' : weekday;
     return `${prefix}\n${date.getMonth() + 1}月${date.getDate()}日`;
 });
+const buildDateValues = () => Array.from({ length: 4 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() + index + 1);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+});
 const timeDictionaries = {
     dates: buildDateLabels(),
+    dateValues: buildDateValues(),
     periods: [{ key: 'MORNING', label: '上午' }, { key: 'AFTERNOON', label: '下午' }, { key: 'EVENING', label: '晚上' }],
     defaultPeriod: 'AFTERNOON',
     statusLabel: {
@@ -617,7 +626,7 @@ exports.mockService = {
     getReviewDictionaries: () => delay(reviewDictionaries),
     getServiceDictionaries: () => delay(serviceDictionaries),
     getStoreDetailDictionaries: () => delay(storeDetailDictionaries),
-    getTimeDictionaries: () => delay({ ...timeDictionaries, dates: buildDateLabels() }),
+    getTimeDictionaries: () => delay({ ...timeDictionaries, dates: buildDateLabels(), dateValues: buildDateValues() }),
     getTherapistDictionaries: () => delay(therapistDictionaries),
     getSuccessCopy: () => delay(successCopy),
     getLoginCopy: () => delay(loginCopy),

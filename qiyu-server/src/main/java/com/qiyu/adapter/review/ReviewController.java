@@ -2,9 +2,9 @@ package com.qiyu.adapter.review;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
-import com.qiyu.application.booking.BookingAppService;
-import com.qiyu.application.booking.BookingVO;
-import com.qiyu.application.review.ReviewResponseModels;
+import com.qiyu.application.booking.BookingQueryService;
+import com.qiyu.application.booking.dto.BookingVO;
+import com.qiyu.application.review.dto.ReviewResponseModels;
 import com.qiyu.application.media.MediaAppService;
 import com.qiyu.application.review.ReviewAppService;
 import jakarta.validation.Valid;
@@ -27,7 +27,7 @@ import java.util.List;
 @RequestMapping("/reviews")
 @SaCheckLogin
 public class ReviewController {
-    private final BookingAppService bookingAppService;
+    private final BookingQueryService bookingQueryService;
     private final MediaAppService mediaAppService;
     private final ReviewAppService persistentReviewService;
     private final boolean persistenceEnabled;
@@ -54,10 +54,10 @@ public class ReviewController {
     }
 
     /** Creates the adapter and resolves the optional persistent application service. */
-    public ReviewController(BookingAppService bookingAppService, MediaAppService mediaAppService,
+    public ReviewController(BookingQueryService bookingQueryService, MediaAppService mediaAppService,
                             ObjectProvider<ReviewAppService> persistentReviewService,
                             @Value("${qiyu.auth.persistence:false}") boolean persistenceEnabled) {
-        this.bookingAppService = bookingAppService;
+        this.bookingQueryService = bookingQueryService;
         this.mediaAppService = mediaAppService;
         this.persistentReviewService = persistentReviewService.getIfAvailable();
         this.persistenceEnabled = persistenceEnabled;
@@ -92,7 +92,7 @@ public class ReviewController {
         if (persistentReviewService != null) {
             return ApiResponse.success(persistentReviewService.submit(request));
         }
-        BookingVO booking = bookingAppService.detail(request.bookingId());
+        BookingVO booking = bookingQueryService.detail(request.bookingId());
 
         InMemoryReview review = new InMemoryReview(
                 "review-" + System.currentTimeMillis(),

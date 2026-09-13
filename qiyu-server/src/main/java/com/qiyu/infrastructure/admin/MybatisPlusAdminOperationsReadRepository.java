@@ -34,7 +34,8 @@ public class MybatisPlusAdminOperationsReadRepository implements AdminOperations
         return mapper.stores(access.allStores(), access.storeIds()).stream()
                 .map(row -> new StoreSnapshot(row.id(), row.code(), row.regionId(), row.name(), row.phone(),
                         row.province(), row.city(), row.district(), row.address(), row.longitude(), row.latitude(),
-                        row.businessHours(), row.manager(), row.roomCount(), row.therapistCount(), row.status(),
+                        row.businessHours(), row.manager(), row.managerPosition(), row.managerMobile(),
+                        row.roomCount(), row.therapistCount(), row.status(),
                         row.rating(), row.sortOrder(), row.enabled()))
                 .toList();
     }

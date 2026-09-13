@@ -31,3 +31,20 @@ sa-token:
   is-concurrent: false
   is-share: false
   is-log: false
+
+qiyu:
+  auth:
+    admin-session-timeout-seconds: ${QIYU_ADMIN_SESSION_TIMEOUT_SECONDS:43200}
+  booking:
+    payment-timeout-minutes: ${QIYU_BOOKING_PAYMENT_TIMEOUT_MINUTES:15}
+    payment-release-interval-ms: ${QIYU_BOOKING_PAYMENT_RELEASE_INTERVAL_MS:60000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

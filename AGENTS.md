@@ -10,17 +10,19 @@
 4. `design/CODEX-UI-DEVELOPMENT-PROMPT.md`：了解微信小程序客户端的实现约束和交付要求。
 5. `design/UI-ACCEPTANCE-CHECKLIST.md`：了解 UI 验收标准、适配要求和问题记录格式。
 6. `skills/cola-architecture/SKILL.md`：开发或审查 `qiyu-server` 后端架构前必须阅读。
+7. Codex 用户技能 `antd`（来源：`ant-design/ant-design-cli`）：开发或审查 `qiyu-admin-pro` UI 前必须使用，作为 Ant Design 组件 API、设计令牌、语义结构和最佳实践的参考依据。
 
 如果后续新增后端架构、数据库设计、后台 UI 或部署相关技能文档，执行相关任务前也应先阅读对应文档。
 
 使用仓库技能时：
 
 - `skills/cola-architecture/SKILL.md`：用于 `qiyu-server` 后端分层、包结构、领域建模和架构审查。
+- `antd`：用于 `qiyu-admin-pro` 的 Ant Design 5 / Ant Design Pro 组件选型、API 查询、设计令牌、语义结构、可访问性和用法检查。编写组件前应按 `qiyu-admin-pro` 实际安装的 antd 版本运行 `antd info`、`antd demo`、`antd token` 或 `antd design.md`，修改后运行 `antd lint`；命令使用 `--format json`。
 
 ## Agent Focus
 
 - 保持栖愈作为统一品牌按摩预约系统，不扩展无关业务模型。
-- 项目代码规划为三个模块：`qiyu-server`、`qiyu-admin`、`qiyu-client`。
+- 项目代码规划为三个模块：`qiyu-server`、`qiyu-admin-pro`、`qiyu-client`。
 - 优先完成可运行、可演示、可验收的预约闭环，再扩展复杂营销、财务和报表能力。
 - 测试环境未搭建完成前，所有接口交互默认使用 Mock 数据。
 - 兼顾开发体验和最终用户体验，避免只做静态页面或只做后端接口而忽略完整流程。
@@ -54,7 +56,7 @@
 - 负责会员权益、优惠券、套餐卡、支付和退款的接口预留。
 - 负责管理后台统计、运营看板和经营报表接口。
 
-### `qiyu-admin`
+### `qiyu-admin-pro`
 
 - 使用 React、TypeScript、Ant Design Pro 和 Ant Design 5。
 - 提供总部运营看板、门店管理、预约管理、到店核销、服务订单、排班管理、技师管理、服务项目、房间管理、客户管理、会员管理、优惠券和经营报表。
@@ -83,6 +85,7 @@
 ## 前端规则
 
 - 管理后台优先使用 Ant Design Pro / Ant Design 组件，不重复造基础控件。
+- 管理后台 UI 以 `antd` skill 提供的版本化 Ant Design 规范为组件实现和视觉基础依据，并结合本项目 `design/` 文档落实品牌、业务流程和页面验收要求；发生冲突时，不得突破本项目产品边界和业务规则。
 - 微信小程序优先使用 TDesign MiniProgram 组件和主题令牌。
 - 客户端视觉以 `design/UI-DESIGN-SYSTEM.md` 为最高优先级，其次参考对应效果图，再参考 TDesign 默认行为。
 - 页面之间的门店、服务项目、技师、预约时间、订单状态和金额必须保持一致。
@@ -148,7 +151,7 @@
 
 开发新功能时：
 
-1. 先确认功能属于 `qiyu-server`、`qiyu-admin` 还是 `qiyu-client`。
+1. 先确认功能属于 `qiyu-server`、`qiyu-admin-pro` 还是 `qiyu-client`。
 2. 阅读相关设计文档和现有代码。
 3. 明确输入、输出、状态和异常场景。
 4. 优先实现可演示的最小闭环。

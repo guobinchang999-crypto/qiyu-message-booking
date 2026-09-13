@@ -23,6 +23,7 @@ public interface ServiceManagementRepository {
 
     /** Counts all booking history that references the service item. */
     long countBookingReferences(long databaseId);
+    default long countUnfinishedBookings(long databaseId) { return countBookingReferences(databaseId); }
 
     /** Soft-deletes the service item identified by its database key. */
     void delete(long databaseId);

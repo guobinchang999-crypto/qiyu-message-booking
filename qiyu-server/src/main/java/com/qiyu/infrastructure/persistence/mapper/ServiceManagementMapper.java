@@ -55,4 +55,6 @@ public interface ServiceManagementMapper extends BaseMapper<CatalogServiceItemEn
     /** Counts historical booking references before destructive master-data operations. */
     @Select("SELECT COUNT(*) FROM booking WHERE service_item_id=#{serviceId} AND deleted=0")
     Long countBookingReferences(@Param("serviceId") long serviceId);
+    @Select("SELECT COUNT(*) FROM booking WHERE service_item_id=#{serviceId} AND deleted=0 AND status NOT IN ('COMPLETED','CANCELLED')")
+    long countUnfinishedBookings(@Param("serviceId") long serviceId);
 }

@@ -41,6 +41,9 @@ public class RoomManagementService {
         RoomManagementRepository.StoreIdentity store = requireStore(command.storeId());
         requireStoreAccess(principal, MANAGE, store.id());
         RoomValues values = values(command);
+        if (!Set.of("AVAILABLE", "MAINTENANCE").contains(values.status())) {
+            throw new IllegalArgumentException("预约和使用状态由服务履约自动更新，请选择空闲或维护");
+        }
         if (repository.existsCode(store.databaseId(), values.code(), null)) {
             throw new IllegalArgumentException("同一门店下房间编码已存在");
         }
@@ -56,6 +59,13 @@ public class RoomManagementService {
         RoomManagementRepository.StoreIdentity store = requireStore(command.storeId());
         requireStoreAccess(principal, MANAGE, store.id());
         RoomValues values = values(command);
+        if (!values.status().equals(current.status()) && !Set.of("AVAILABLE", "MAINTENANCE").contains(values.status())) {
+            throw new IllegalArgumentException("预约和使用状态由服务履约自动更新");
+        }
+        if ((!values.status().equals(current.status()) || !values.enabled() || !store.id().equals(current.storeId()))
+                && repository.hasBlockingBookingReferences(current.databaseId())) {
+            throw new IllegalArgumentException("房间仍有未来或未完成预约，请先查看并处理关联预约");
+        }
         if (repository.existsCode(store.databaseId(), values.code(), current.databaseId())) {
             throw new IllegalArgumentException("同一门店下房间编码已存在");
         }

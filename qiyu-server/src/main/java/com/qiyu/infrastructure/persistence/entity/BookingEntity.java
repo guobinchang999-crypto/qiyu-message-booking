@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,6 +14,7 @@ public class BookingEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String bookingNo;
+    private String requestId;
     private Long customerId;
     private Long storeId;
     private Long serviceItemId;
@@ -35,6 +37,9 @@ public class BookingEntity {
     private BigDecimal depositDueAmount;
     private BigDecimal paidAmount;
     private Long createdByUserId;
+    private LocalDateTime createdAt;
+    @Version
+    private Integer version;
     @TableLogic
     private Integer deleted;
 
@@ -42,6 +47,8 @@ public class BookingEntity {
     public void setId(Long id) { this.id = id; }
     public String getBookingNo() { return bookingNo; }
     public void setBookingNo(String bookingNo) { this.bookingNo = bookingNo; }
+    public String getRequestId() { return requestId; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
     public Long getCustomerId() { return customerId; }
     public void setCustomerId(Long customerId) { this.customerId = customerId; }
     public Long getStoreId() { return storeId; }
@@ -86,6 +93,10 @@ public class BookingEntity {
     public void setPaidAmount(BigDecimal value) { this.paidAmount = value; }
     public Long getCreatedByUserId() { return createdByUserId; }
     public void setCreatedByUserId(Long value) { this.createdByUserId = value; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
     public Integer getDeleted() { return deleted; }
     public void setDeleted(Integer deleted) { this.deleted = deleted; }
 }

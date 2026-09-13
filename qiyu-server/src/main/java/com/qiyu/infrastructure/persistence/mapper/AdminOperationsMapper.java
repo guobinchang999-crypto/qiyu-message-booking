@@ -40,9 +40,33 @@ public interface AdminOperationsMapper {
                        AND sr.role_code='STORE_MANAGER'
                      ORDER BY manager_staff.id
                      LIMIT 1
-                   ) AS manager,
-                   (SELECT COUNT(*) FROM room r
-                    WHERE r.store_id=s.id AND r.deleted=0 AND r.enabled=1) AS roomCount,
+                    ) AS manager,
+                    (
+                      SELECT manager_staff.position_name
+                      FROM staff manager_staff
+                      JOIN sys_user su ON su.id=manager_staff.user_id AND su.deleted=0 AND su.status='ENABLED'
+                      JOIN sys_user_role sur ON sur.user_id=su.id
+                      JOIN sys_role sr ON sr.id=sur.role_id AND sr.deleted=0 AND sr.status='ENABLED'
+                      WHERE manager_staff.primary_store_id=s.id
+                        AND manager_staff.deleted=0 AND manager_staff.status='ENABLED'
+                        AND sr.role_code='STORE_MANAGER'
+                      ORDER BY manager_staff.id
+                      LIMIT 1
+                    ) AS managerPosition,
+                    (
+                      SELECT manager_staff.mobile
+                      FROM staff manager_staff
+                      JOIN sys_user su ON su.id=manager_staff.user_id AND su.deleted=0 AND su.status='ENABLED'
+                      JOIN sys_user_role sur ON sur.user_id=su.id
+                      JOIN sys_role sr ON sr.id=sur.role_id AND sr.deleted=0 AND sr.status='ENABLED'
+                      WHERE manager_staff.primary_store_id=s.id
+                        AND manager_staff.deleted=0 AND manager_staff.status='ENABLED'
+                        AND sr.role_code='STORE_MANAGER'
+                      ORDER BY manager_staff.id
+                      LIMIT 1
+                    ) AS managerMobile,
+                    (SELECT COUNT(*) FROM room r
+                     WHERE r.store_id=s.id AND r.deleted=0 AND r.enabled=1) AS roomCount,
                    (SELECT COUNT(*) FROM therapist t
                     WHERE t.store_id=s.id AND t.deleted=0 AND t.enabled=1) AS therapistCount,
                    CASE WHEN s.enabled=1 AND s.business_status='OPEN' THEN '营业中' ELSE '休息中' END AS status,

@@ -5,8 +5,8 @@ import com.qiyu.adapter.common.ApiResponse;
 import com.qiyu.application.admin.AdminExportService;
 import com.qiyu.application.admin.AdminQueryService;
 import com.qiyu.domain.catalog.Store;
-import com.qiyu.application.booking.BookingVO;
-import com.qiyu.application.admin.AdminResponseModels;
+import com.qiyu.application.booking.dto.BookingVO;
+import com.qiyu.application.admin.dto.AdminResponseModels;
 import com.qiyu.application.admin.StoreManagementService;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
 import com.qiyu.application.booking.BookingAppService;
-import com.qiyu.application.booking.BookingCreateCommand;
+import com.qiyu.application.booking.dto.BookingCreateCommand;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -46,12 +47,21 @@ public class AdminController {
 
     @PostMapping("/bookings")
     public ApiResponse<BookingVO> createBooking(@Valid @RequestBody AdminBookingCreateRequest request) {
-        return ApiResponse.success(bookingAppService.createForAdmin(new BookingCreateCommand(request.storeId(), request.serviceId(), request.therapistId(), request.roomId(), request.date(), request.startTime(), request.customerName(), request.mobile(), request.couponId())));
+        return ApiResponse.success(bookingAppService.createForAdmin(new BookingCreateCommand(request.storeId(), request.serviceId(), request.therapistId(), request.roomId(), request.date(), request.startTime(), request.customerName(), request.mobile(), request.couponId(), request.requestId())));
     }
 
     @PostMapping("/bookings/{id}/reschedule")
     public ApiResponse<BookingVO> rescheduleBooking(@PathVariable String id, @Valid @RequestBody AdminBookingRescheduleRequest request) {
         return ApiResponse.success(bookingAppService.reschedule(id, request.date(), request.startTime()));
+    }
+
+    /**
+     * Atomic update replacing the previous three-request schedule/therapist/room flow.
+     */
+    @PutMapping("/bookings/{id}")
+    public ApiResponse<BookingVO> updateBooking(@PathVariable String id, @Valid @RequestBody AdminBookingUpdateRequest request) {
+        return ApiResponse.success(bookingAppService.updateBooking(id, request.date(), request.startTime(),
+                request.therapistId(), request.roomId()));
     }
 
     @PostMapping("/bookings/{id}/therapist")
@@ -65,52 +75,70 @@ public class AdminController {
     }
 
     @GetMapping("/dashboard")
-    public ApiResponse<AdminResponseModels.Dashboard> dashboard() { return ApiResponse.success(adminQueryService.dashboard()); }
+    public ApiResponse<AdminResponseModels.Dashboard> dashboard() {
+        return ApiResponse.success(adminQueryService.dashboard());
+    }
 
     @GetMapping("/bookings")
     public ApiResponse<AdminResponseModels.BookingPage> bookings(@RequestParam(required = false) String pageNum,
-                                                       @RequestParam(required = false) String pageSize,
-                                                       @RequestParam(required = false) String status) {
+                                                                 @RequestParam(required = false) String pageSize,
+                                                                 @RequestParam(required = false) String status) {
         return ApiResponse.success(adminQueryService.bookings(pageNum, pageSize, status));
     }
 
     @GetMapping("/customers")
-    public ApiResponse<List<AdminResponseModels.Customer>> customers() { return ApiResponse.success(adminQueryService.customers()); }
+    public ApiResponse<List<AdminResponseModels.Customer>> customers() {
+        return ApiResponse.success(adminQueryService.customers());
+    }
 
     @GetMapping("/members")
-    public ApiResponse<List<AdminResponseModels.Member>> members() { return ApiResponse.success(adminQueryService.members()); }
+    public ApiResponse<List<AdminResponseModels.Member>> members() {
+        return ApiResponse.success(adminQueryService.members());
+    }
 
     @GetMapping("/coupons")
-    public ApiResponse<List<AdminResponseModels.Coupon>> coupons() { return ApiResponse.success(adminQueryService.coupons()); }
+    public ApiResponse<List<AdminResponseModels.Coupon>> coupons() {
+        return ApiResponse.success(adminQueryService.coupons());
+    }
 
-    /** Returns the scoped administration store list backed by persistent resources. */
+    /**
+     * Returns the scoped administration store list backed by persistent resources.
+     */
     @GetMapping("/stores")
     public ApiResponse<List<AdminResponseModels.StoreProfile>> stores() {
         return ApiResponse.success(adminQueryService.stores());
     }
 
-    /** Creates a persistent store after function and input validation. */
+    /**
+     * Creates a persistent store after function and input validation.
+     */
     @PostMapping("/stores")
     public ApiResponse<AdminResponseModels.StoreProfile> createStore(
             @Valid @RequestBody StoreManagementService.StoreCommand command) {
         return ApiResponse.success(storeManagementService.create(command));
     }
 
-    /** Replaces mutable store master data while retaining its stable code. */
+    /**
+     * Replaces mutable store master data while retaining its stable code.
+     */
     @org.springframework.web.bind.annotation.PutMapping("/stores/{id}")
     public ApiResponse<AdminResponseModels.StoreProfile> updateStore(
             @PathVariable String id, @Valid @RequestBody StoreManagementService.StoreCommand command) {
         return ApiResponse.success(storeManagementService.update(id, command));
     }
 
-    /** Soft-deletes a store inside the current DELETE data scope. */
+    /**
+     * Soft-deletes a store inside the current DELETE data scope.
+     */
     @org.springframework.web.bind.annotation.DeleteMapping("/stores/{id}")
     public ApiResponse<Void> deleteStore(@PathVariable String id) {
         storeManagementService.delete(id);
         return ApiResponse.success(null);
     }
 
-    /** Returns scoped store operating metrics for an optional inclusive date range. */
+    /**
+     * Returns scoped store operating metrics for an optional inclusive date range.
+     */
     @GetMapping("/reports")
     public ApiResponse<List<AdminResponseModels.BusinessReport>> reports(
             @RequestParam(required = false) LocalDate startDate,
@@ -118,31 +146,43 @@ public class AdminController {
         return ApiResponse.success(adminQueryService.businessReports(startDate, endDate));
     }
 
-    /** Returns scoped therapist administration rows with real booking workload. */
+    /**
+     * Returns scoped therapist administration rows with real booking workload.
+     */
     @GetMapping("/therapists")
     public ApiResponse<List<AdminResponseModels.TherapistProfile>> therapists() {
         return ApiResponse.success(adminQueryService.therapists());
     }
 
     @GetMapping("/schedule-resources")
-    public ApiResponse<AdminResponseModels.ScheduleResources> scheduleResources() { return ApiResponse.success(adminQueryService.scheduleResources()); }
+    public ApiResponse<AdminResponseModels.ScheduleResources> scheduleResources() {
+        return ApiResponse.success(adminQueryService.scheduleResources());
+    }
 
     @GetMapping("/accessible-stores")
-    public ApiResponse<List<Store>> accessibleStores() { return ApiResponse.success(adminQueryService.accessibleStores()); }
+    public ApiResponse<List<Store>> accessibleStores() {
+        return ApiResponse.success(adminQueryService.accessibleStores());
+    }
 
-    /** Returns a UTF-8 CSV of bookings after applying the booking export permission and data scope. */
+    /**
+     * Returns a UTF-8 CSV of bookings after applying the booking export permission and data scope.
+     */
     @GetMapping("/export/bookings")
     public ResponseEntity<byte[]> exportBookings() {
         return csvResponse("bookings.csv", adminExportService.exportBookings());
     }
 
-    /** Returns a UTF-8 CSV of customers with phones masked unless reveal permission is held. */
+    /**
+     * Returns a UTF-8 CSV of customers with phones masked unless reveal permission is held.
+     */
     @GetMapping("/export/customers")
     public ResponseEntity<byte[]> exportCustomers() {
         return csvResponse("customers.csv", adminExportService.exportCustomers());
     }
 
-    /** Returns a UTF-8 CSV of store reports for the requested range after the report export permission. */
+    /**
+     * Returns a UTF-8 CSV of store reports for the requested range after the report export permission.
+     */
     @GetMapping("/export/reports")
     public ResponseEntity<byte[]> exportReports(@RequestParam(required = false) LocalDate startDate,
                                                 @RequestParam(required = false) LocalDate endDate) {

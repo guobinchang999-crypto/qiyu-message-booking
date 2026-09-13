@@ -1,0 +1,193 @@
+# template=true
+# Bind the shared cloud group and one Qiyu environment group in Flow UI.
+# See qiyu-server/README.md for variable names, values and secret settings.
+# Alternatively, replace the IDs below and uncomment the declaration.
+# variableGroups: [<shared-cloud-group-id>, <qiyu-environment-group-id>]
+
+variables:
+  # Scheduling, enum and resource-selector fields are validated before the
+  # pipeline runs, so they only accept template-time rendering with double
+  # braces, not runtime dollar-brace references.
+  - key: CODE_REPO_URL
+    value: "https://codeup.aliyun.com/68bd9566e3894fcaacb7f74d/qiyu-massage-booking.git"
+  - key: CODE_BRANCH
+    value: "main"
+  - key: CODEUP_SERVICE_CONNECTION
+    value: "onxpiskn6i47gjhx"
+  - key: BUILD_RUNNER_GROUP
+    value: "public/cn-hangzhou"
+  - key: BUILD_RUNNER_IMAGE
+    value: "build-steps-public-registry.cn-hangzhou.cr.aliyuncs.com/build-steps/alinux3:latest"
+  - key: JDK_VERSION
+    value: "21"
+  - key: MAVEN_VERSION
+    value: "3.9.3"
+  - key: ACR_SERVICE_CONNECTION
+    value: "y9izf8ngrb1d7ujd"
+  - key: ACR_REGION
+    value: "cn-guangzhou"
+  - key: MACHINE_GROUP_ID
+    value: "jyzF7etQsLIAiFek"
+  - key: MAVEN_SETTINGS_PATH
+    value: "/root/.m2/settings.xml"
+  - key: SERVER_DIR
+    value: "qiyu-server"
+  - key: IMAGE_NAME
+    value: "qiyu-server"
+  - key: CONTAINER_NAME
+    value: "qiyu-server"
+  - key: CONTAINER_PORT
+    value: "8080"
+  - key: RESTART_POLICY
+    value: "unless-stopped"
+  - key: HEALTH_TIMEOUT_SECONDS
+    value: "180"
+  - key: P3C_RULE_SET
+    value: "ali-comment.xml,ali-concurrent.xml,ali-constant.xml,ali-exception.xml,ali-flowcontrol.xml,ali-naming.xml,ali-oop.xml,ali-orm.xml,ali-other.xml,ali-set.xml"
+
+sources:
+  app_repo:
+    type: codeup
+    name: "{{ .IMAGE_NAME }}"
+    endpoint: "{{ .CODE_REPO_URL }}"
+    branch: "{{ .CODE_BRANCH }}"
+    certificate:
+      type: serviceConnection
+      serviceConnection: "{{ .CODEUP_SERVICE_CONNECTION }}"
+
+stages:
+  java_test_stage:
+    name: "后端检查与测试"
+    jobs:
+      java_p3c_scan_job:
+        name: "Java 代码扫描"
+        runsOn:
+          group: "{{ .BUILD_RUNNER_GROUP }}"
+          container: "{{ .BUILD_RUNNER_IMAGE }}"
+        steps:
+          java_p3c_scan_step:
+            name: "Java 代码规约扫描"
+            step: JavaP3CScan
+            with:
+              incrementalScan: false
+              customRule: false
+              jdkVersion: "{{ .JDK_VERSION }}"
+              mavenVersion: "{{ .MAVEN_VERSION }}"
+              subDir: "${SERVER_DIR}"
+              ruleSet: "${P3C_RULE_SET}"
+      maven_unit_test_job:
+        name: "Maven 单元测试"
+        runsOn:
+          group: "{{ .BUILD_RUNNER_GROUP }}"
+          container: "{{ .BUILD_RUNNER_IMAGE }}"
+        steps:
+          setup_maven_settings_step:
+            name: "配置 Maven Settings"
+            step: SetupMavenSettings
+            with:
+              mavenSettingXmlPath: "${MAVEN_SETTINGS_PATH}"
+          setup_java_step:
+            name: "安装 Java 环境"
+            step: SetupJava
+            with:
+              jdkVersion: "{{ .JDK_VERSION }}"
+              mavenVersion: "{{ .MAVEN_VERSION }}"
+          maven_test_step:
+            name: "执行后端测试"
+            step: Command
+            with:
+              run: |
+                set -eu
+                cd "$SERVER_DIR"
+                mvn -B test
+
+  java_build_stage:
+    name: "后端镜像构建上传"
+    jobs:
+      java_build_job:
+        name: "构建并推送 ACR 镜像"
+        runsOn:
+          group: "{{ .BUILD_RUNNER_GROUP }}"
+          container: "{{ .BUILD_RUNNER_IMAGE }}"
+        steps:
+          acr_docker_build_step:
+            name: "镜像构建并推送至 ACR 个人版"
+            step: DockerBuildPushACR
+            with:
+              serviceConnection: "{{ .ACR_SERVICE_CONNECTION }}"
+              artifact: "{{ .IMAGE_NAME }}"
+              region: "{{ .ACR_REGION }}"
+              dockerRegistry: "${ACR_DOCKER_REGISTRY}/${ACR_NAMESPACE}/${IMAGE_NAME}"
+              dockerTag: "${PIPELINE_ID}-${BUILD_NUMBER}"
+              dockerfilePath: "${SERVER_DIR}/Dockerfile"
+              contextPath: "${SERVER_DIR}"
+              cacheType: remote
+
+  vm_deploy_stage:
+    name: "部署后端"
+    jobs:
+      vm_deploy_job:
+        name: "主机 Docker 部署"
+        component: VMDeploy
+        with:
+          downloadArtifact: false
+          machineGroup: "{{ .MACHINE_GROUP_ID }}"
+          executeUser: "${DEPLOY_USER}"
+          variables:
+            - key: IMAGE_FULL_NAME
+              value: "${ACR_DOCKER_REGISTRY}/${ACR_NAMESPACE}/${IMAGE_NAME}:${PIPELINE_ID}-${BUILD_NUMBER}"
+          run: |
+            set +x
+            set -eu
+            : "$IMAGE_FULL_NAME"
+            : "$QIYU_DB_URL"
+            : "$QIYU_DB_USERNAME"
+            : "$QIYU_DB_PASSWORD"
+            : "$QIYU_REDIS_HOST"
+            DOCKER_CONFIG=$(mktemp -d)
+            export DOCKER_CONFIG
+            trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+            printf '%s' "$ACR_PASSWORD" | docker login --username "$ACR_USERNAME" --password-stdin "$ACR_DOCKER_REGISTRY"
+            docker pull "$IMAGE_FULL_NAME"
+            docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              --restart "$RESTART_POLICY" \
+              -p "$${HOST_PORT:-8080}:$CONTAINER_PORT" \
+              -e SPRING_PROFILES_ACTIVE="$${SPRING_PROFILE:-db}" \
+              -e SERVER_PORT="$CONTAINER_PORT" \
+              -e QIYU_DB_URL="$QIYU_DB_URL" \
+              -e QIYU_DB_USERNAME="$QIYU_DB_USERNAME" \
+              -e QIYU_DB_PASSWORD="$QIYU_DB_PASSWORD" \
+              -e SPRING_DATA_REDIS_HOST="$QIYU_REDIS_HOST" \
+              -e SPRING_DATA_REDIS_PORT="$${QIYU_REDIS_PORT:-6379}" \
+              -e SPRING_DATA_REDIS_PASSWORD="$${QIYU_REDIS_PASSWORD:-}" \
+              -e ADMIN_INITIAL_PASSWORD="$${ADMIN_INITIAL_PASSWORD:-}" \
+              -e QIYU_BOOKING_PAYMENT_TIMEOUT_MINUTES="$${QIYU_BOOKING_PAYMENT_TIMEOUT_MINUTES:-15}" \
+              -e QIYU_STORAGE_MINIO_ENABLED="$${QIYU_MINIO_ENABLED:-false}" \
+              -e QIYU_STORAGE_MINIO_ENDPOINT="$${QIYU_MINIO_ENDPOINT:-}" \
+              -e QIYU_STORAGE_MINIO_ACCESSKEY="$${QIYU_MINIO_ACCESS_KEY:-}" \
+              -e QIYU_STORAGE_MINIO_SECRETKEY="$${QIYU_MINIO_SECRET_KEY:-}" \
+              -e QIYU_STORAGE_MINIO_BUCKET="$${QIYU_MINIO_BUCKET:-}" \
+              -e QIYU_STORAGE_MINIO_PUBLICBASEURL="$${QIYU_MINIO_PUBLIC_BASE_URL:-$${QIYU_MINIO_ENDPOINT:-}}" \
+              -e QIYU_STORAGE_MINIO_PUBLICREAD="$${QIYU_MINIO_PUBLIC_READ:-false}" \
+              -e QIYU_STORAGE_MINIO_SEEDENABLED="$${QIYU_MINIO_SEED_ENABLED:-false}" \
+              "$IMAGE_FULL_NAME"
+            deadline=$(( $(date +%s) + HEALTH_TIMEOUT_SECONDS ))
+            while :; do
+              if [ -n "$(docker ps --filter "name=$CONTAINER_NAME" --filter health=healthy --quiet)" ]; then
+                echo "container is healthy"
+                break
+              fi
+              if [ -z "$(docker ps --filter "name=$CONTAINER_NAME" --quiet)" ]; then
+                echo "container is not running" >&2
+                docker logs --tail 100 "$CONTAINER_NAME" >&2 || true
+                exit 1
+              fi
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "health check timed out after $HEALTH_TIMEOUT_SECONDS seconds" >&2
+                docker logs --tail 100 "$CONTAINER_NAME" >&2 || true
+                exit 1
+              fi
+              sleep 5
+            done

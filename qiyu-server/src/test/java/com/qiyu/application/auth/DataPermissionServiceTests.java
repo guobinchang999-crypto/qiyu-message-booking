@@ -4,6 +4,7 @@ import com.qiyu.domain.auth.DataAccessScope;
 import com.qiyu.domain.auth.DataScopeType;
 import com.qiyu.domain.auth.UserType;
 import com.qiyu.domain.booking.Booking;
+import com.qiyu.domain.booking.BookingFactory;
 import com.qiyu.domain.booking.BookingStatus;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DataPermissionServiceTests {
     private final DataPermissionService service = new DataPermissionService();
-    private final Booking jinganBooking = new Booking("BK-1", "store-jingan", "service-neck", "therapist-anran", "room-1",
+    private final Booking jinganBooking = BookingFactory.demo("BK-1", "store-jingan", "service-neck", "therapist-anran", "room-1",
             "林女士", "13800001234", "customer-1", LocalDate.of(2026, 8, 8), LocalTime.of(10, 0), 60, BookingStatus.BOOKED);
 
     @Test

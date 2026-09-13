@@ -2,7 +2,7 @@ package com.qiyu.adapter.serviceitem;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.qiyu.adapter.common.ApiResponse;
-import com.qiyu.application.serviceitem.ServiceManagementModels;
+import com.qiyu.application.serviceitem.dto.ServiceManagementModels;
 import com.qiyu.application.serviceitem.ServiceManagementService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;

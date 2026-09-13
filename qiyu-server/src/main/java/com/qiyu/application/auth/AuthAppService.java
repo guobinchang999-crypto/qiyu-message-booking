@@ -1,5 +1,8 @@
 package com.qiyu.application.auth;
 
+import com.qiyu.application.auth.dto.AuthResponse;
+import com.qiyu.application.auth.dto.SendCodeResponse;
+
 import cn.dev33.satoken.stp.SaLoginModel;
 import cn.dev33.satoken.stp.StpUtil;
 import com.qiyu.domain.auth.ClientType;
@@ -8,6 +11,7 @@ import com.qiyu.domain.auth.DataScopeType;
 import com.qiyu.domain.auth.GrantType;
 import com.qiyu.domain.auth.UserType;
 import com.qiyu.domain.auth.gateway.SmsVerificationGateway;
+import com.qiyu.infrastructure.auth.DbAuthPrincipalProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
@@ -25,11 +29,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 public class AuthAppService {
+    private static final int CUSTOMER_SESSION_TIMEOUT_SECONDS = 2 * 60 * 60;
     private final ConcurrentMap<String, AuthPrincipal> principals = new ConcurrentHashMap<>();
     private final DbAuthPrincipalProvider dbAuthPrincipalProvider;
     private final SmsVerificationGateway smsVerificationGateway;
     @Value("${qiyu.auth.mock-admin-password:}")
     private String mockAdminPassword;
+    @Value("${qiyu.auth.admin-session-timeout-seconds:43200}")
+    private int adminSessionTimeoutSeconds;
 
     public AuthAppService(ObjectProvider<DbAuthPrincipalProvider> dbAuthPrincipalProvider,
                           SmsVerificationGateway smsVerificationGateway) {
@@ -48,19 +55,21 @@ public class AuthAppService {
         ClientType clientType = parse(ClientType.class, clientTypeValue, "客户端类型不正确");
         GrantType grantType = parse(GrantType.class, grantTypeValue, "登录方式不正确");
         AuthPrincipal principal = authenticate(clientType, grantType, identifier, credential);
+        int sessionTimeoutSeconds = sessionTimeoutSeconds(clientType);
         // Every client receives the same token contract even though each grant type authenticates differently.
-        StpUtil.login(principal.userId(), new SaLoginModel().setTimeout(7200));
+        StpUtil.login(principal.userId(), new SaLoginModel().setTimeout(sessionTimeoutSeconds));
         StpUtil.getTokenSession().set("principal", principal);
         String token = StpUtil.getTokenValue();
         principals.put(token, principal);
-        return response(token, principal);
+        return response(token, principal, sessionTimeoutSeconds);
     }
 
     /** Returns the refreshed effective access context for the current token. */
     public AuthResponse current() {
         refreshCurrentAccessContext();
         AuthPrincipal principal = AuthContext.current();
-        return response(StpUtil.getTokenValue(), principal);
+        return response(StpUtil.getTokenValue(), principal,
+                principal.userType() == UserType.STAFF ? adminSessionTimeoutSeconds : CUSTOMER_SESSION_TIMEOUT_SECONDS);
     }
 
     /** Invalidates the current token and removes its cached principal. */
@@ -134,7 +143,9 @@ public class AuthAppService {
             }
             if ("manager".equals(identifier)) {
                 return new AuthPrincipal(9002L, UserType.STAFF, null, null,
-                        Set.of("STORE_MANAGER"), Set.of("dashboard:read", "booking:read", "booking:update", "booking:cancel", "booking:checkin", "schedule:read", "customer:read", "customer:reveal_phone"),
+                        Set.of("STORE_MANAGER"), Set.of("dashboard:read", "booking:read", "booking:create", "booking:update", "booking:cancel", "booking:checkin",
+                                "service_order:read", "service_order:update", "schedule:read", "store:read", "therapist:read", "service:read", "room:read",
+                                "customer:read", "customer:reveal_phone", "member:read", "coupon:read", "report:read"),
                         DataScopeType.PRIMARY_STORE, Set.of("store-jingan"), Set.of(), storeScopes(Set.of("store-jingan")), Set.of(), "静安寺店店长", null);
             }
             if ("employee".equals(identifier)) {
@@ -149,7 +160,11 @@ public class AuthAppService {
         throw new IllegalArgumentException("当前客户端不支持该登录方式");
     }
 
-    private static AuthResponse response(String token, AuthPrincipal principal) {
+    private int sessionTimeoutSeconds(ClientType clientType) {
+        return clientType == ClientType.ADMIN_WEB ? adminSessionTimeoutSeconds : CUSTOMER_SESSION_TIMEOUT_SECONDS;
+    }
+
+    private static AuthResponse response(String token, AuthPrincipal principal, int expiresIn) {
         AuthResponse.ScopeView scope = scopeView(principal.scopeType(), principal.storeIds(), principal.regionIds());
         List<AuthResponse.StoreScopeView> scopes = principal.dataScopes().stream()
                 .map(item -> new AuthResponse.StoreScopeView(item.resourceCode(), item.actionCode(),
@@ -161,7 +176,7 @@ public class AuthAppService {
                 principal.permissions().stream()
                 .filter(permission -> permission.contains("reveal_") || permission.startsWith("finance:") || permission.contains("health"))
                 .toList(), principal.deniedPermissions(), scopes, scope);
-        return new AuthResponse(token, token, "Bearer", 7200, principalView,
+        return new AuthResponse(token, token, "Bearer", expiresIn, principalView,
                 new AuthResponse.UserSummary(principal.mobile() == null ? "" : principal.mobile(), principal.displayName()));
     }
 
@@ -186,10 +201,18 @@ public class AuthAppService {
 
     private static List<DataAccessScope> storeScopes(Set<String> stores) {
         return List.of(scope("booking", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("booking", "CREATE", DataScopeType.PRIMARY_STORE, stores),
                 scope("booking", "UPDATE", DataScopeType.PRIMARY_STORE, stores),
                 scope("booking", "CANCEL", DataScopeType.PRIMARY_STORE, stores),
                 scope("booking", "CHECKIN", DataScopeType.PRIMARY_STORE, stores),
-                scope("schedule", "READ", DataScopeType.PRIMARY_STORE, stores));
+                scope("schedule", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("store", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("therapist", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("room", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("customer", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("member", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("coupon", "READ", DataScopeType.PRIMARY_STORE, stores),
+                scope("report", "READ", DataScopeType.PRIMARY_STORE, stores));
     }
 
     private static List<DataAccessScope> employeeScopes() {
@@ -198,9 +221,8 @@ public class AuthAppService {
     }
 
     private static List<DataAccessScope> allStoreScopes() {
-        return List.of(scope("booking", "*", DataScopeType.ALL_STORES, Set.of()),
-                scope("schedule", "*", DataScopeType.ALL_STORES, Set.of()),
-                scope("dashboard", "READ", DataScopeType.ALL_STORES, Set.of()));
+        return java.util.stream.Stream.of("booking","schedule","dashboard","store","therapist","room","service","customer","member","coupon","report")
+                .map(resource->scope(resource,"*",DataScopeType.ALL_STORES,Set.of())).toList();
     }
 
     private static DataAccessScope scope(String resource, String action, DataScopeType type, Set<String> stores) {

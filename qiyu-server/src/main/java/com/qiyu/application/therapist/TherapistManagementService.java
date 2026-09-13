@@ -1,6 +1,6 @@
 package com.qiyu.application.therapist;
 
-import com.qiyu.application.admin.AdminResponseModels;
+import com.qiyu.application.admin.dto.AdminResponseModels;
 import com.qiyu.application.auth.AuthAppService;
 import com.qiyu.application.auth.AuthPrincipal;
 import org.springframework.beans.factory.ObjectProvider;
@@ -55,6 +55,11 @@ public class TherapistManagementService {
         requireStoreAccess(principal, current.storeId());
         String targetStoreId = required(command.storeId(), "所属门店不能为空");
         requireStoreAccess(principal, targetStoreId);
+        if ((Boolean.FALSE.equals(command.enabled()) || !targetStoreId.equals(current.storeId())
+                || !status(command.status()).equals(current.status()))
+                && repository.unfinishedBookingCount(current.databaseId()) > 0) {
+            throw new IllegalArgumentException("技师仍有未完成预约，请先处理预约再调整工作状态或所属门店");
+        }
         long targetStoreDatabaseId = repository.resolveStoreDatabaseId(targetStoreId)
                 .orElseThrow(() -> new IllegalArgumentException("所属门店不存在或已停用"));
         List<String> skills = normalizeSkills(command.skills());

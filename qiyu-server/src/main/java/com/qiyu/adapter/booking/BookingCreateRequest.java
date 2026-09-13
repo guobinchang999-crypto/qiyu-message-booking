@@ -12,5 +12,6 @@ public record BookingCreateRequest(
         @NotBlank(message = "预约时间不能为空") String startTime,
         @NotBlank(message = "客户姓名不能为空") String customerName,
         @NotBlank(message = "手机号不能为空") String mobile,
-        String couponId
+        String couponId,
+        @NotBlank(message = "缺少幂等请求标识") String requestId
 ) { }
