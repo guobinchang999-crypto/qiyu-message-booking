@@ -244,7 +244,8 @@ jobs:
         run: |
           image_owner="$(printf '%s' "$IMAGE_OWNER" | tr '[:upper:]' '[:lower:]')"
           echo "image=ghcr.io/${image_owner}/qiyu-server:${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "package_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pkgs/container/qiyu-server" >> "$GITHUB_OUTPUT"
+          # Personal-account GHCR packages use the /users/.../packages/container/package/... page.
+          echo "package_url=${GITHUB_SERVER_URL}/users/${IMAGE_OWNER}/packages/container/package/qiyu-server" >> "$GITHUB_OUTPUT"
 
       # Release image tags are immutable; Snapshot tags intentionally overwrite.
       - name: Verify Release Version Is Available
@@ -389,7 +390,8 @@ jobs:
         run: |
           image_owner="$(printf '%s' "$IMAGE_OWNER" | tr '[:upper:]' '[:lower:]')"
           echo "image=ghcr.io/${image_owner}/qiyu-admin:${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "package_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pkgs/container/qiyu-admin" >> "$GITHUB_OUTPUT"
+          # Personal-account GHCR packages use the /users/.../packages/container/package/... page.
+          echo "package_url=${GITHUB_SERVER_URL}/users/${IMAGE_OWNER}/packages/container/package/qiyu-admin" >> "$GITHUB_OUTPUT"
 
       - name: Verify Release Version Is Available
         if: needs.plan.outputs.release == 'true'
