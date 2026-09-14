@@ -227,7 +227,7 @@ npm install
 
 ## CI/CD
 
-CI 与 CD 分开维护：`.github/workflows/ci.yml` 负责检查和打包，`.github/workflows/cd-java.yml` 负责将已经发布的 Java 后端镜像部署到 Stage 演示服务器。CD 不重新编译源码，也不使用 Docker Compose。
+CI 与 CD 分开维护：`.github/workflows/ci.yml` 负责检查和打包，`.github/workflows/cd-java.yml` 负责将已经发布的 Java 后端镜像部署到所选环境。CD 不重新编译源码，也不使用 Docker Compose。
 
 ### 手动打包
 
@@ -270,9 +270,13 @@ Snapshot 标签允许覆盖，方便 CD 始终通过确定的版本标签部署�
 
 main 发布前会检查组件 Git Tag 和 GHCR 镜像标签是否重复。发布成功后创建 `qiyu-server-vX.Y.Z`、`qiyu-admin-vX.Y.Z` 或 `qiyu-client-vX.Y.Z` 标签；再次发布相同组件版本会失败。
 
-### Java 后端 Stage 演示环境部署
+### Java 后端部署
 
-进入 **Actions → Qiyu Java CD Pipeline → Run workflow**，保持 **Use workflow from** 为 `main`，在 **Image version or digest** 中填写以下任一形式：
+进入 **Actions → Qiyu Java CD Pipeline → Run workflow**：
+
+1. 保持 GitHub 固定显示的 **Use workflow from** 为 `main`。它表示从哪个 Git 分支读取 CD 工作流定义，并不表示部署哪个版本的应用；GitHub 的原生界面无法隐藏此选择器。工作流会在 GitHub 托管 Runner 上先校验该值，非 `main` 时不会进入自托管服务器。
+2. 在 **Deployment environment** 下拉框中选择目标环境。选项直接来自仓库 **Settings → Environments**。
+3. 在 **Image version or digest** 中填写以下任一形式：
 
 ```text
 0.0.1-SNAPSHOT
@@ -283,11 +287,13 @@ ghcr.io/<repository-owner>/qiyu-server@sha256:<64位小写十六进制摘要>
 
 CD 只允许部署当前仓库所属账号下的 `qiyu-server` 镜像。版本输入会转换为完整 GHCR 地址，Digest 输入用于精确重放或回滚某一次构建。GitHub 的手动运行界面不能动态读取 GHCR 标签，因此版本或 Digest 使用文本输入。
 
-部署任务只会发送到带有 `qiyu-stage` 标签的 Linux x86_64 自托管 Runner。脚本会先拉取镜像，再停止并保留当前容器；新容器在 180 秒内通过 `/actuator/health` 检查后才删除旧容器。启动失败或健康检查失败时会自动恢复旧容器，并将工作流标记为失败。Flyway 已执行的数据库迁移不会被容器回滚撤销，因此迁移必须保持向后兼容。
+环境名同时决定配置和目标服务器：任务声明对应的 GitHub Environment，因此自动读取该环境下的 Variables/Secrets；任务只会发送到带有 `qiyu-<环境名>` 标签的 Linux x86_64 自托管 Runner。例如，`stage` 对应 `qiyu-stage`，`production` 对应 `qiyu-production`。不同环境使用独立并发锁，可以同时部署；同一环境的部署会排队。
 
-目标服务器上的 MySQL、Redis 和可选 MinIO 通过 `host.docker.internal` 访问。部署命令会自动添加 `host.docker.internal:host-gateway`，宿主机服务仍需监听 Docker 网桥可达地址，并允许来自 Docker 网桥的连接。容器固定使用 `db` profile、`8080:8080` 端口映射和 `unless-stopped` 重启策略。
+脚本会先拉取镜像，再停止并保留当前容器；新容器在 180 秒内通过 `/actuator/health` 检查后才删除旧容器。启动失败或健康检查失败时会自动恢复旧容器，并将工作流标记为失败。Flyway 已执行的数据库迁移不会被容器回滚撤销，因此迁移必须保持向后兼容。
 
-部署成功或失败后，任务 Summary 会显示操作者、输入值、完整镜像地址、不可变 Digest、健康状态、回滚状态和 Stage 演示环境入口。
+目标服务器上的 MySQL、Redis 和可选 MinIO 通过 `host.docker.internal` 访问。部署命令会自动添加 `host.docker.internal:host-gateway`，宿主机服务仍需监听 Docker 网桥可达地址，并允许来自 Docker 网桥的连接。容器默认使用 `db` profile，可在对应 Environment 中通过 `SPRING_PROFILE` 修改；端口映射为 `8080:8080`，重启策略为 `unless-stopped`。
+
+部署成功或失败后，任务 Summary 会显示目标环境、操作者、输入值、完整镜像地址、不可变 Digest、健康状态、回滚状态和应用入口。
 
 ### GitHub 配置
 
@@ -307,20 +313,23 @@ Secrets（私密）：
 
 main 发布标签需要工作流具有 `contents: write` 权限。如果仓库将 Actions 默认权限限制为只读，需要在 **Settings → Actions → General → Workflow permissions** 允许工作流写入仓库内容。小程序 Artifact 保留30天。
 
-### Java CD 首次配置
+### Java CD 环境配置
 
-1. 在 Stage 演示环境的 Linux x86_64 服务器安装 Docker，确保部署用户无需 `sudo` 即可执行 `docker ps`。
-2. 在 **Settings → Actions → Runners → New self-hosted runner** 注册服务器，添加 `qiyu-stage` 标签，并将 Runner 安装成系统服务。
-3. 创建 GitHub Environment `stage`，在 **Deployment branches and tags** 中只允许 `main`，防止其他分支访问部署密钥或占用演示环境 Runner。
-4. 在 `stage` Environment 中配置下列 Variables 和 Secrets。仓库已有的 `GHCR_USERNAME` 与 `GHCR_PAT` 继续复用；CD 只需要读取私有镜像。
+每新增一个部署环境，都按以下约定配置：
+
+1. 在该环境的 Linux x86_64 服务器安装 Docker，确保部署用户无需 `sudo` 即可执行 `docker ps`。
+2. 在 **Settings → Actions → Runners → New self-hosted runner** 注册服务器，添加 `qiyu-<环境名>` 标签，并将 Runner 安装成系统服务。当前 Stage 演示服务器已注册为 `qiyu-stage`。
+3. 创建同名 GitHub Environment，例如 `stage` 或 `production`，并在 **Deployment branches and tags** 中只允许 `main`。
+4. 在每个 Environment 中使用下列同名 Variables 和 Secrets，并填写该环境自己的值。仓库已有的 `GHCR_USERNAME` 与 `GHCR_PAT` 继续复用；CD 只需要读取私有镜像。
 
 Variables：
 
 | 名称 | 必填 | 说明 |
 | --- | --- | --- |
-| `APP_BASE_URL` | 是 | Stage 演示服务入口，例如 `http://<server>:8080` |
+| `APP_BASE_URL` | 是 | 当前环境的服务入口，例如 `http://<server>:8080` |
 | `QIYU_DB_URL` | 是 | 使用 `host.docker.internal` 的完整 JDBC URL |
 | `QIYU_REDIS_PORT` | 否 | Redis 端口，默认 `6379` |
+| `SPRING_PROFILE` | 否 | Spring Profile，默认 `db` |
 | `JAVA_OPTS` | 否 | JVM 参数；省略时使用镜像默认值 |
 | `QIYU_MINIO_ENABLED` | 否 | 默认 `false` |
 | `QIYU_MINIO_ENDPOINT` | 启用 MinIO 时 | MinIO S3 API 地址 |
@@ -333,14 +342,14 @@ Secrets：
 
 | 名称 | 必填 | 说明 |
 | --- | --- | --- |
-| `QIYU_DB_USERNAME` | 是 | Stage 数据库用户名 |
-| `QIYU_DB_PASSWORD` | 是 | Stage 数据库密码 |
+| `QIYU_DB_USERNAME` | 是 | 当前环境的数据库用户名 |
+| `QIYU_DB_PASSWORD` | 是 | 当前环境的数据库密码 |
 | `QIYU_REDIS_PASSWORD` | 否 | Redis 无认证时省略 |
 | `ADMIN_INITIAL_PASSWORD` | 首次初始化时 | 已存在管理员数据后可以省略 |
 | `QIYU_MINIO_ACCESS_KEY` | 启用 MinIO 时 | MinIO 访问键 |
 | `QIYU_MINIO_SECRET_KEY` | 启用 MinIO 时 | MinIO 密钥 |
 
-自托管 Runner 必须保持在线并能访问 GitHub、GHCR 和宿主机依赖。不要让 Pull Request 工作流使用 `qiyu-stage` 标签；当前 CI 仍只使用 GitHub 托管 Runner。
+自托管 Runner 必须保持在线并能访问 GitHub、GHCR 和宿主机依赖。不要让 Pull Request 工作流使用任何 `qiyu-<环境名>` 标签；当前 CI 仍只使用 GitHub 托管 Runner。
 
 ## 当前阶段
 

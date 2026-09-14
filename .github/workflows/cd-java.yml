@@ -1,14 +1,19 @@
-# Deploy a previously published Java backend image to the stage demo server.
+# Deploy a previously published Java backend image to a selected environment.
 # CI and CD remain independent: this workflow never compiles source code.
 name: Qiyu Java CD Pipeline
 
-run-name: Deploy Java Backend ${{ inputs.image_reference }} to stage
+run-name: Deploy Java Backend ${{ inputs.image_reference }} to ${{ inputs.environment }}
 
 on:
   # GitHub cannot populate a dynamic selector from GHCR tags, so operators enter
   # a release version, Snapshot version, or immutable image digest.
   workflow_dispatch:
     inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        type: environment
+        default: stage
       image_reference:
         description: 'Image version or digest (for example: 0.0.1-SNAPSHOT or sha256:...)'
         required: true
@@ -19,9 +24,10 @@ permissions:
   contents: read
   packages: read
 
-# Only one stage deployment may modify the container at a time.
+# Deployments are serialized per environment while different environments may
+# deploy independently.
 concurrency:
-  group: qiyu-java-cd-stage
+  group: qiyu-java-cd-${{ inputs.environment }}
   cancel-in-progress: false
 
 env:
@@ -29,25 +35,54 @@ env:
   CONTAINER_PORT: '8080'
   HOST_PORT: '8080'
   HEALTH_TIMEOUT_SECONDS: '180'
-  SPRING_PROFILE: db
-
 jobs:
+  # GitHub always shows "Use workflow from" for manual workflows because that
+  # selector chooses which Git ref supplies the workflow definition. Validate
+  # it on a GitHub-hosted runner before any self-hosted runner is contacted.
+  validate:
+    name: Validate Deployment Request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate Workflow Source and Environment
+        shell: bash
+        env:
+          SOURCE_REF: ${{ github.ref }}
+          DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$SOURCE_REF" != "refs/heads/main" ]]; then
+            echo "::error::Use workflow from must remain set to the main branch. It selects the trusted CD workflow definition, not the application version to deploy."
+            exit 1
+          fi
+
+          if [[ ! "$DEPLOYMENT_ENVIRONMENT" =~ ^[a-z][a-z0-9-]{0,31}$ ]]; then
+            echo "::error::Environment names must start with a lowercase letter and contain only lowercase letters, numbers, or hyphens."
+            exit 1
+          fi
+
   deploy:
-    name: Deploy Java Backend to Stage
-    # The custom label routes this job only to the designated stage server.
-    runs-on: [self-hosted, linux, x64, qiyu-stage]
+    name: Deploy Java Backend to ${{ inputs.environment }}
+    needs: validate
+    # Each GitHub Environment maps to a dedicated runner label. For example,
+    # stage uses qiyu-stage and production uses qiyu-production.
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - qiyu-${{ inputs.environment }}
     timeout-minutes: 15
     environment:
-      name: stage
+      name: ${{ inputs.environment }}
       url: ${{ vars.APP_BASE_URL }}
 
     steps:
-      # Deployment scripts are trusted only from main. The stage Environment must
-      # also restrict deployment branches to main before credentials are added.
-      - name: Validate Deployment Request
+      # Environment-level settings override repository values, allowing every
+      # target to reuse the same variable names with different configuration.
+      - name: Validate Deployment Configuration
         shell: bash
         env:
-          SOURCE_BRANCH: ${{ github.ref_name }}
           IMAGE_INPUT: ${{ inputs.image_reference }}
           GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
           GHCR_PAT: ${{ secrets.GHCR_PAT }}
@@ -57,11 +92,6 @@ jobs:
           QIYU_DB_PASSWORD: ${{ secrets.QIYU_DB_PASSWORD }}
         run: |
           set -euo pipefail
-
-          if [[ "$SOURCE_BRANCH" != "main" ]]; then
-            echo "::error::Deployments must use the workflow from the main branch."
-            exit 1
-          fi
 
           for name in IMAGE_INPUT GHCR_USERNAME GHCR_PAT APP_BASE_URL QIYU_DB_URL QIYU_DB_USERNAME QIYU_DB_PASSWORD; do
             if [[ -z "${!name:-}" ]]; then
@@ -127,7 +157,7 @@ jobs:
           CONTAINER_PORT: ${{ env.CONTAINER_PORT }}
           HOST_PORT: ${{ env.HOST_PORT }}
           HEALTH_TIMEOUT_SECONDS: ${{ env.HEALTH_TIMEOUT_SECONDS }}
-          SPRING_PROFILE: ${{ env.SPRING_PROFILE }}
+          SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'db' }}
           JAVA_OPTS: ${{ vars.JAVA_OPTS }}
           QIYU_DB_URL: ${{ vars.QIYU_DB_URL }}
           QIYU_DB_USERNAME: ${{ secrets.QIYU_DB_USERNAME }}
@@ -153,6 +183,7 @@ jobs:
         shell: bash
         env:
           DEPLOYMENT_OUTCOME: ${{ steps.deployment.outcome }}
+          DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
           IMAGE_INPUT: ${{ inputs.image_reference }}
           RESOLVED_IMAGE: ${{ steps.image.outputs.image }}
           IMAGE_DIGEST: ${{ steps.deployment.outputs.image_digest }}
@@ -172,14 +203,14 @@ jobs:
             echo
             echo "| Field | Value |"
             echo "| --- | --- |"
-            echo "| Environment | \`stage\` |"
+            echo "| Environment | \`${DEPLOYMENT_ENVIRONMENT}\` |"
             echo "| Actor | \`${GITHUB_ACTOR}\` |"
             echo "| Input | \`${IMAGE_INPUT}\` |"
             echo "| Resolved Image | \`${RESOLVED_IMAGE:-Unavailable}\` |"
             echo "| Immutable Image | \`${IMAGE_DIGEST:-Unavailable}\` |"
             echo "| Health | \`${HEALTH_STATUS:-Not reached}\` |"
             echo "| Rollback | \`${ROLLBACK_STATUS:-Not required}\` |"
-            echo "| Application | [Open stage service](${APP_BASE_URL}) |"
+            echo "| Application | [Open deployed service](${APP_BASE_URL}) |"
             echo
             echo "[Open workflow run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
           } >> "$GITHUB_STEP_SUMMARY"
