@@ -1,0 +1,185 @@
+# Deploy a previously published Java backend image to the stage demo server.
+# CI and CD remain independent: this workflow never compiles source code.
+name: Qiyu Java CD Pipeline
+
+run-name: Deploy Java Backend ${{ inputs.image_reference }} to stage
+
+on:
+  # GitHub cannot populate a dynamic selector from GHCR tags, so operators enter
+  # a release version, Snapshot version, or immutable image digest.
+  workflow_dispatch:
+    inputs:
+      image_reference:
+        description: 'Image version or digest (for example: 0.0.1-SNAPSHOT or sha256:...)'
+        required: true
+        type: string
+
+# The workflow reads deployment scripts and pulls a private GHCR package.
+permissions:
+  contents: read
+  packages: read
+
+# Only one stage deployment may modify the container at a time.
+concurrency:
+  group: qiyu-java-cd-stage
+  cancel-in-progress: false
+
+env:
+  CONTAINER_NAME: qiyu-server
+  CONTAINER_PORT: '8080'
+  HOST_PORT: '8080'
+  HEALTH_TIMEOUT_SECONDS: '180'
+  SPRING_PROFILE: db
+
+jobs:
+  deploy:
+    name: Deploy Java Backend to Stage
+    # The custom label routes this job only to the designated stage server.
+    runs-on: [self-hosted, linux, x64, qiyu-stage]
+    timeout-minutes: 15
+    environment:
+      name: stage
+      url: ${{ vars.APP_BASE_URL }}
+
+    steps:
+      # Deployment scripts are trusted only from main. The stage Environment must
+      # also restrict deployment branches to main before credentials are added.
+      - name: Validate Deployment Request
+        shell: bash
+        env:
+          SOURCE_BRANCH: ${{ github.ref_name }}
+          IMAGE_INPUT: ${{ inputs.image_reference }}
+          GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          QIYU_DB_URL: ${{ vars.QIYU_DB_URL }}
+          QIYU_DB_USERNAME: ${{ secrets.QIYU_DB_USERNAME }}
+          QIYU_DB_PASSWORD: ${{ secrets.QIYU_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$SOURCE_BRANCH" != "main" ]]; then
+            echo "::error::Deployments must use the workflow from the main branch."
+            exit 1
+          fi
+
+          for name in IMAGE_INPUT GHCR_USERNAME GHCR_PAT APP_BASE_URL QIYU_DB_URL QIYU_DB_USERNAME QIYU_DB_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::$name is not configured. See the Java CD section in README.md."
+              exit 1
+            fi
+          done
+
+      - name: Checkout Deployment Scripts
+        uses: actions/checkout@v7
+
+      # Accept only this repository's qiyu-server image. A short version or
+      # digest is expanded to its canonical GHCR reference.
+      - name: Resolve Container Image
+        id: image
+        shell: bash
+        env:
+          IMAGE_INPUT: ${{ inputs.image_reference }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+
+          image_input="${IMAGE_INPUT#"${IMAGE_INPUT%%[![:space:]]*}"}"
+          image_input="${image_input%"${image_input##*[![:space:]]}"}"
+          image_owner="$(printf '%s' "$REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          image_repository="ghcr.io/${image_owner}/qiyu-server"
+
+          if [[ "$image_input" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-SNAPSHOT)?$ ]]; then
+            resolved_image="${image_repository}:${image_input}"
+          elif [[ "$image_input" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            resolved_image="${image_repository}@${image_input}"
+          elif [[ "$image_input" == "${image_repository}@"* ]]; then
+            digest="${image_input#"${image_repository}@"}"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::The full qiyu-server image reference contains an invalid digest."
+              exit 1
+            fi
+            resolved_image="${image_repository}@${digest}"
+          else
+            echo "::error::Image input must be X.Y.Z, X.Y.Z-SNAPSHOT, sha256:<64 lowercase hex characters>, or a full immutable qiyu-server image reference."
+            exit 1
+          fi
+
+          echo "image=$resolved_image" >> "$GITHUB_OUTPUT"
+
+      # The login action removes registry credentials in its post-job cleanup.
+      - name: Authenticate to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ vars.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_PAT }}
+          logout: true
+
+      # The script pulls before stopping the active container, performs the
+      # health check, and restores the previous container when deployment fails.
+      - name: Deploy Container with Automatic Rollback
+        id: deployment
+        shell: bash
+        env:
+          IMAGE_REFERENCE: ${{ steps.image.outputs.image }}
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+          CONTAINER_PORT: ${{ env.CONTAINER_PORT }}
+          HOST_PORT: ${{ env.HOST_PORT }}
+          HEALTH_TIMEOUT_SECONDS: ${{ env.HEALTH_TIMEOUT_SECONDS }}
+          SPRING_PROFILE: ${{ env.SPRING_PROFILE }}
+          JAVA_OPTS: ${{ vars.JAVA_OPTS }}
+          QIYU_DB_URL: ${{ vars.QIYU_DB_URL }}
+          QIYU_DB_USERNAME: ${{ secrets.QIYU_DB_USERNAME }}
+          QIYU_DB_PASSWORD: ${{ secrets.QIYU_DB_PASSWORD }}
+          SPRING_DATA_REDIS_HOST: host.docker.internal
+          SPRING_DATA_REDIS_PORT: ${{ vars.QIYU_REDIS_PORT || '6379' }}
+          SPRING_DATA_REDIS_PASSWORD: ${{ secrets.QIYU_REDIS_PASSWORD }}
+          ADMIN_INITIAL_PASSWORD: ${{ secrets.ADMIN_INITIAL_PASSWORD }}
+          QIYU_MINIO_ENABLED: ${{ vars.QIYU_MINIO_ENABLED || 'false' }}
+          QIYU_MINIO_ENDPOINT: ${{ vars.QIYU_MINIO_ENDPOINT }}
+          QIYU_MINIO_ACCESS_KEY: ${{ secrets.QIYU_MINIO_ACCESS_KEY }}
+          QIYU_MINIO_SECRET_KEY: ${{ secrets.QIYU_MINIO_SECRET_KEY }}
+          QIYU_MINIO_BUCKET: ${{ vars.QIYU_MINIO_BUCKET }}
+          QIYU_MINIO_PUBLIC_BASE_URL: ${{ vars.QIYU_MINIO_PUBLIC_BASE_URL }}
+          QIYU_MINIO_PUBLIC_READ: ${{ vars.QIYU_MINIO_PUBLIC_READ || 'false' }}
+          QIYU_MINIO_SEED_ENABLED: ${{ vars.QIYU_MINIO_SEED_ENABLED || 'false' }}
+        run: qiyu-server/scripts/deploy-container.sh
+
+      # Always publish a concise operator-facing result. Earlier step failures
+      # still keep the job red after this summary has been written.
+      - name: Publish Deployment Result
+        if: always()
+        shell: bash
+        env:
+          DEPLOYMENT_OUTCOME: ${{ steps.deployment.outcome }}
+          IMAGE_INPUT: ${{ inputs.image_reference }}
+          RESOLVED_IMAGE: ${{ steps.image.outputs.image }}
+          IMAGE_DIGEST: ${{ steps.deployment.outputs.image_digest }}
+          HEALTH_STATUS: ${{ steps.deployment.outputs.health_status }}
+          ROLLBACK_STATUS: ${{ steps.deployment.outputs.rollback_status }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          status="Failed ❌"
+          if [[ "$DEPLOYMENT_OUTCOME" == "success" ]]; then
+            status="Succeeded ✅"
+          fi
+
+          {
+            echo "# Deployment $status"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Environment | \`stage\` |"
+            echo "| Actor | \`${GITHUB_ACTOR}\` |"
+            echo "| Input | \`${IMAGE_INPUT}\` |"
+            echo "| Resolved Image | \`${RESOLVED_IMAGE:-Unavailable}\` |"
+            echo "| Immutable Image | \`${IMAGE_DIGEST:-Unavailable}\` |"
+            echo "| Health | \`${HEALTH_STATUS:-Not reached}\` |"
+            echo "| Rollback | \`${ROLLBACK_STATUS:-Not required}\` |"
+            echo "| Application | [Open stage service](${APP_BASE_URL}) |"
+            echo
+            echo "[Open workflow run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+          } >> "$GITHUB_STEP_SUMMARY"

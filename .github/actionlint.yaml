@@ -1,0 +1,5 @@
+# Keep custom self-hosted runner labels explicit so workflow linting can verify
+# that qiyu-stage is intentional rather than a misspelled hosted runner name.
+self-hosted-runner:
+  labels:
+    - qiyu-stage
