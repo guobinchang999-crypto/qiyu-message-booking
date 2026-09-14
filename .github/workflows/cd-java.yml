@@ -1,8 +1,8 @@
-# Deploy a previously published Java backend image to the test server.
+# Deploy a previously published Java backend image to the stage demo server.
 # CI and CD remain independent: this workflow never compiles source code.
 name: Qiyu Java CD Pipeline
 
-run-name: Deploy Java Backend ${{ inputs.image_reference }} to test
+run-name: Deploy Java Backend ${{ inputs.image_reference }} to stage
 
 on:
   # GitHub cannot populate a dynamic selector from GHCR tags, so operators enter
@@ -19,9 +19,9 @@ permissions:
   contents: read
   packages: read
 
-# Only one test deployment may modify the container at a time.
+# Only one stage deployment may modify the container at a time.
 concurrency:
-  group: qiyu-java-cd-test
+  group: qiyu-java-cd-stage
   cancel-in-progress: false
 
 env:
@@ -33,16 +33,16 @@ env:
 
 jobs:
   deploy:
-    name: Deploy Java Backend to Test
-    # The custom label routes this job only to the designated test server.
-    runs-on: [self-hosted, linux, x64, qiyu-test]
+    name: Deploy Java Backend to Stage
+    # The custom label routes this job only to the designated stage server.
+    runs-on: [self-hosted, linux, x64, qiyu-stage]
     timeout-minutes: 15
     environment:
-      name: test
+      name: stage
       url: ${{ vars.APP_BASE_URL }}
 
     steps:
-      # Deployment scripts are trusted only from main. The test Environment must
+      # Deployment scripts are trusted only from main. The stage Environment must
       # also restrict deployment branches to main before credentials are added.
       - name: Validate Deployment Request
         shell: bash
@@ -172,14 +172,14 @@ jobs:
             echo
             echo "| Field | Value |"
             echo "| --- | --- |"
-            echo "| Environment | \`test\` |"
+            echo "| Environment | \`stage\` |"
             echo "| Actor | \`${GITHUB_ACTOR}\` |"
             echo "| Input | \`${IMAGE_INPUT}\` |"
             echo "| Resolved Image | \`${RESOLVED_IMAGE:-Unavailable}\` |"
             echo "| Immutable Image | \`${IMAGE_DIGEST:-Unavailable}\` |"
             echo "| Health | \`${HEALTH_STATUS:-Not reached}\` |"
             echo "| Rollback | \`${ROLLBACK_STATUS:-Not required}\` |"
-            echo "| Application | [Open test service](${APP_BASE_URL}) |"
+            echo "| Application | [Open stage service](${APP_BASE_URL}) |"
             echo
             echo "[Open workflow run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
           } >> "$GITHUB_STEP_SUMMARY"
