@@ -10,7 +10,7 @@ on:
       - 'qiyu-server/**'
       - 'qiyu-admin-pro/**'
       - 'qiyu-client/**'
-      - '.github/pipeline/project.yml'
+      - '.github/project.yml'
       - '.github/workflows/ci.yml'
 
   workflow_dispatch:
@@ -46,4 +46,4 @@ jobs:
     with:
       component: ${{ inputs.component || 'auto' }}
       run_checks: ${{ inputs.run_checks || false }}
-      config_path: .github/pipeline/project.yml
+      config_path: .github/project.yml

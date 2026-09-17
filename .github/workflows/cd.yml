@@ -38,4 +38,4 @@ jobs:
       component: ${{ inputs.component }}
       environment: ${{ inputs.environment }}
       reference: ${{ inputs.reference }}
-      config_path: .github/pipeline/project.yml
+      config_path: .github/project.yml

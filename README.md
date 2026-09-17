@@ -227,7 +227,7 @@ npm install
 
 ## CI/CD
 
-本项目的 CI 与 CD 使用私有仓库 [`guobinchang999-crypto/github-pipelines`](https://github.com/guobinchang999-crypto/github-pipelines) 中的 `v2` 公共流水线。业务仓库只保留运行界面、[`.github/pipeline/project.yml`](.github/pipeline/project.yml) 项目清单和各应用自己的环境配置；构建、版本校验、容器部署、健康检查和回滚由公共仓库统一维护。
+本项目的 CI 与 CD 使用私有仓库 [`guobinchang999-crypto/github-pipelines`](https://github.com/guobinchang999-crypto/github-pipelines) 中的 `v2` 公共流水线。业务仓库只保留运行界面、[`.github/project.yml`](.github/project.yml) 项目清单和各应用自己的环境配置；构建、版本校验、容器部署、健康检查和回滚由公共仓库统一维护。
 
 ### CI：检查与打包
 
