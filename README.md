@@ -227,7 +227,7 @@ npm install
 
 ## CI/CD
 
-本项目的 CI 与 CD 使用私有仓库 [`guobinchang999-crypto/github-pipelines`](https://github.com/guobinchang999-crypto/github-pipelines) 中的 `v1` 公共流水线。业务仓库只保留运行界面和 [`.github/pipeline/project.yml`](.github/pipeline/project.yml) 项目清单；构建、版本校验、SOPS 解密、容器部署、健康检查和回滚由公共仓库统一维护。
+本项目的 CI 与 CD 使用私有仓库 [`guobinchang999-crypto/github-pipelines`](https://github.com/guobinchang999-crypto/github-pipelines) 中的 `v2` 公共流水线。业务仓库只保留运行界面、[`.github/pipeline/project.yml`](.github/pipeline/project.yml) 项目清单和各应用自己的环境配置；构建、版本校验、容器部署、健康检查和回滚由公共仓库统一维护。
 
 ### CI：检查与打包
 
@@ -262,36 +262,38 @@ main 发布前会检查 Git Tag 和 GHCR 镜像是否重复。成功后创建 `q
 
 容器支持 `X.Y.Z-SNAPSHOT`、`X.Y.Z`、`sha256:<digest>` 或本项目对应镜像的完整 GHCR Digest 地址。`production` 拒绝 Snapshot。Stage 小程序使用 `artifact:<id>` 或正式版本；Production 小程序只接受正式 `X.Y.Z`，并上传标记为 `production-candidate` 的体验版，不自动提交微信审核或发布线上版本。
 
-Java 和后台部署在环境专属自托管 Runner 上直接执行 Docker，不使用 SSH 或 Docker Compose。流水线先完成输入校验、SOPS 解密、GHCR 登录和镜像拉取，再停止旧容器。新容器通过 Docker HEALTHCHECK 后删除回滚容器；失败时保留有限日志并自动恢复旧容器。Flyway 已执行的数据库迁移不会随容器回滚，因此数据库变更必须保持向后兼容。
+Java 和后台部署在环境专属自托管 Runner 上直接执行 Docker，不使用 SSH 或 Docker Compose。流水线先完成输入校验、GHCR 登录和镜像拉取，再停止旧容器。新容器通过 Docker HEALTHCHECK 后删除回滚容器；失败时保留有限日志并自动恢复旧容器。Flyway 已执行的数据库迁移不会随容器回滚，因此数据库变更必须保持向后兼容。
 
 后台镜像通过 `/runtime-config.js` 接收环境 API 地址，同一个镜像可以部署到不同环境。小程序上传前会写入对应环境的 HTTPS API 地址并重新计算上传源码摘要。
 
-### SOPS 加密配置
+### 应用配置与运行时解密
 
-`stage` 和 `production` 配置分别保存在：
+Java 环境配置直接保存在应用资源目录：
 
 ```text
-.github/pipeline/environments/stage.sops.yaml
-.github/pipeline/environments/production.sops.yaml
+qiyu-server/src/main/resources/application-stage.yml
+qiyu-server/src/main/resources/application-production.yml
 ```
 
-这些文件使用 SOPS 3.13.3 和每个环境独立的 age 公钥逐字段加密。数据库密码、Redis 密码、MinIO 凭据和微信上传私钥均以密文提交。GitHub 中每个 Environment 只保存一个 Secret：`SOPS_AGE_KEY`，值为对应 age 私钥文件的完整内容。
+数据库密码、初始管理员密码等敏感值使用 Jasypt `ENC(...)` 密文。CD 不读取或解密业务配置，只将所选 GitHub Environment 的 `CONFIG_ENCRYPTION_KEY` 作为 `JASYPT_ENCRYPTOR_PASSWORD` 注入容器，并设置同名 Spring Profile。
 
-编辑时在安全的本机设置私钥文件，再由 SOPS 就地解密编辑并重新加密：
+生成单个属性密文：
 
 ```bash
-SOPS_AGE_KEY_FILE=/secure/path/stage.agekey sops .github/pipeline/environments/stage.sops.yaml
+mvn jasypt:encrypt-value \
+  -Djasypt.encryptor.password="$CONFIG_ENCRYPTION_KEY" \
+  -Djasypt.plugin.value='actual-secret'
 ```
 
-禁止提交 `.agekey` 私钥或解密后的配置。公共 Action 会在输出日志前掩码解密值，并在成功、失败和回滚路径中删除权限为 `600` 的临时文件。
+管理后台和小程序的 API 地址会下发到用户设备，因此分别放在组件自己的 `config/application-stage.json` 和 `config/application-production.json` 中，不进行无意义的前端加密。微信上传私钥是发布凭据，保存在 GitHub Environment 的 `WECHAT_UPLOAD_PRIVATE_KEY` Secret。
 
 ### 首次配置
 
 1. 在公共 Pipeline 仓库的 **Settings → Actions → General → Access** 中允许本业务仓库调用私有 Reusable Workflows。
-2. 创建 GitHub Environments：`stage`、`production`，各添加唯一 Secret `SOPS_AGE_KEY`。Production 配置 Required Reviewers，并只允许 main 部署。
+2. 创建 GitHub Environments：`stage`、`production`，各添加 Secret `CONFIG_ENCRYPTION_KEY`。Production 配置 Required Reviewers，并只允许 main 部署。
 3. 准备 Linux x86_64 自托管 Runner：Stage 标签为 `qiyu-stage`，Production 标签为 `qiyu-production`。容器 Runner 需安装 Docker，并允许 Runner 用户无需 `sudo` 操作 Docker。
 4. MySQL、Redis 和 MinIO 位于宿主机时，配置中的主机使用 `host.docker.internal`；宿主机服务必须监听 Docker 网桥可达地址。
-5. 微信公众平台生成代码上传私钥，将固定出口 Runner 的公网 IP 加入上传白名单，再把私钥写入对应 SOPS 配置。
+5. 若部署小程序，在两个 Environment 中配置 `WECHAT_UPLOAD_PRIVATE_KEY`，并将固定出口 Runner 的公网 IP 加入微信代码上传白名单。
 
 Java 固定映射 `8080:8080`，后台固定映射 `8001:80`。Stage 与 Production 使用同一个微信 AppID；前者上传体验版，后者上传候选体验版。
 

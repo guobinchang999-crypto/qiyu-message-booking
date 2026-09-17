@@ -13,6 +13,30 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 
 默认 profile 使用内存数据供自动化测试；`local` profile 使用 MySQL、真实权限数据和 MyBatis-Plus 仓储。支付仍为明确的接口占位，不会调用真实支付渠道。
 
+## Stage / Production 配置
+
+演示和生产配置分别位于 `src/main/resources/application-stage.yml` 与
+`src/main/resources/application-production.yml`。数据库密码和初始管理员密码等敏感属性只提交
+Jasypt `ENC(...)` 密文；对应明文密钥不进入 Git、Docker 镜像或应用配置文件。
+
+GitHub CD 根据所选 Environment 设置 `SPRING_PROFILES_ACTIVE`，并将该 Environment 的
+`CONFIG_ENCRYPTION_KEY` Secret 作为 `JASYPT_ENCRYPTOR_PASSWORD` 注入容器。手工运行示例：
+
+```bash
+docker run --rm \
+  -e SPRING_PROFILES_ACTIVE=stage \
+  -e JASYPT_ENCRYPTOR_PASSWORD="$CONFIG_ENCRYPTION_KEY" \
+  ghcr.io/<owner>/qiyu-server:<version>
+```
+
+修改敏感配置时，使用目标环境的同一密钥生成新的密文，然后只替换配置中的 `ENC(...)`：
+
+```bash
+mvn jasypt:encrypt-value \
+  -Djasypt.encryptor.password="$CONFIG_ENCRYPTION_KEY" \
+  -Djasypt.plugin.value='actual-secret'
+```
+
 统一认证接口：
 
 - `POST /auth/send-code`：发送本地验证码。

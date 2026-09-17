@@ -1,0 +1,36 @@
+spring:
+  config:
+    activate:
+      on-profile: production
+  datasource:
+    url: jdbc:mysql://host.docker.internal:3306/qiyu_booking?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: qiyu
+    password: 'ENC(slDeeSJI+gx4SlcTX6tqOZjEfkELC1i35eX/zB/MKWMgzdmpL+FEZOo+ypO6d+cCiGHv2yQ30MR5P0dm3zk3sQ==)'
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/flyway
+    baseline-on-migrate: true
+    baseline-version: 1
+    validate-on-migrate: true
+  data:
+    redis:
+      host: host.docker.internal
+      port: 6379
+      password: ''
+      timeout: 3s
+
+qiyu:
+  auth:
+    persistence: true
+    initial-admin-password: 'ENC(lM8QS2OA2oGQeScObB7regcDHah5u+Wr7gkhJSQ+zwbJQQGdNjVuOtR5Yb2z1GTSKEc4w8HLGDyzcgHThj7QoQ==)'
+  storage:
+    minio:
+      enabled: false
+      endpoint: ''
+      access-key: ''
+      secret-key: ''
+      bucket: qiyu
+      public-base-url: ''
+      public-read: false
+      seed-enabled: false

@@ -1,5 +1,5 @@
 # This caller owns the deployment UI. The selected GitHub Environment controls
-# the runner, approval policy and the single SOPS_AGE_KEY secret.
+# the runner, approval policy and runtime application decryption key.
 name: Qiyu CD Pipeline
 
 run-name: Deploy ${{ inputs.component }} ${{ inputs.reference }} to ${{ inputs.environment }}
@@ -33,7 +33,7 @@ permissions:
 jobs:
   pipeline:
     name: Run Reusable CD
-    uses: guobinchang999-crypto/github-pipelines/.github/workflows/cd.yml@v1
+    uses: guobinchang999-crypto/github-pipelines/.github/workflows/cd.yml@v2
     with:
       component: ${{ inputs.component }}
       environment: ${{ inputs.environment }}

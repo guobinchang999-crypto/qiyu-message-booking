@@ -1,5 +1,0 @@
-creation_rules:
-  - path_regex: ^\.github/pipeline/environments/stage\.sops\.yaml$
-    age: age1ehph5e6803mx8wh9yu4guae0g298pmcpxw0ewgy6skg2jz2p4aps59cnzv
-  - path_regex: ^\.github/pipeline/environments/production\.sops\.yaml$
-    age: age1xf9mequ76aa0jk6t98cl8fmcmkl2cs09aep8604p4jyep0lyz4mq82668x

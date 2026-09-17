@@ -10,6 +10,13 @@ spring:
     exclude:
       - cn.dev33.satoken.dao.SaTokenDaoRedisJackson
 
+# Environment-specific files may contain ENC(...) values. The decrypt key is
+# injected only when the application starts and is never stored in the image.
+jasypt:
+  encryptor:
+    password: ${JASYPT_ENCRYPTOR_PASSWORD:}
+    algorithm: PBEWITHHMACSHA512ANDAES_256
+
 springdoc:
   swagger-ui:
     path: /doc.html

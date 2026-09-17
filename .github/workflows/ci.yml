@@ -42,7 +42,7 @@ jobs:
       contents: write
       packages: write
       actions: write
-    uses: guobinchang999-crypto/github-pipelines/.github/workflows/ci.yml@v1
+    uses: guobinchang999-crypto/github-pipelines/.github/workflows/ci.yml@v2
     with:
       component: ${{ inputs.component || 'auto' }}
       run_checks: ${{ inputs.run_checks || false }}
