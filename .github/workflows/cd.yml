@@ -1,0 +1,41 @@
+# This caller owns the deployment UI. The selected GitHub Environment controls
+# the runner, approval policy and the single SOPS_AGE_KEY secret.
+name: Qiyu CD Pipeline
+
+run-name: Deploy ${{ inputs.component }} ${{ inputs.reference }} to ${{ inputs.environment }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Select component to deploy'
+        required: true
+        default: 'Java Backend'
+        type: choice
+        options:
+          - 'Java Backend'
+          - 'Admin Console'
+          - 'WeChat Mini Program'
+      environment:
+        description: 'Select deployment environment'
+        required: true
+        type: environment
+      reference:
+        description: 'Image version/digest or Mini Program artifact/version'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+  actions: read
+
+jobs:
+  pipeline:
+    name: Run Reusable CD
+    uses: guobinchang999-crypto/github-pipelines/.github/workflows/cd.yml@v1
+    with:
+      component: ${{ inputs.component }}
+      environment: ${{ inputs.environment }}
+      reference: ${{ inputs.reference }}
+      config_path: .github/pipeline/project.yml

@@ -3,6 +3,8 @@ import { defineConfig } from '@umijs/max';
 export default defineConfig({
   npmClient: 'npm',
   title: '栖愈运营中心',
+  // Load deployment-time settings before the compiled application bundle.
+  headScripts: [{ src: '/runtime-config.js' }],
   favicons: [],
   initialState: {},
   layout: {},

@@ -1,0 +1,50 @@
+schema_version: 1
+project: qiyu-message-booking
+
+defaults:
+  java_version: "21"
+  node_version: "22"
+  container_platform: linux/amd64
+
+components:
+  java-backend:
+    type: maven-container
+    display_name: Java Backend
+    path: qiyu-server
+    image: qiyu-server
+    version_file: pom.xml
+    dockerfile: Dockerfile
+    deploy:
+      container_name: qiyu-server
+      container_port: 8080
+      host_port: 8080
+      health_timeout_seconds: 180
+
+  admin-console:
+    type: npm-container
+    display_name: Admin Console
+    path: qiyu-admin-pro
+    image: qiyu-admin
+    version_file: package.json
+    dockerfile: Dockerfile
+    deploy:
+      container_name: qiyu-admin
+      container_port: 80
+      host_port: 8001
+      health_timeout_seconds: 120
+
+  wechat-miniprogram:
+    type: npm-miniprogram
+    display_name: WeChat Mini Program
+    path: qiyu-client
+    version_file: package.json
+    artifact_prefix: qiyu-client
+    app_id: wxfa089b19af69170f
+
+environments:
+  stage:
+    runner_labels: [self-hosted, linux, x64, qiyu-stage]
+    encrypted_config: .github/pipeline/environments/stage.sops.yaml
+  production:
+    runner_labels: [self-hosted, linux, x64, qiyu-production]
+    encrypted_config: .github/pipeline/environments/production.sops.yaml

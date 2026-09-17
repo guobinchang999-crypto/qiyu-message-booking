@@ -227,120 +227,74 @@ npm install
 
 ## CI/CD
 
-CI 与 CD 分开维护：`.github/workflows/ci.yml` 负责检查和打包，`.github/workflows/cd-java.yml` 负责将已经发布的 Java 后端镜像部署到 Stage 演示服务器。CD 不重新编译源码，也不使用 Docker Compose。
+本项目的 CI 与 CD 使用私有仓库 [`guobinchang999-crypto/github-pipelines`](https://github.com/guobinchang999-crypto/github-pipelines) 中的 `v1` 公共流水线。业务仓库只保留运行界面和 [`.github/pipeline/project.yml`](.github/pipeline/project.yml) 项目清单；构建、版本校验、SOPS 解密、容器部署、健康检查和回滚由公共仓库统一维护。
 
-### 手动打包
+### CI：检查与打包
 
-进入仓库的 **Actions → Qiyu CI Pipeline → Run workflow**，先用 GitHub 自带的分支下拉框选择代码分支，再从 **Select component to build** 下拉框中选择一个组件。默认选择 **Java Backend**：
+进入 **Actions → Qiyu CI Pipeline → Run workflow**，先用 GitHub 自带的分支选择器选择代码分支，再选择一个组件：
 
-- **Java Backend**：构建并推送 `qiyu-server` Docker 镜像。
-- **Admin Console**：构建并推送 `qiyu-admin` Docker 镜像。
-- **WeChat Mini Program**：生成可以导入微信开发者工具的 ZIP Artifact。
-- **Run tests and quality checks**：非 main 分支可以取消；main 分支始终强制执行。
+- **Java Backend**：运行 Maven 检查并发布 `qiyu-server` GHCR 镜像。
+- **Admin Console**：运行 npm 检查并发布 `qiyu-admin` GHCR 镜像。
+- **WeChat Mini Program**：运行完整校验并发布可部署的 ZIP Artifact。
+- **Run tests and quality checks**：非 main 分支可取消；main 和 Pull Request 始终强制执行。
 
-手动运行每次打包一个组件，并始终以 **Build Result** 作为最后一个节点。成功后，该节点会集中显示源码版本、提交、镜像地址、不可变 Digest 地址、GHCR 页面链接和拉取命令；小程序则显示 Artifact 下载链接和摘要。Pull Request 会自动识别变化的组件并执行检查，可同时检查多个组件；它不会登录 GHCR，也不会发布任何产物。修改统一 CI 工作流时会检查全部组件。
+Pull Request 自动识别发生变化的组件，只运行检查和 Docker 构建验证，不登录 GHCR、不发布产物，也不读取任何环境密钥。修改 CI 入口或项目清单时会检查全部组件。
 
-### 版本与产物
-
-版本由源码维护，CI 不自动修改版本：
-
-- Java 后端：`qiyu-server/pom.xml` 的 Maven `project.version`。
-- 管理后台：`qiyu-admin-pro/package.json`，并与 `package-lock.json` 保持一致。
-- 微信小程序：`qiyu-client/package.json`，并与 `package-lock.json` 保持一致。
-
-版本必须使用 `X.Y.Z` 格式。更新前端版本时，在对应目录执行 `npm version patch --no-git-tag-version` 可以同时更新两个 npm 文件。
-
-main 分支产物直接使用源码版本，例如：
+版本由源码人工维护，必须使用 `X.Y.Z`：Java 读取 `qiyu-server/pom.xml`，后台和小程序读取各自 `package.json` 并校验 `package-lock.json`。main 生成正式版本，其他分支生成可覆盖的 `X.Y.Z-SNAPSHOT`。精确部署某次容器构建时，应使用 Build Result 中的不可变 Digest。
 
 ```text
-ghcr.io/<repository-owner>/qiyu-server:0.1.0
-ghcr.io/<repository-owner>/qiyu-admin:0.1.0
-qiyu-client-0.1.0.zip
-```
-
-非 main 分支只增加 Snapshot 后缀，例如：
-
-```text
-ghcr.io/<repository-owner>/qiyu-server:0.1.0-SNAPSHOT
-ghcr.io/<repository-owner>/qiyu-admin:0.1.0-SNAPSHOT
+ghcr.io/<owner>/qiyu-server:0.1.0
+ghcr.io/<owner>/qiyu-server:0.1.0-SNAPSHOT
+ghcr.io/<owner>/qiyu-admin:0.1.0
 qiyu-client-0.1.0-SNAPSHOT.zip
 ```
 
-Snapshot 标签允许覆盖，方便 CD 始终通过确定的版本标签部署最新一次 Snapshot 构建。需要锁定某次构建时，使用 **Build Result** 中的 `ghcr.io/...@sha256:...` 不可变地址。Docker Action 自带的构建摘要和 `.dockerbuild` 记录已关闭，避免它们覆盖主要交付信息。
+main 发布前会检查 Git Tag 和 GHCR 镜像是否重复。成功后创建 `qiyu-server-vX.Y.Z`、`qiyu-admin-vX.Y.Z` 或 `qiyu-client-vX.Y.Z`；小程序正式包同时保存为 GitHub Release Asset。CI 使用仓库内置 `GITHUB_TOKEN`，无需配置 `GHCR_USERNAME` 或 `GHCR_PAT`。
 
-main 发布前会检查组件 Git Tag 和 GHCR 镜像标签是否重复。发布成功后创建 `qiyu-server-vX.Y.Z`、`qiyu-admin-vX.Y.Z` 或 `qiyu-client-vX.Y.Z` 标签；再次发布相同组件版本会失败。
+### CD：选择环境并部署
 
-### Java 后端 Stage 演示环境部署
+进入 **Actions → Qiyu CD Pipeline → Run workflow**：
 
-进入 **Actions → Qiyu Java CD Pipeline → Run workflow**，保持 **Use workflow from** 为 `main`，在 **Image version or digest** 中填写以下任一形式：
+1. **Use workflow from** 保持 `main`。GitHub 固定显示这个选择器，公共流水线还会再次拒绝非 main 调用。
+2. 选择 **Java Backend**、**Admin Console** 或 **WeChat Mini Program**。
+3. Environment 选择 `stage` 或 `production`。
+4. Reference 输入 CI 的 Build Result 给出的值。
+
+容器支持 `X.Y.Z-SNAPSHOT`、`X.Y.Z`、`sha256:<digest>` 或本项目对应镜像的完整 GHCR Digest 地址。`production` 拒绝 Snapshot。Stage 小程序使用 `artifact:<id>` 或正式版本；Production 小程序只接受正式 `X.Y.Z`，并上传标记为 `production-candidate` 的体验版，不自动提交微信审核或发布线上版本。
+
+Java 和后台部署在环境专属自托管 Runner 上直接执行 Docker，不使用 SSH 或 Docker Compose。流水线先完成输入校验、SOPS 解密、GHCR 登录和镜像拉取，再停止旧容器。新容器通过 Docker HEALTHCHECK 后删除回滚容器；失败时保留有限日志并自动恢复旧容器。Flyway 已执行的数据库迁移不会随容器回滚，因此数据库变更必须保持向后兼容。
+
+后台镜像通过 `/runtime-config.js` 接收环境 API 地址，同一个镜像可以部署到不同环境。小程序上传前会写入对应环境的 HTTPS API 地址并重新计算上传源码摘要。
+
+### SOPS 加密配置
+
+`stage` 和 `production` 配置分别保存在：
 
 ```text
-0.0.1-SNAPSHOT
-0.0.1
-sha256:<64位小写十六进制摘要>
-ghcr.io/<repository-owner>/qiyu-server@sha256:<64位小写十六进制摘要>
+.github/pipeline/environments/stage.sops.yaml
+.github/pipeline/environments/production.sops.yaml
 ```
 
-CD 只允许部署当前仓库所属账号下的 `qiyu-server` 镜像。版本输入会转换为完整 GHCR 地址，Digest 输入用于精确重放或回滚某一次构建。GitHub 的手动运行界面不能动态读取 GHCR 标签，因此版本或 Digest 使用文本输入。
+这些文件使用 SOPS 3.13.3 和每个环境独立的 age 公钥逐字段加密。数据库密码、Redis 密码、MinIO 凭据和微信上传私钥均以密文提交。GitHub 中每个 Environment 只保存一个 Secret：`SOPS_AGE_KEY`，值为对应 age 私钥文件的完整内容。
 
-部署任务只会发送到带有 `qiyu-stage` 标签的 Linux x86_64 自托管 Runner。脚本会先拉取镜像，再停止并保留当前容器；新容器在 180 秒内通过 `/actuator/health` 检查后才删除旧容器。启动失败或健康检查失败时会自动恢复旧容器，并将工作流标记为失败。Flyway 已执行的数据库迁移不会被容器回滚撤销，因此迁移必须保持向后兼容。
+编辑时在安全的本机设置私钥文件，再由 SOPS 就地解密编辑并重新加密：
 
-目标服务器上的 MySQL、Redis 和可选 MinIO 通过 `host.docker.internal` 访问。部署命令会自动添加 `host.docker.internal:host-gateway`，宿主机服务仍需监听 Docker 网桥可达地址，并允许来自 Docker 网桥的连接。容器固定使用 `db` profile、`8080:8080` 端口映射和 `unless-stopped` 重启策略。
+```bash
+SOPS_AGE_KEY_FILE=/secure/path/stage.agekey sops .github/pipeline/environments/stage.sops.yaml
+```
 
-部署成功或失败后，任务 Summary 会显示操作者、输入值、完整镜像地址、不可变 Digest、健康状态、回滚状态和 Stage 演示环境入口。
+禁止提交 `.agekey` 私钥或解密后的配置。公共 Action 会在输出日志前掩码解密值，并在成功、失败和回滚路径中删除权限为 `600` 的临时文件。
 
-### GitHub 配置
+### 首次配置
 
-在仓库 **Settings → Secrets and variables → Actions** 配置仓库级参数，以便手动打包任意分支。
+1. 在公共 Pipeline 仓库的 **Settings → Actions → General → Access** 中允许本业务仓库调用私有 Reusable Workflows。
+2. 创建 GitHub Environments：`stage`、`production`，各添加唯一 Secret `SOPS_AGE_KEY`。Production 配置 Required Reviewers，并只允许 main 部署。
+3. 准备 Linux x86_64 自托管 Runner：Stage 标签为 `qiyu-stage`，Production 标签为 `qiyu-production`。容器 Runner 需安装 Docker，并允许 Runner 用户无需 `sudo` 操作 Docker。
+4. MySQL、Redis 和 MinIO 位于宿主机时，配置中的主机使用 `host.docker.internal`；宿主机服务必须监听 Docker 网桥可达地址。
+5. 微信公众平台生成代码上传私钥，将固定出口 Runner 的公网 IP 加入上传白名单，再把私钥写入对应 SOPS 配置。
 
-Variables（非私密）：
+Java 固定映射 `8080:8080`，后台固定映射 `8001:80`。Stage 与 Production 使用同一个微信 AppID；前者上传体验版，后者上传候选体验版。
 
-| 名称 | 说明 |
-| --- | --- |
-| `GHCR_USERNAME` | 创建 `GHCR_PAT` 的 GitHub 用户名 |
-
-Secrets（私密）：
-
-| 名称 | 说明 |
-| --- | --- |
-| `GHCR_PAT` | GitHub Container Registry 访问令牌，需要 `write:packages` 权限；需要删除镜像时再增加 `delete:packages` |
-
-main 发布标签需要工作流具有 `contents: write` 权限。如果仓库将 Actions 默认权限限制为只读，需要在 **Settings → Actions → General → Workflow permissions** 允许工作流写入仓库内容。小程序 Artifact 保留30天。
-
-### Java CD 首次配置
-
-1. 在 Stage 演示环境的 Linux x86_64 服务器安装 Docker，确保部署用户无需 `sudo` 即可执行 `docker ps`。
-2. 在 **Settings → Actions → Runners → New self-hosted runner** 注册服务器，添加 `qiyu-stage` 标签，并将 Runner 安装成系统服务。
-3. 创建 GitHub Environment `stage`，在 **Deployment branches and tags** 中只允许 `main`，防止其他分支访问部署密钥或占用演示环境 Runner。
-4. 在 `stage` Environment 中配置下列 Variables 和 Secrets。仓库已有的 `GHCR_USERNAME` 与 `GHCR_PAT` 继续复用；CD 只需要读取私有镜像。
-
-Variables：
-
-| 名称 | 必填 | 说明 |
-| --- | --- | --- |
-| `APP_BASE_URL` | 是 | Stage 演示服务入口，例如 `http://<server>:8080` |
-| `QIYU_DB_URL` | 是 | 使用 `host.docker.internal` 的完整 JDBC URL |
-| `QIYU_REDIS_PORT` | 否 | Redis 端口，默认 `6379` |
-| `JAVA_OPTS` | 否 | JVM 参数；省略时使用镜像默认值 |
-| `QIYU_MINIO_ENABLED` | 否 | 默认 `false` |
-| `QIYU_MINIO_ENDPOINT` | 启用 MinIO 时 | MinIO S3 API 地址 |
-| `QIYU_MINIO_BUCKET` | 启用 MinIO 时 | 桶名称 |
-| `QIYU_MINIO_PUBLIC_BASE_URL` | 否 | 对外资源 URL 前缀 |
-| `QIYU_MINIO_PUBLIC_READ` | 否 | 默认 `false` |
-| `QIYU_MINIO_SEED_ENABLED` | 否 | 默认 `false` |
-
-Secrets：
-
-| 名称 | 必填 | 说明 |
-| --- | --- | --- |
-| `QIYU_DB_USERNAME` | 是 | Stage 数据库用户名 |
-| `QIYU_DB_PASSWORD` | 是 | Stage 数据库密码 |
-| `QIYU_REDIS_PASSWORD` | 否 | Redis 无认证时省略 |
-| `ADMIN_INITIAL_PASSWORD` | 首次初始化时 | 已存在管理员数据后可以省略 |
-| `QIYU_MINIO_ACCESS_KEY` | 启用 MinIO 时 | MinIO 访问键 |
-| `QIYU_MINIO_SECRET_KEY` | 启用 MinIO 时 | MinIO 密钥 |
-
-自托管 Runner 必须保持在线并能访问 GitHub、GHCR 和宿主机依赖。不要让 Pull Request 工作流使用 `qiyu-stage` 标签；当前 CI 仍只使用 GitHub 托管 Runner。
 
 ## 当前阶段
 

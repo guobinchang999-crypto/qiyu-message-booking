@@ -1,3 +1,5 @@
+import { deploymentConfig } from './deployment';
+
 export type ApiMode = 'dev' | 'prod';
 
 export interface ApiConfig {
@@ -29,11 +31,13 @@ const readStoredApiMode = (): ApiMode => {
   }
 };
 
-export const apiMode: ApiMode = readStoredApiMode();
+const hasDeploymentConfig = deploymentConfig.mode === 'prod' && /^https:\/\//.test(deploymentConfig.baseUrl);
+export const apiMode: ApiMode = hasDeploymentConfig ? 'prod' : readStoredApiMode();
 const storedBaseUrl = typeof wx !== 'undefined' && typeof wx.getStorageSync === 'function'
   ? String(wx.getStorageSync(API_BASE_URL_STORAGE_KEY) || '').replace(/\/$/, '') : '';
-export const apiConfig: ApiConfig = apiMode === 'prod' && storedBaseUrl
-  ? { ...apiConfigs.prod, baseUrl: storedBaseUrl } : apiConfigs[apiMode];
+export const apiConfig: ApiConfig = hasDeploymentConfig
+  ? { ...apiConfigs.prod, baseUrl: deploymentConfig.baseUrl.replace(/\/$/, '') }
+  : (apiMode === 'prod' && storedBaseUrl ? { ...apiConfigs.prod, baseUrl: storedBaseUrl } : apiConfigs[apiMode]);
 
 /**
  * Stores the selected real API environment. The caller must relaunch the Mini Program after

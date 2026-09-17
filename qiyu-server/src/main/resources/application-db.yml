@@ -13,8 +13,24 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
     validate-on-migrate: true
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      timeout: 3s
 
 qiyu:
   auth:
     persistence: true
     initial-admin-password: ${ADMIN_INITIAL_PASSWORD:}
+  storage:
+    minio:
+      enabled: ${QIYU_MINIO_ENABLED:false}
+      endpoint: ${QIYU_MINIO_ENDPOINT:}
+      access-key: ${QIYU_MINIO_ACCESS_KEY:}
+      secret-key: ${QIYU_MINIO_SECRET_KEY:}
+      bucket: ${QIYU_MINIO_BUCKET:qiyu}
+      public-base-url: ${QIYU_MINIO_PUBLIC_BASE_URL:${QIYU_MINIO_ENDPOINT:}}
+      public-read: ${QIYU_MINIO_PUBLIC_READ:false}
+      seed-enabled: ${QIYU_MINIO_SEED_ENABLED:false}
