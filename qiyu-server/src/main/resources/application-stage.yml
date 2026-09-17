@@ -5,7 +5,7 @@ spring:
   datasource:
     url: jdbc:mysql://host.docker.internal:3306/qiyu_booking?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
     username: qiyu
-    password: 'ENC(Sci5JS8V/M8EaZLJMCDCTEhHakqmbpHZeh0pR0XkyC2UymyN3HaRVApUIIxoHj/zmaMytvczVIqQa7Rr7A5RbQ==)'
+    password: 'ENC(ZLN1k9ghw6V97SzRMwolDwNVgUiJzG+1uVmlVlhiobaGiu0MUEHGx2fnZSjt98gRRYnzcurHxNAMX1ab77po/OF2Etbn+2VSCL685EtlHRZCd6dA+8fj80PSjAwHtMXB)'
     driver-class-name: com.mysql.cj.jdbc.Driver
   flyway:
     enabled: true
@@ -17,13 +17,13 @@ spring:
     redis:
       host: host.docker.internal
       port: 6379
-      password: ''
+      password: 'ENC(tpyFoSvCkizq94C9+siPoHCkSeQedHRmbciJNcsvYyYXNUutg0n6W5pFLlwRLXWA)'
       timeout: 3s
 
 qiyu:
   auth:
     persistence: true
-    initial-admin-password: 'ENC(12K1V4r4hlllqPu90TCuNVDyGnS/4mvWyo0w3zjJ/LdZqzPc+2EMG6bQYJ1czJ/T1+L/YQyWfSU4WgPnGGvhAg==)'
+    initial-admin-password: 'ENC(JdYl+VvbqdbGV14QMS0ROrWuTKIepMK4MKYDeu+smsdg4KcPuK/gkBmN/C4lJNo9)'
   storage:
     minio:
       enabled: false

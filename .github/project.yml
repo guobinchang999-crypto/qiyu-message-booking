@@ -44,5 +44,6 @@ components:
 environments:
   stage:
     runner_labels: [self-hosted, linux, x64, qiyu-stage]
+    application_url: http://192.168.31.100:8080
   production:
     runner_labels: [self-hosted, linux, x64, qiyu-production]
