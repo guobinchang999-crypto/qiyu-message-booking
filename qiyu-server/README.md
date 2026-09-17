@@ -20,12 +20,12 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 Jasypt `ENC(...)` 密文；对应明文密钥不进入 Git、Docker 镜像或应用配置文件。
 
 GitHub CD 根据所选 Environment 设置 `SPRING_PROFILES_ACTIVE`，并将该 Environment 的
-`CONFIG_ENCRYPTION_KEY` Secret 作为 `JASYPT_ENCRYPTOR_PASSWORD` 注入容器。手工运行示例：
+`ENCRYPTION_KEY` Secret 作为 `JASYPT_ENCRYPTOR_PASSWORD` 注入容器。手工运行示例：
 
 ```bash
 docker run --rm \
   -e SPRING_PROFILES_ACTIVE=stage \
-  -e JASYPT_ENCRYPTOR_PASSWORD="$CONFIG_ENCRYPTION_KEY" \
+  -e JASYPT_ENCRYPTOR_PASSWORD="$ENCRYPTION_KEY" \
   ghcr.io/<owner>/qiyu-server:<version>
 ```
 
@@ -33,7 +33,7 @@ docker run --rm \
 
 ```bash
 mvn jasypt:encrypt-value \
-  -Djasypt.encryptor.password="$CONFIG_ENCRYPTION_KEY" \
+  -Djasypt.encryptor.password="$ENCRYPTION_KEY" \
   -Djasypt.plugin.value='actual-secret'
 ```
 

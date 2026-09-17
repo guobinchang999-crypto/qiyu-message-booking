@@ -275,13 +275,13 @@ qiyu-server/src/main/resources/application-stage.yml
 qiyu-server/src/main/resources/application-production.yml
 ```
 
-数据库密码、初始管理员密码等敏感值使用 Jasypt `ENC(...)` 密文。CD 不读取或解密业务配置，只将所选 GitHub Environment 的 `CONFIG_ENCRYPTION_KEY` 作为 `JASYPT_ENCRYPTOR_PASSWORD` 注入容器，并设置同名 Spring Profile。
+数据库密码、初始管理员密码等敏感值使用 Jasypt `ENC(...)` 密文。CD 不读取或解密业务配置，只将所选 GitHub Environment 的 `ENCRYPTION_KEY` 作为 `JASYPT_ENCRYPTOR_PASSWORD` 注入容器，并设置同名 Spring Profile。
 
 生成单个属性密文：
 
 ```bash
 mvn jasypt:encrypt-value \
-  -Djasypt.encryptor.password="$CONFIG_ENCRYPTION_KEY" \
+  -Djasypt.encryptor.password="$ENCRYPTION_KEY" \
   -Djasypt.plugin.value='actual-secret'
 ```
 
@@ -290,7 +290,7 @@ mvn jasypt:encrypt-value \
 ### 首次配置
 
 1. 在公共 Pipeline 仓库的 **Settings → Actions → General → Access** 中允许本业务仓库调用私有 Reusable Workflows。
-2. 创建 GitHub Environments：`stage`、`production`，各添加 Secret `CONFIG_ENCRYPTION_KEY`。Production 配置 Required Reviewers，并只允许 main 部署。
+2. 创建 GitHub Environments：`stage`、`production`，各添加 Secret `ENCRYPTION_KEY`。Production 配置 Required Reviewers，并只允许 main 部署。
 3. 准备 Linux x86_64 自托管 Runner：Stage 标签为 `qiyu-stage`，Production 标签为 `qiyu-production`。容器 Runner 需安装 Docker，并允许 Runner 用户无需 `sudo` 操作 Docker。
 4. MySQL、Redis 和 MinIO 位于宿主机时，配置中的主机使用 `host.docker.internal`；宿主机服务必须监听 Docker 网桥可达地址。
 5. 若部署小程序，在两个 Environment 中配置 `WECHAT_UPLOAD_PRIVATE_KEY`，并将固定出口 Runner 的公网 IP 加入微信代码上传白名单。
